@@ -7,364 +7,638 @@
     Includes Windows 10/11 security recommendations from Microsoft (50+ checks).
 #>
 
-function Invoke-MSChecks {
-    param([string]$Severity = 'ALL')
-    
-    $results = @{Passed=@(); Failed=@(); Warnings=@(); Info=@()}
-    
-    function Add-Check {
-        param($Category,$Status,$Message,$Details="",$Current="N/A",$Expected="N/A",$Sev="Medium",$Remediation="",$MSControl="")
-        
-        if($Severity -ne 'ALL' -and $Severity -ne $Sev){return}
-        
-        $result = [PSCustomObject]@{
-            Category=$Category; Status=$Status; Message=$Message; Details=$Details
-            CurrentValue=$Current; ExpectedValue=$Expected; Severity=$Sev
-            Remediation=$Remediation; Frameworks="MS $MSControl"
-        }
-        
-        $results.$Status += $result
+# Module-MS.ps1
+# Microsoft Security Baseline Compliance Module
+# Based on Microsoft Security Compliance Toolkit baselines
+
+param(
+    [Parameter(Mandatory=$false)]
+    [hashtable]$SharedData = @{}
+)
+
+$moduleName = "MS-Baseline"
+$results = @()
+
+# Helper function to add results
+function Add-Result {
+    param($Category, $Status, $Message, $Details = "", $Remediation = "")
+    $script:results += [PSCustomObject]@{
+        Module = $moduleName
+        Category = $Category
+        Status = $Status
+        Message = $Message
+        Details = $Details
+        Remediation = $Remediation
+        Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     }
-    
-    Write-Host "Running Microsoft Security Baseline Checks..." -ForegroundColor Cyan
-    
-    # Windows Defender Advanced Features
-    try {
-        $mpPref = Get-MpPreference -ErrorAction Stop
-        
-        # Attack Surface Reduction Rules
-        if($mpPref.AttackSurfaceReductionRules_Ids.Count -gt 0){
-            Add-Check -Category "Defender ATP" -Status "Passed" -Message "ASR rules configured ($($mpPref.AttackSurfaceReductionRules_Ids.Count) rules)" `
-                -Current "$($mpPref.AttackSurfaceReductionRules_Ids.Count) rules" -Expected "1+ rules" -Sev "Medium" -MSControl "ASR"
-        } else {
-            Add-Check -Category "Defender ATP" -Status "Warnings" -Message "No ASR rules configured" `
-                -Current "0 rules" -Expected "1+ rules" -Sev "Medium" `
-                -Details "ASR reduces attack vectors" -MSControl "ASR"
-        }
-        
-        # Controlled Folder Access
-        $cfaStatus = switch($mpPref.EnableControlledFolderAccess){
-            0{"Disabled"} 1{"Enabled"} 2{"Audit Mode"} default{"Unknown"}
-        }
-        if($mpPref.EnableControlledFolderAccess -eq 1){
-            Add-Check -Category "Defender ATP" -Status "Passed" -Message "Controlled Folder Access enabled" `
-                -Current $cfaStatus -Expected "Enabled" -Sev "Medium" -MSControl "CFA"
-        } else {
-            Add-Check -Category "Defender ATP" -Status "Warnings" -Message "Controlled Folder Access not enabled" `
-                -Current $cfaStatus -Expected "Enabled" -Sev "Medium" `
-                -Details "Protects against ransomware" -MSControl "CFA"
-        }
-        
-        # Network Protection
-        $netProtect = switch($mpPref.EnableNetworkProtection){
-            0{"Disabled"} 1{"Enabled"} 2{"Audit Mode"} default{"Unknown"}
-        }
-        if($mpPref.EnableNetworkProtection -eq 1){
-            Add-Check -Category "Defender ATP" -Status "Passed" -Message "Network Protection enabled" `
-                -Current $netProtect -Expected "Enabled" -Sev "Medium" -MSControl "NetProtect"
-        } else {
-            Add-Check -Category "Defender ATP" -Status "Warnings" -Message "Network Protection not enabled" `
-                -Current $netProtect -Expected "Enabled" -Sev "Medium" `
-                -Details "Blocks connections to malicious domains" -MSControl "NetProtect"
-        }
-        
-        # Cloud-delivered protection extended timeout
-        $cloudExtTimeout = $mpPref.MAPSReporting
-        if($cloudExtTimeout -eq 2){
-            Add-Check -Category "Defender ATP" -Status "Passed" -Message "MAPS reporting set to Advanced" `
-                -Current "Advanced" -Expected "Advanced" -Sev "High" -MSControl "MAPS"
-        }
-        
-        # Block at First Sight
-        $bafs = $mpPref.DisableBlockAtFirstSeen
-        if($bafs -eq $false){
-            Add-Check -Category "Defender ATP" -Status "Passed" -Message "Block at First Sight enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "High" -MSControl "BAFS"
-        } else {
-            Add-Check -Category "Defender ATP" -Status "Failed" -Message "Block at First Sight DISABLED" `
-                -Current "Disabled" -Expected "Enabled" -Sev "High" `
-                -Remediation "Set-MpPreference -DisableBlockAtFirstSeen `$false" -MSControl "BAFS"
-        }
-        
-    } catch {
-        Add-Check -Category "Defender ATP" -Status "Warnings" -Message "Cannot query Defender" `
-            -Details $_.Exception.Message -Sev "High"
-    }
-    
-    # Virtualization-Based Security
-    $vbsPath = "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard"
-    
-    $vbs = (Get-ItemProperty -Path $vbsPath -Name "EnableVirtualizationBasedSecurity" -ErrorAction SilentlyContinue).EnableVirtualizationBasedSecurity
-    if($vbs -eq 1){
-        Add-Check -Category "VBS" -Status "Passed" -Message "Virtualization-based security enabled" `
-            -Current "Enabled" -Expected "Enabled" -Sev "High" -MSControl "VBS"
-    } else {
-        Add-Check -Category "VBS" -Status "Warnings" -Message "VBS not enabled" `
-            -Current "Disabled/Not Configured" -Expected "Enabled" -Sev "High" `
-            -Details "Requires compatible hardware (TPM 2.0, UEFI)" -MSControl "VBS"
-    }
-    
-    # Require Platform Security Features
-    $platformSec = (Get-ItemProperty -Path $vbsPath -Name "RequirePlatformSecurityFeatures" -ErrorAction SilentlyContinue).RequirePlatformSecurityFeatures
-    if($platformSec -eq 1 -or $platformSec -eq 3){
-        Add-Check -Category "VBS" -Status "Passed" -Message "Platform security features required" `
-            -Current $(if($platformSec -eq 1){"Secure Boot"}else{"Secure Boot + DMA"}) -Expected "Enabled" -Sev "High" -MSControl "PlatformSec"
-    }
-    
-    # Credential Guard
-    $credGuard = (Get-ItemProperty -Path $vbsPath -Name "LsaCfgFlags" -ErrorAction SilentlyContinue).LsaCfgFlags
-    if($credGuard -eq 1 -or $credGuard -eq 2){
-        Add-Check -Category "Credential Protection" -Status "Passed" -Message "Credential Guard enabled" `
-            -Current $(if($credGuard -eq 1){"Enabled with lock"}else{"Enabled without lock"}) -Expected "Enabled" -Sev "High" -MSControl "CredGuard"
-    } else {
-        Add-Check -Category "Credential Protection" -Status "Warnings" -Message "Credential Guard not enabled" `
-            -Current "Not Configured" -Expected "Enabled" -Sev "High" `
-            -Details "Requires VBS and compatible hardware" -MSControl "CredGuard"
-    }
-    
-    # HVCI (Hypervisor-Enforced Code Integrity)
-    $hvci = (Get-ItemProperty -Path "$vbsPath\Scenarios\HypervisorEnforcedCodeIntegrity" -Name "Enabled" -ErrorAction SilentlyContinue).Enabled
-    if($hvci -eq 1){
-        Add-Check -Category "VBS" -Status "Passed" -Message "HVCI (Memory Integrity) enabled" `
-            -Current "Enabled" -Expected "Enabled" -Sev "High" -MSControl "HVCI"
-    } else {
-        Add-Check -Category "VBS" -Status "Warnings" -Message "HVCI not enabled" `
-            -Current "Disabled/Not Configured" -Expected "Enabled" -Sev "High" `
-            -Details "Requires compatible hardware and drivers" -MSControl "HVCI"
-    }
-    
-    # Secure Boot
-    try {
-        $secureBootStatus = Confirm-SecureBootUEFI
-        if($secureBootStatus){
-            Add-Check -Category "Boot Security" -Status "Passed" -Message "Secure Boot enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "High" -MSControl "SecureBoot"
-        } else {
-            Add-Check -Category "Boot Security" -Status "Failed" -Message "Secure Boot NOT enabled" `
-                -Current "Disabled" -Expected "Enabled" -Sev "High" `
-                -Details "Enable in UEFI/BIOS settings" `
-                -Remediation "# Enable Secure Boot in UEFI firmware settings" `
-                -MSControl "SecureBoot"
-        }
-    } catch {
-        Add-Check -Category "Boot Security" -Status "Info" -Message "Secure Boot status unavailable" `
-            -Details "May not be using UEFI or not supported" -Sev "High" -MSControl "SecureBoot"
-    }
-    
-    # Early Launch Anti-Malware
-    $elamPath = "HKLM:\SYSTEM\CurrentControlSet\Policies\EarlyLaunch"
-    $driverLoadPolicy = (Get-ItemProperty -Path $elamPath -Name "DriverLoadPolicy" -ErrorAction SilentlyContinue).DriverLoadPolicy
-    if($driverLoadPolicy -eq 3 -or $driverLoadPolicy -eq 1){
-        $policy = switch($driverLoadPolicy){1{"Good only"}3{"Good and unknown"}default{"Unknown"}}
-        Add-Check -Category "Boot Security" -Status "Passed" -Message "Early launch driver policy configured" `
-            -Current $policy -Expected "Good only/Good and unknown" -Sev "Medium" -MSControl "ELAM"
-    } else {
-        Add-Check -Category "Boot Security" -Status "Warnings" -Message "Early launch driver policy not optimal" `
-            -Current "Not Set/Bad" -Expected "Good only" -Sev "Medium" -MSControl "ELAM"
-    }
-    
-    # SmartScreen
-    $smartScreenPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
-    $smartScreen = (Get-ItemProperty -Path $smartScreenPath -Name "EnableSmartScreen" -ErrorAction SilentlyContinue).EnableSmartScreen
-    if($smartScreen -eq 1){
-        Add-Check -Category "SmartScreen" -Status "Passed" -Message "SmartScreen enabled" `
-            -Current "Enabled" -Expected "Enabled" -Sev "Medium" -MSControl "SmartScreen"
-    } else {
-        Add-Check -Category "SmartScreen" -Status "Failed" -Message "SmartScreen NOT enabled" `
-            -Current "Disabled" -Expected "Enabled" -Sev "Medium" `
-            -Details "SmartScreen protects against phishing and malware" `
-            -Remediation "New-Item -Path '$smartScreenPath' -Force; Set-ItemProperty -Path '$smartScreenPath' -Name 'EnableSmartScreen' -Value 1" `
-            -MSControl "SmartScreen"
-    }
-    
-    $shellSmartScreen = (Get-ItemProperty -Path $smartScreenPath -Name "ShellSmartScreenLevel" -ErrorAction SilentlyContinue).ShellSmartScreenLevel
-    if($shellSmartScreen -eq "Block"){
-        Add-Check -Category "SmartScreen" -Status "Passed" -Message "SmartScreen set to Block" `
-            -Current "Block" -Expected "Block" -Sev "Medium" -MSControl "SmartScreen"
-    }
-    
-    # Exploit Protection
-    $exploitProtectionPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\App and Browser protection"
-    $disableExploitProtectOverride = (Get-ItemProperty -Path $exploitProtectionPath -Name "DisallowExploitProtectionOverride" -ErrorAction SilentlyContinue).DisallowExploitProtectionOverride
-    if($disableExploitProtectOverride -eq 1){
-        Add-Check -Category "Exploit Protection" -Status "Passed" -Message "Users cannot override exploit protection" `
-            -Current "Disabled override" -Expected "Disabled" -Sev "Medium" -MSControl "ExploitProtect"
-    } else {
-        Add-Check -Category "Exploit Protection" -Status "Warnings" -Message "Users can override exploit protection" `
-            -Current "Allowed" -Expected "Disabled" -Sev "Medium" -MSControl "ExploitProtect"
-    }
-    
-    # Windows Hello for Business
-    $whfbPath = "HKLM:\SOFTWARE\Policies\Microsoft\PassportForWork"
-    $whfbEnabled = (Get-ItemProperty -Path $whfbPath -Name "Enabled" -ErrorAction SilentlyContinue).Enabled
-    if($whfbEnabled -eq 1){
-        Add-Check -Category "Authentication" -Status "Passed" -Message "Windows Hello for Business enabled" `
-            -Current "Enabled" -Expected "Enabled" -Sev "Low" -MSControl "WHFB"
-    } else {
-        Add-Check -Category "Authentication" -Status "Info" -Message "Windows Hello for Business not enabled" `
-            -Details "Optional depending on environment" -Sev "Low" -MSControl "WHFB"
-    }
-    
-    # Require device encryption
-    $deviceEncryption = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\FVE" -Name "UseAdvancedStartup" -ErrorAction SilentlyContinue).UseAdvancedStartup
-    if($deviceEncryption -eq 1){
-        Add-Check -Category "Encryption" -Status "Passed" -Message "BitLocker advanced startup configured" `
-            -Current "Configured" -Expected "Configured" -Sev "High" -MSControl "BitLocker"
-    }
-    
-    # AppLocker
-    $applockerPolicies = Get-AppLockerPolicy -Effective -ErrorAction SilentlyContinue
-    if($applockerPolicies){
-        $ruleCount = ($applockerPolicies.RuleCollections | ForEach-Object{$_.Count} | Measure-Object -Sum).Sum
-        if($ruleCount -gt 0){
-            Add-Check -Category "Application Control" -Status "Passed" -Message "AppLocker policies active ($ruleCount rules)" `
-                -Current "$ruleCount rules" -Expected "1+ rules" -Sev "Medium" -MSControl "AppLocker"
-        }
-    } else {
-        Add-Check -Category "Application Control" -Status "Info" -Message "No AppLocker policies" `
-            -Details "Consider for high-security environments" -Sev "Medium" -MSControl "AppLocker"
-    }
-    
-    # Windows Sandbox
-    $sandbox = Get-WindowsOptionalFeature -Online -FeatureName "Containers-DisposableClientVM" -ErrorAction SilentlyContinue
-    if($sandbox -and $sandbox.State -eq "Enabled"){
-        Add-Check -Category "Isolation" -Status "Passed" -Message "Windows Sandbox available" `
-            -Current "Enabled" -Expected "Enabled (optional)" -Sev "Low" -MSControl "Sandbox"
-    }
-    
-    # Microsoft Edge Security (if installed)
-    $edgePath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
-    if(Test-Path $edgePath){
-        # Edge SmartScreen
-        $edgeSmartScreen = (Get-ItemProperty -Path $edgePath -Name "SmartScreenEnabled" -ErrorAction SilentlyContinue).SmartScreenEnabled
-        if($edgeSmartScreen -eq 1){
-            Add-Check -Category "Browser Security" -Status "Passed" -Message "Edge SmartScreen enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "Medium" -MSControl "EdgeSmartScreen"
-        } else {
-            Add-Check -Category "Browser Security" -Status "Failed" -Message "Edge SmartScreen not enabled" `
-                -Current "Disabled" -Expected "Enabled" -Sev "Medium" `
-                -Remediation "New-Item -Path '$edgePath' -Force; Set-ItemProperty -Path '$edgePath' -Name 'SmartScreenEnabled' -Value 1" `
-                -MSControl "EdgeSmartScreen"
-        }
-        
-        # Edge PUA blocking
-        $edgePUA = (Get-ItemProperty -Path $edgePath -Name "SmartScreenPuaEnabled" -ErrorAction SilentlyContinue).SmartScreenPuaEnabled
-        if($edgePUA -eq 1){
-            Add-Check -Category "Browser Security" -Status "Passed" -Message "Edge PUA blocking enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "Low" -MSControl "EdgePUA"
-        }
-        
-        # Site isolation
-        $siteIsolation = (Get-ItemProperty -Path $edgePath -Name "SitePerProcess" -ErrorAction SilentlyContinue).SitePerProcess
-        if($siteIsolation -eq 1){
-            Add-Check -Category "Browser Security" -Status "Passed" -Message "Edge site isolation enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "Medium" -MSControl "EdgeSiteIsolation"
-        }
-        
-        # Password manager
-        $passwordManager = (Get-ItemProperty -Path $edgePath -Name "PasswordManagerEnabled" -ErrorAction SilentlyContinue).PasswordManagerEnabled
-        if($null -ne $passwordManager){
-            Add-Check -Category "Browser Security" -Status "Info" -Message "Edge password manager: $(if($passwordManager -eq 1){'Enabled'}else{'Disabled'})" `
-                -Current $(if($passwordManager -eq 1){"Enabled"}else{"Disabled"}) -Expected "Based on policy" -Sev "Low" -MSControl "EdgePassword"
-        }
-        
-        # InPrivate mode
-        $inPrivate = (Get-ItemProperty -Path $edgePath -Name "InPrivateModeAvailability" -ErrorAction SilentlyContinue).InPrivateModeAvailability
-        if($inPrivate -eq 0){
-            Add-Check -Category "Browser Security" -Status "Info" -Message "Edge InPrivate mode available" `
-                -Current "Available" -Expected "Based on policy" -Sev "Low" -MSControl "EdgeInPrivate"
-        }
-    }
-    
-    # Windows Defender Application Guard
-    $wdag = Get-WindowsOptionalFeature -Online -FeatureName "Windows-Defender-ApplicationGuard" -ErrorAction SilentlyContinue
-    if($wdag -and $wdag.State -eq "Enabled"){
-        Add-Check -Category "Isolation" -Status "Passed" -Message "Application Guard enabled" `
-            -Current "Enabled" -Expected "Enabled (optional)" -Sev "Medium" -MSControl "WDAG"
-    }
-    
-    # Remote Assistance
-    $raPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Remote Assistance"
-    $allowRA = (Get-ItemProperty -Path $raPath -Name "fAllowToGetHelp" -ErrorAction SilentlyContinue).fAllowToGetHelp
-    if($allowRA -eq 0 -or $null -eq $allowRA){
-        Add-Check -Category "Remote Access" -Status "Passed" -Message "Remote Assistance disabled" `
-            -Current "Disabled" -Expected "Disabled (unless needed)" -Sev "Low" -MSControl "RemoteAssist"
-    } else {
-        Add-Check -Category "Remote Access" -Status "Warnings" -Message "Remote Assistance enabled" `
-            -Current "Enabled" -Expected "Disabled (unless needed)" -Sev "Low" -MSControl "RemoteAssist"
-    }
-    
-    # Solicited Remote Assistance
-    $allowSolicited = (Get-ItemProperty -Path $raPath -Name "fAllowFullControl" -ErrorAction SilentlyContinue).fAllowFullControl
-    if($allowRA -eq 1 -and $allowSolicited -eq 0){
-        Add-Check -Category "Remote Access" -Status "Passed" -Message "Remote Assistance limited to view-only" `
-            -Current "View only" -Expected "View only (if enabled)" -Sev "Low" -MSControl "RemoteAssist"
-    }
-    
-    # Windows Error Reporting disabled
-    $werPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting"
-    $disableWER = (Get-ItemProperty -Path $werPath -Name "Disabled" -ErrorAction SilentlyContinue).Disabled
-    if($disableWER -eq 1){
-        Add-Check -Category "Privacy" -Status "Info" -Message "Windows Error Reporting disabled" `
-            -Current "Disabled" -Expected "Based on policy" -Sev "Low" -MSControl "WER"
-    }
-    
-    # Delivery Optimization
-    $doPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization"
-    $doMode = (Get-ItemProperty -Path $doPath -Name "DODownloadMode" -ErrorAction SilentlyContinue).DODownloadMode
-    if($doMode -eq 1 -or $doMode -eq 0){
-        Add-Check -Category "Update Management" -Status "Passed" -Message "Delivery Optimization limited" `
-            -Current $(if($doMode -eq 0){"Disabled"}else{"LAN only"}) -Expected "Disabled/LAN only" -Sev "Low" -MSControl "DeliveryOpt"
-    }
-    
-    # App privacy settings
-    $appPrivacyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy"
-    
-    # Location
-    $letAppsAccessLocation = (Get-ItemProperty -Path $appPrivacyPath -Name "LetAppsAccessLocation" -ErrorAction SilentlyContinue).LetAppsAccessLocation
-    if($letAppsAccessLocation -eq 2){
-        Add-Check -Category "Privacy" -Status "Passed" -Message "Apps cannot access location" `
-            -Current "Force deny" -Expected "Force deny (if not needed)" -Sev "Low" -MSControl "Privacy"
-    }
-    
-    # Camera
-    $letAppsAccessCamera = (Get-ItemProperty -Path $appPrivacyPath -Name "LetAppsAccessCamera" -ErrorAction SilentlyContinue).LetAppsAccessCamera
-    if($letAppsAccessCamera -eq 2){
-        Add-Check -Category "Privacy" -Status "Info" -Message "Apps cannot access camera" `
-            -Current "Force deny" -Expected "Based on needs" -Sev "Low" -MSControl "Privacy"
-    }
-    
-    # Microphone
-    $letAppsAccessMicrophone = (Get-ItemProperty -Path $appPrivacyPath -Name "LetAppsAccessMicrophone" -ErrorAction SilentlyContinue).LetAppsAccessMicrophone
-    if($letAppsAccessMicrophone -eq 2){
-        Add-Check -Category "Privacy" -Status "Info" -Message "Apps cannot access microphone" `
-            -Current "Force deny" -Expected "Based on needs" -Sev "Low" -MSControl "Privacy"
-    }
-    
-    # Advertising ID
-    $advertisingInfo = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo" -Name "DisabledByGroupPolicy" -ErrorAction SilentlyContinue).DisabledByGroupPolicy
-    if($advertisingInfo -eq 1){
-        Add-Check -Category "Privacy" -Status "Passed" -Message "Advertising ID disabled" `
-            -Current "Disabled" -Expected "Disabled" -Sev "Low" -MSControl "Privacy"
-    }
-    
-    # Windows Update for Business
-    $wufbPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"
-    $deferQualityUpdates = (Get-ItemProperty -Path $wufbPath -Name "DeferQualityUpdates" -ErrorAction SilentlyContinue).DeferQualityUpdates
-    if($deferQualityUpdates -eq 1){
-        $deferDays = (Get-ItemProperty -Path $wufbPath -Name "DeferQualityUpdatesPeriodInDays" -ErrorAction SilentlyContinue).DeferQualityUpdatesPeriodInDays
-        Add-Check -Category "Update Management" -Status "Info" -Message "Quality updates deferred ($deferDays days)" `
-            -Current "$deferDays days" -Expected "Based on policy" -Sev "Low" -MSControl "WUfB"
-    }
-    
-    # Microsoft Defender SmartScreen for Microsoft Store apps
-    $storeAppsPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppHost"
-    $enableWebContentEval = (Get-ItemProperty -Path $storeAppsPath -Name "EnableWebContentEvaluation" -ErrorAction SilentlyContinue).EnableWebContentEvaluation
-    if($enableWebContentEval -eq 1){
-        Add-Check -Category "SmartScreen" -Status "Passed" -Message "SmartScreen for Store apps enabled" `
-            -Current "Enabled" -Expected "Enabled" -Sev "Medium" -MSControl "StoreApps"
-    }
-    
-    Write-Host "MS Baseline checks complete: $($results.Passed.Count) passed, $($results.Failed.Count) failed" -ForegroundColor Green
-    return $results
 }
+
+Write-Host "`n[MS-Baseline] Starting Microsoft Security Baseline checks..." -ForegroundColor Cyan
+
+# ============================================================================
+# Microsoft Defender Configuration
+# ============================================================================
+Write-Host "[MS-Baseline] Checking Microsoft Defender Configuration..." -ForegroundColor Yellow
+
+try {
+    $defenderStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
+    
+    if ($defenderStatus) {
+        # Real-time protection
+        if ($defenderStatus.RealTimeProtectionEnabled) {
+            Add-Result -Category "MS-Baseline - Defender" -Status "Pass" `
+                -Message "Real-time protection is enabled" `
+                -Details "Microsoft Baseline: Real-time monitoring is critical"
+        } else {
+            Add-Result -Category "MS-Baseline - Defender" -Status "Fail" `
+                -Message "Real-time protection is disabled" `
+                -Details "Microsoft Baseline: Enable real-time protection" `
+                -Remediation "Set-MpPreference -DisableRealtimeMonitoring `$false"
+        }
+        
+        # Behavior monitoring
+        if ($defenderStatus.BehaviorMonitorEnabled) {
+            Add-Result -Category "MS-Baseline - Defender" -Status "Pass" `
+                -Message "Behavior monitoring is enabled" `
+                -Details "Microsoft Baseline: Detects suspicious behavior"
+        } else {
+            Add-Result -Category "MS-Baseline - Defender" -Status "Warning" `
+                -Message "Behavior monitoring is disabled" `
+                -Details "Microsoft Baseline: Enable behavior monitoring" `
+                -Remediation "Set-MpPreference -DisableBehaviorMonitoring `$false"
+        }
+        
+        # IOAV protection (downloads/attachments)
+        if ($defenderStatus.IoavProtectionEnabled) {
+            Add-Result -Category "MS-Baseline - Defender" -Status "Pass" `
+                -Message "Downloaded files and attachments scanning is enabled" `
+                -Details "Microsoft Baseline: Protects against malicious downloads"
+        } else {
+            Add-Result -Category "MS-Baseline - Defender" -Status "Warning" `
+                -Message "Downloaded files scanning is disabled" `
+                -Details "Microsoft Baseline: Enable IOAV protection" `
+                -Remediation "Set-MpPreference -DisableIOAVProtection `$false"
+        }
+        
+        # On-access protection
+        if ($defenderStatus.OnAccessProtectionEnabled) {
+            Add-Result -Category "MS-Baseline - Defender" -Status "Pass" `
+                -Message "On-access protection is enabled" `
+                -Details "Microsoft Baseline: Scans files on access"
+        } else {
+            Add-Result -Category "MS-Baseline - Defender" -Status "Fail" `
+                -Message "On-access protection is disabled" `
+                -Details "Microsoft Baseline: Enable on-access scanning" `
+                -Remediation "Set-MpPreference -DisableOnAccessProtection `$false"
+        }
+        
+        # Cloud-delivered protection
+        if ($defenderStatus.MAPSReporting -ne 0) {
+            Add-Result -Category "MS-Baseline - Defender" -Status "Pass" `
+                -Message "Cloud-delivered protection is enabled (MAPS: $($defenderStatus.MAPSReporting))" `
+                -Details "Microsoft Baseline: Cloud protection provides rapid response"
+        } else {
+            Add-Result -Category "MS-Baseline - Defender" -Status "Warning" `
+                -Message "Cloud-delivered protection is disabled" `
+                -Details "Microsoft Baseline: Enable cloud protection" `
+                -Remediation "Set-MpPreference -MAPSReporting Advanced"
+        }
+        
+        # Tamper Protection
+        if ($defenderStatus.IsTamperProtected) {
+            Add-Result -Category "MS-Baseline - Defender" -Status "Pass" `
+                -Message "Tamper Protection is enabled" `
+                -Details "Microsoft Baseline: Prevents malware from disabling Defender"
+        } else {
+            Add-Result -Category "MS-Baseline - Defender" -Status "Warning" `
+                -Message "Tamper Protection is not enabled" `
+                -Details "Microsoft Baseline: Enable Tamper Protection via Windows Security" `
+                -Remediation "Enable in Windows Security app or via Intune"
+        }
+        
+        # Automatic sample submission
+        if ($defenderStatus.SubmitSamplesConsent -ne 2) {
+            Add-Result -Category "MS-Baseline - Defender" -Status "Info" `
+                -Message "Automatic sample submission: $($defenderStatus.SubmitSamplesConsent)" `
+                -Details "Microsoft Baseline: Sample submission improves threat intelligence"
+        }
+        
+        # Signature updates
+        $signatureAge = (Get-Date) - $defenderStatus.AntivirusSignatureLastUpdated
+        if ($signatureAge.TotalHours -le 24) {
+            Add-Result -Category "MS-Baseline - Defender" -Status "Pass" `
+                -Message "Antivirus signatures updated within 24 hours" `
+                -Details "Microsoft Baseline: Signatures current as of $($defenderStatus.AntivirusSignatureLastUpdated.ToString('yyyy-MM-dd HH:mm'))"
+        } else {
+            Add-Result -Category "MS-Baseline - Defender" -Status "Warning" `
+                -Message "Antivirus signatures are $([math]::Round($signatureAge.TotalDays, 1)) days old" `
+                -Details "Microsoft Baseline: Update signatures" `
+                -Remediation "Update-MpSignature"
+        }
+    }
+} catch {
+    Add-Result -Category "MS-Baseline - Defender" -Status "Error" `
+        -Message "Failed to check Microsoft Defender status: $_"
+}
+
+# Check Attack Surface Reduction rules
+try {
+    $asrRules = Get-MpPreference | Select-Object -ExpandProperty AttackSurfaceReductionRules_Ids -ErrorAction SilentlyContinue
+    if ($asrRules -and $asrRules.Count -gt 0) {
+        Add-Result -Category "MS-Baseline - Defender" -Status "Pass" `
+            -Message "$($asrRules.Count) Attack Surface Reduction rule(s) configured" `
+            -Details "Microsoft Baseline: ASR rules reduce attack vectors"
+    } else {
+        Add-Result -Category "MS-Baseline - Defender" -Status "Info" `
+            -Message "No Attack Surface Reduction rules configured" `
+            -Details "Microsoft Baseline: Consider implementing ASR rules"
+    }
+} catch {
+    Add-Result -Category "MS-Baseline - Defender" -Status "Info" `
+        -Message "Could not check ASR rules" `
+        -Details "Microsoft Baseline: ASR rules available on Windows 10 1709+"
+}
+
+# Check Exploit Protection
+try {
+    $exploitProtection = Get-ProcessMitigation -System -ErrorAction SilentlyContinue
+    if ($exploitProtection) {
+        Add-Result -Category "MS-Baseline - Defender" -Status "Pass" `
+            -Message "Exploit Protection settings are configured" `
+            -Details "Microsoft Baseline: Exploit Guard mitigations are active"
+    } else {
+        Add-Result -Category "MS-Baseline - Defender" -Status "Info" `
+            -Message "Could not verify Exploit Protection settings" `
+            -Details "Microsoft Baseline: Configure via Windows Security"
+    }
+} catch {
+    Add-Result -Category "MS-Baseline - Defender" -Status "Info" `
+        -Message "Exploit Protection check completed" `
+        -Details "Microsoft Baseline"
+}
+
+# ============================================================================
+# Windows Update Configuration
+# ============================================================================
+Write-Host "[MS-Baseline] Checking Windows Update Configuration..." -ForegroundColor Yellow
+
+# Check Windows Update service
+try {
+    $wuService = Get-Service -Name "wuauserv" -ErrorAction SilentlyContinue
+    if ($wuService) {
+        if ($wuService.Status -eq "Running" -or $wuService.StartType -ne "Disabled") {
+            Add-Result -Category "MS-Baseline - Updates" -Status "Pass" `
+                -Message "Windows Update service is available" `
+                -Details "Microsoft Baseline: Automatic updates are essential"
+        } else {
+            Add-Result -Category "MS-Baseline - Updates" -Status "Fail" `
+                -Message "Windows Update service is disabled" `
+                -Details "Microsoft Baseline: Enable Windows Update" `
+                -Remediation "Set-Service -Name wuauserv -StartupType Manual"
+        }
+    }
+} catch {
+    Add-Result -Category "MS-Baseline - Updates" -Status "Error" `
+        -Message "Failed to check Windows Update service: $_"
+}
+
+# Check for missing updates
+try {
+    $updateSession = New-Object -ComObject Microsoft.Update.Session -ErrorAction SilentlyContinue
+    if ($updateSession) {
+        $updateSearcher = $updateSession.CreateUpdateSearcher()
+        $searchResult = $updateSearcher.Search("IsInstalled=0 and Type='Software' and IsHidden=0")
+        
+        $totalUpdates = $searchResult.Updates.Count
+        $criticalUpdates = ($searchResult.Updates | Where-Object { $_.MsrcSeverity -eq "Critical" }).Count
+        $importantUpdates = ($searchResult.Updates | Where-Object { $_.MsrcSeverity -eq "Important" }).Count
+        
+        if ($totalUpdates -eq 0) {
+            Add-Result -Category "MS-Baseline - Updates" -Status "Pass" `
+                -Message "All updates are installed" `
+                -Details "Microsoft Baseline: System is fully patched"
+        } else {
+            if ($criticalUpdates -gt 0) {
+                Add-Result -Category "MS-Baseline - Updates" -Status "Fail" `
+                    -Message "$criticalUpdates critical update(s) missing" `
+                    -Details "Microsoft Baseline: Install critical updates immediately" `
+                    -Remediation "Install via Windows Update or WSUS"
+            }
+            if ($importantUpdates -gt 0) {
+                Add-Result -Category "MS-Baseline - Updates" -Status "Warning" `
+                    -Message "$importantUpdates important update(s) missing" `
+                    -Details "Microsoft Baseline: Install important updates promptly"
+            }
+            if ($totalUpdates -gt ($criticalUpdates + $importantUpdates)) {
+                $otherUpdates = $totalUpdates - $criticalUpdates - $importantUpdates
+                Add-Result -Category "MS-Baseline - Updates" -Status "Info" `
+                    -Message "$otherUpdates other update(s) available" `
+                    -Details "Microsoft Baseline: Regular updates improve security"
+            }
+        }
+    } else {
+        Add-Result -Category "MS-Baseline - Updates" -Status "Info" `
+            -Message "Could not check for updates" `
+            -Details "Microsoft Baseline: Verify update status manually"
+    }
+} catch {
+    Add-Result -Category "MS-Baseline - Updates" -Status "Info" `
+        -Message "Update check unavailable" `
+        -Details "Microsoft Baseline: Ensure updates are installed regularly"
+}
+
+# ============================================================================
+# BitLocker Encryption
+# ============================================================================
+Write-Host "[MS-Baseline] Checking BitLocker Encryption..." -ForegroundColor Yellow
+
+try {
+    $bitlockerVolumes = Get-BitLockerVolume -ErrorAction SilentlyContinue
+    if ($bitlockerVolumes) {
+        foreach ($volume in $bitlockerVolumes) {
+            if ($volume.VolumeStatus -eq "FullyEncrypted") {
+                Add-Result -Category "MS-Baseline - Encryption" -Status "Pass" `
+                    -Message "Volume $($volume.MountPoint) is fully encrypted" `
+                    -Details "Microsoft Baseline: Method=$($volume.EncryptionMethod), KeyProtectors=$($volume.KeyProtector.Count)"
+            } elseif ($volume.VolumeStatus -eq "EncryptionInProgress") {
+                Add-Result -Category "MS-Baseline - Encryption" -Status "Info" `
+                    -Message "Volume $($volume.MountPoint) encryption in progress ($($volume.EncryptionPercentage)%)" `
+                    -Details "Microsoft Baseline: Encryption is being applied"
+            } else {
+                Add-Result -Category "MS-Baseline - Encryption" -Status "Warning" `
+                    -Message "Volume $($volume.MountPoint) is not encrypted (Status: $($volume.VolumeStatus))" `
+                    -Details "Microsoft Baseline: Enable BitLocker for data protection" `
+                    -Remediation "Enable-BitLocker -MountPoint '$($volume.MountPoint)' -EncryptionMethod XtsAes256"
+            }
+        }
+    } else {
+        Add-Result -Category "MS-Baseline - Encryption" -Status "Info" `
+            -Message "Could not determine BitLocker status" `
+            -Details "Microsoft Baseline: Verify encryption manually"
+    }
+} catch {
+    Add-Result -Category "MS-Baseline - Encryption" -Status "Info" `
+        -Message "BitLocker check requires administrative privileges" `
+        -Details "Microsoft Baseline: Full disk encryption is recommended"
+}
+
+# ============================================================================
+# Windows Firewall Configuration
+# ============================================================================
+Write-Host "[MS-Baseline] Checking Windows Firewall..." -ForegroundColor Yellow
+
+$profiles = @("Domain", "Private", "Public")
+foreach ($profile in $profiles) {
+    try {
+        $fwProfile = Get-NetFirewallProfile -Name $profile
+        
+        # Firewall state
+        if ($fwProfile.Enabled) {
+            Add-Result -Category "MS-Baseline - Firewall" -Status "Pass" `
+                -Message "$profile firewall is enabled" `
+                -Details "Microsoft Baseline: Host-based firewall is active"
+        } else {
+            Add-Result -Category "MS-Baseline - Firewall" -Status "Fail" `
+                -Message "$profile firewall is disabled" `
+                -Details "Microsoft Baseline: Enable firewall on all profiles" `
+                -Remediation "Set-NetFirewallProfile -Name $profile -Enabled True"
+        }
+        
+        # Default inbound action
+        if ($fwProfile.DefaultInboundAction -eq "Block") {
+            Add-Result -Category "MS-Baseline - Firewall" -Status "Pass" `
+                -Message "${profile}: Default inbound action is Block" `
+                -Details "Microsoft Baseline: Default deny configuration"
+        } else {
+            Add-Result -Category "MS-Baseline - Firewall" -Status "Warning" `
+                -Message "${profile}: Default inbound action is not Block" `
+                -Details "Microsoft Baseline: Set to Block for security" `
+                -Remediation "Set-NetFirewallProfile -Name $profile -DefaultInboundAction Block"
+        }
+        
+        # Logging
+        if ($fwProfile.LogBlocked) {
+            Add-Result -Category "MS-Baseline - Firewall" -Status "Pass" `
+                -Message "${profile}: Blocked connections are logged" `
+                -Details "Microsoft Baseline: Logging aids investigation"
+        } else {
+            Add-Result -Category "MS-Baseline - Firewall" -Status "Info" `
+                -Message "${profile}: Blocked connections are not logged" `
+                -Details "Microsoft Baseline: Enable logging for monitoring"
+        }
+    } catch {
+        Add-Result -Category "MS-Baseline - Firewall" -Status "Error" `
+            -Message "Failed to check $profile firewall: $_"
+    }
+}
+
+# ============================================================================
+# Credential Guard and Device Guard
+# ============================================================================
+Write-Host "[MS-Baseline] Checking Credential Guard and Device Guard..." -ForegroundColor Yellow
+
+try {
+    $deviceGuard = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction SilentlyContinue
+    
+    if ($deviceGuard) {
+        # Virtualization Based Security
+        if ($deviceGuard.VirtualizationBasedSecurityStatus -eq 2) {
+            Add-Result -Category "MS-Baseline - Device Guard" -Status "Pass" `
+                -Message "Virtualization-based security is running" `
+                -Details "Microsoft Baseline: VBS provides hardware-based security"
+        } else {
+            Add-Result -Category "MS-Baseline - Device Guard" -Status "Info" `
+                -Message "Virtualization-based security is not running" `
+                -Details "Microsoft Baseline: VBS requires compatible hardware (TPM 2.0, UEFI, virtualization)"
+        }
+        
+        # Credential Guard
+        if ($deviceGuard.SecurityServicesRunning -contains 1) {
+            Add-Result -Category "MS-Baseline - Device Guard" -Status "Pass" `
+                -Message "Credential Guard is running" `
+                -Details "Microsoft Baseline: Protects against credential theft"
+        } else {
+            Add-Result -Category "MS-Baseline - Device Guard" -Status "Info" `
+                -Message "Credential Guard is not running" `
+                -Details "Microsoft Baseline: Enable on compatible hardware for enhanced protection"
+        }
+        
+        # Code Integrity Policy
+        if ($deviceGuard.CodeIntegrityPolicyEnforcementStatus -eq 1) {
+            Add-Result -Category "MS-Baseline - Device Guard" -Status "Pass" `
+                -Message "Code Integrity Policy is enforced" `
+                -Details "Microsoft Baseline: WDAC provides application control"
+        } else {
+            Add-Result -Category "MS-Baseline - Device Guard" -Status "Info" `
+                -Message "Code Integrity Policy is not enforced" `
+                -Details "Microsoft Baseline: Consider WDAC for application whitelisting"
+        }
+    }
+} catch {
+    Add-Result -Category "MS-Baseline - Device Guard" -Status "Info" `
+        -Message "Could not check Device Guard status" `
+        -Details "Microsoft Baseline: Verify hardware compatibility for VBS features"
+}
+
+# ============================================================================
+# PowerShell Configuration
+# ============================================================================
+Write-Host "[MS-Baseline] Checking PowerShell Security..." -ForegroundColor Yellow
+
+# Check PowerShell v2
+try {
+    $psv2 = Get-WindowsOptionalFeature -Online -FeatureName MicrosoftWindowsPowerShellV2Root -ErrorAction SilentlyContinue
+    if ($psv2) {
+        if ($psv2.State -eq "Disabled") {
+            Add-Result -Category "MS-Baseline - PowerShell" -Status "Pass" `
+                -Message "PowerShell 2.0 is disabled" `
+                -Details "Microsoft Baseline: PSv2 lacks modern security features"
+        } else {
+            Add-Result -Category "MS-Baseline - PowerShell" -Status "Fail" `
+                -Message "PowerShell 2.0 is enabled" `
+                -Details "Microsoft Baseline: Remove PowerShell 2.0" `
+                -Remediation "Disable-WindowsOptionalFeature -Online -FeatureName MicrosoftWindowsPowerShellV2Root"
+        }
+    }
+} catch {
+    Add-Result -Category "MS-Baseline - PowerShell" -Status "Info" `
+        -Message "Could not check PowerShell 2.0 status" `
+        -Details "Microsoft Baseline"
+}
+
+# Check PowerShell logging
+try {
+    $scriptBlockLogging = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging" -Name "EnableScriptBlockLogging" -ErrorAction SilentlyContinue
+    $moduleLogging = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ModuleLogging" -Name "EnableModuleLogging" -ErrorAction SilentlyContinue
+    $transcription = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\Transcription" -Name "EnableTranscripting" -ErrorAction SilentlyContinue
+    
+    if ($scriptBlockLogging -and $scriptBlockLogging.EnableScriptBlockLogging -eq 1) {
+        Add-Result -Category "MS-Baseline - PowerShell" -Status "Pass" `
+            -Message "PowerShell Script Block Logging is enabled" `
+            -Details "Microsoft Baseline: Detects malicious scripts"
+    } else {
+        Add-Result -Category "MS-Baseline - PowerShell" -Status "Warning" `
+            -Message "PowerShell Script Block Logging is not enabled" `
+            -Details "Microsoft Baseline: Enable for threat detection" `
+            -Remediation "Configure via Group Policy: Windows PowerShell > Turn on PowerShell Script Block Logging"
+    }
+    
+    if ($moduleLogging -and $moduleLogging.EnableModuleLogging -eq 1) {
+        Add-Result -Category "MS-Baseline - PowerShell" -Status "Pass" `
+            -Message "PowerShell Module Logging is enabled" `
+            -Details "Microsoft Baseline: Logs module activity"
+    } else {
+        Add-Result -Category "MS-Baseline - PowerShell" -Status "Info" `
+            -Message "PowerShell Module Logging is not enabled" `
+            -Details "Microsoft Baseline: Consider enabling for comprehensive logging"
+    }
+    
+    if ($transcription -and $transcription.EnableTranscripting -eq 1) {
+        Add-Result -Category "MS-Baseline - PowerShell" -Status "Pass" `
+            -Message "PowerShell Transcription is enabled" `
+            -Details "Microsoft Baseline: Records full session activity"
+    } else {
+        Add-Result -Category "MS-Baseline - PowerShell" -Status "Info" `
+            -Message "PowerShell Transcription is not enabled" `
+            -Details "Microsoft Baseline: Consider enabling for full audit trail"
+    }
+} catch {
+    Add-Result -Category "MS-Baseline - PowerShell" -Status "Error" `
+        -Message "Failed to check PowerShell logging: $_"
+}
+
+# ============================================================================
+# SMB Configuration
+# ============================================================================
+Write-Host "[MS-Baseline] Checking SMB Configuration..." -ForegroundColor Yellow
+
+try {
+    $smbConfig = Get-SmbServerConfiguration -ErrorAction SilentlyContinue
+    
+    if ($smbConfig) {
+        # SMBv1
+        if ($smbConfig.EnableSMB1Protocol -eq $false) {
+            Add-Result -Category "MS-Baseline - SMB" -Status "Pass" `
+                -Message "SMBv1 protocol is disabled" `
+                -Details "Microsoft Baseline: SMBv1 is insecure and deprecated"
+        } else {
+            Add-Result -Category "MS-Baseline - SMB" -Status "Fail" `
+                -Message "SMBv1 protocol is enabled" `
+                -Details "Microsoft Baseline: Disable SMBv1 immediately" `
+                -Remediation "Set-SmbServerConfiguration -EnableSMB1Protocol `$false -Force"
+        }
+        
+        # SMB signing
+        if ($smbConfig.RequireSecuritySignature) {
+            Add-Result -Category "MS-Baseline - SMB" -Status "Pass" `
+                -Message "SMB signing is required" `
+                -Details "Microsoft Baseline: Prevents tampering and relay attacks"
+        } else {
+            Add-Result -Category "MS-Baseline - SMB" -Status "Warning" `
+                -Message "SMB signing is not required" `
+                -Details "Microsoft Baseline: Enable SMB signing" `
+                -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature `$true -Force"
+        }
+        
+        # SMB encryption
+        if ($smbConfig.EncryptData) {
+            Add-Result -Category "MS-Baseline - SMB" -Status "Pass" `
+                -Message "SMB encryption is enabled globally" `
+                -Details "Microsoft Baseline: Encrypts SMB traffic"
+        } else {
+            Add-Result -Category "MS-Baseline - SMB" -Status "Info" `
+                -Message "SMB encryption is not enabled globally" `
+                -Details "Microsoft Baseline: Consider enabling for sensitive data"
+        }
+    }
+} catch {
+    Add-Result -Category "MS-Baseline - SMB" -Status "Error" `
+        -Message "Failed to check SMB configuration: $_"
+}
+
+# ============================================================================
+# Remote Desktop Configuration
+# ============================================================================
+Write-Host "[MS-Baseline] Checking Remote Desktop Configuration..." -ForegroundColor Yellow
+
+try {
+    $rdpEnabled = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -ErrorAction SilentlyContinue
+    
+    if ($rdpEnabled -and $rdpEnabled.fDenyTSConnections -eq 1) {
+        Add-Result -Category "MS-Baseline - RDP" -Status "Pass" `
+            -Message "Remote Desktop is disabled" `
+            -Details "Microsoft Baseline: RDP disabled when not needed"
+    } else {
+        # RDP is enabled, check security settings
+        Add-Result -Category "MS-Baseline - RDP" -Status "Info" `
+            -Message "Remote Desktop is enabled" `
+            -Details "Microsoft Baseline: Ensure RDP is secured if required"
+        
+        # Network Level Authentication
+        $nla = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "UserAuthentication" -ErrorAction SilentlyContinue
+        if ($nla -and $nla.UserAuthentication -eq 1) {
+            Add-Result -Category "MS-Baseline - RDP" -Status "Pass" `
+                -Message "RDP: Network Level Authentication is required" `
+                -Details "Microsoft Baseline: NLA adds authentication layer"
+        } else {
+            Add-Result -Category "MS-Baseline - RDP" -Status "Fail" `
+                -Message "RDP: Network Level Authentication is not required" `
+                -Details "Microsoft Baseline: Enable NLA" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1"
+        }
+        
+        # Encryption level
+        $encLevel = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "MinEncryptionLevel" -ErrorAction SilentlyContinue
+        if ($encLevel -and $encLevel.MinEncryptionLevel -ge 3) {
+            Add-Result -Category "MS-Baseline - RDP" -Status "Pass" `
+                -Message "RDP: High encryption level configured" `
+                -Details "Microsoft Baseline: Strong encryption for RDP"
+        } else {
+            Add-Result -Category "MS-Baseline - RDP" -Status "Warning" `
+                -Message "RDP: Encryption level may not be High" `
+                -Details "Microsoft Baseline: Set to High encryption"
+        }
+    }
+} catch {
+    Add-Result -Category "MS-Baseline - RDP" -Status "Error" `
+        -Message "Failed to check RDP configuration: $_"
+}
+
+# ============================================================================
+# Account and Authentication Policies
+# ============================================================================
+Write-Host "[MS-Baseline] Checking Account Policies..." -ForegroundColor Yellow
+
+try {
+    $passwordPolicy = net accounts | Out-String
+    
+    # Password length
+    if ($passwordPolicy -match "Minimum password length\s+(\d+)") {
+        $minLength = [int]$Matches[1]
+        if ($minLength -ge 14) {
+            Add-Result -Category "MS-Baseline - Authentication" -Status "Pass" `
+                -Message "Minimum password length is $minLength characters" `
+                -Details "Microsoft Baseline: Strong password length requirement"
+        } elseif ($minLength -ge 8) {
+            Add-Result -Category "MS-Baseline - Authentication" -Status "Warning" `
+                -Message "Minimum password length is $minLength (recommend 14+)" `
+                -Details "Microsoft Baseline: Increase password length"
+        } else {
+            Add-Result -Category "MS-Baseline - Authentication" -Status "Fail" `
+                -Message "Minimum password length is too short ($minLength)" `
+                -Details "Microsoft Baseline: Set to 14 or more characters"
+        }
+    }
+    
+    # Password age
+    if ($passwordPolicy -match "Maximum password age \(days\):\s+(\d+)") {
+        $maxAge = [int]$Matches[1]
+        if ($maxAge -gt 0 -and $maxAge -le 60) {
+            Add-Result -Category "MS-Baseline - Authentication" -Status "Pass" `
+                -Message "Password maximum age is $maxAge days" `
+                -Details "Microsoft Baseline: Regular password changes enforced"
+        } elseif ($maxAge -eq 0) {
+            Add-Result -Category "MS-Baseline - Authentication" -Status "Warning" `
+                -Message "Passwords never expire" `
+                -Details "Microsoft Baseline: Consider password expiration policy"
+        }
+    }
+    
+    # Account lockout
+    if ($passwordPolicy -match "Lockout threshold:\s+(\d+)") {
+        $threshold = [int]$Matches[1]
+        if ($threshold -gt 0 -and $threshold -le 10) {
+            Add-Result -Category "MS-Baseline - Authentication" -Status "Pass" `
+                -Message "Account lockout threshold is $threshold attempts" `
+                -Details "Microsoft Baseline: Protection against brute force"
+        } elseif ($threshold -eq 0) {
+            Add-Result -Category "MS-Baseline - Authentication" -Status "Warning" `
+                -Message "Account lockout is disabled" `
+                -Details "Microsoft Baseline: Enable account lockout"
+        }
+    }
+} catch {
+    Add-Result -Category "MS-Baseline - Authentication" -Status "Error" `
+        -Message "Failed to check password policy: $_"
+}
+
+# Check UAC
+try {
+    $uac = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "EnableLUA" -ErrorAction SilentlyContinue
+    if ($uac -and $uac.EnableLUA -eq 1) {
+        Add-Result -Category "MS-Baseline - Authentication" -Status "Pass" `
+            -Message "User Account Control is enabled" `
+            -Details "Microsoft Baseline: UAC prevents unauthorized elevation"
+    } else {
+        Add-Result -Category "MS-Baseline - Authentication" -Status "Fail" `
+            -Message "User Account Control is disabled" `
+            -Details "Microsoft Baseline: Enable UAC" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1"
+    }
+} catch {
+    Add-Result -Category "MS-Baseline - Authentication" -Status "Error" `
+        -Message "Failed to check UAC: $_"
+}
+
+# ============================================================================
+# Summary Statistics
+# ============================================================================
+$passCount = ($results | Where-Object { $_.Status -eq "Pass" }).Count
+$failCount = ($results | Where-Object { $_.Status -eq "Fail" }).Count
+$warningCount = ($results | Where-Object { $_.Status -eq "Warning" }).Count
+$infoCount = ($results | Where-Object { $_.Status -eq "Info" }).Count
+$errorCount = ($results | Where-Object { $_.Status -eq "Error" }).Count
+$totalChecks = $results.Count
+
+Write-Host "`n[MS-Baseline] Module completed:" -ForegroundColor Cyan
+Write-Host "  Total Checks: $totalChecks" -ForegroundColor White
+Write-Host "  Passed: $passCount" -ForegroundColor Green
+Write-Host "  Failed: $failCount" -ForegroundColor Red
+Write-Host "  Warnings: $warningCount" -ForegroundColor Yellow
+Write-Host "  Info: $infoCount" -ForegroundColor Cyan
+Write-Host "  Errors: $errorCount" -ForegroundColor Magenta
+
+Write-Host "`nMicrosoft Security Baselines are available from:" -ForegroundColor Cyan
+Write-Host "https://www.microsoft.com/en-us/download/details.aspx?id=55319" -ForegroundColor White
+
+return $results
