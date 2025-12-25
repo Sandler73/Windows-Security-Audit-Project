@@ -24,7 +24,6 @@
     Hashtable containing shared data from the main script
 
 .NOTES
-    Author: Security Audit Script Project
     Version: 5.0
     Based on: CIS Microsoft Windows Benchmarks v3.0+
 #>
