@@ -1,10 +1,36 @@
 # Module-CISA.ps1
-# CISA Cybersecurity Best Practices Compliance Module
-# Based on CISA alerts, advisories, and cybersecurity best practices
+# CISA Cybersecurity Performance Goals Compliance Module
+# Version: 5.0
+# Based on CISA's Cybersecurity Performance Goals and Critical Security Controls
+
+<#
+.SYNOPSIS
+    CISA cybersecurity performance goals compliance checks.
+
+.DESCRIPTION
+    This module checks alignment with CISA's cybersecurity guidance including:
+    - Multi-factor authentication enforcement
+    - Patch and vulnerability management
+    - Centralized logging and monitoring
+    - Known Exploited Vulnerabilities (KEV) mitigation
+    - Endpoint detection and response
+    - Email security (SPF, DMARC, DKIM)
+    - Secure configuration management
+    - Network segmentation and access controls
+    - Incident response capabilities
+    - Data encryption and protection
+
+.PARAMETER SharedData
+    Hashtable containing shared data from the main script
+
+.NOTES
+    Version: 5.0
+    Based on: CISA Cybersecurity Performance Goals (CPG)
+#>
 
 param(
-    [Parameter(Mandatory=$true)]
-    [object]$SharedData
+    [Parameter(Mandatory=$false)]
+    [hashtable]$SharedData = @{}
 )
 
 $moduleName = "CISA"
@@ -24,545 +50,1356 @@ function Add-Result {
     }
 }
 
-Write-Host "`n[CISA] Starting CISA cybersecurity best practices checks..." -ForegroundColor Cyan
+Write-Host "`n[CISA] Starting CISA Cybersecurity Performance Goals checks..." -ForegroundColor Cyan
 
 # ============================================================================
-# CISA: Patch Management and Vulnerability Management
+# CISA CPG: Multi-Factor Authentication
 # ============================================================================
-Write-Host "[CISA] Checking Patch Management..." -ForegroundColor Yellow
+Write-Host "[CISA] Checking Multi-Factor Authentication..." -ForegroundColor Yellow
+
+# Check for Network Level Authentication on RDP
+try {
+    $rdpEnabled = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -ErrorAction SilentlyContinue
+    
+    if ($rdpEnabled -and $rdpEnabled.fDenyTSConnections -eq 0) {
+        # RDP is enabled, check for NLA
+        $nla = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "UserAuthentication" -ErrorAction SilentlyContinue
+        
+        if ($nla -and $nla.UserAuthentication -eq 1) {
+            Add-Result -Category "CISA - Multi-Factor Authentication" -Status "Pass" `
+                -Message "Network Level Authentication (NLA) is enabled for RDP" `
+                -Details "CISA CPG: NLA provides an additional authentication layer before establishing RDP sessions"
+        } else {
+            Add-Result -Category "CISA - Multi-Factor Authentication" -Status "Fail" `
+                -Message "RDP is enabled but NLA is not required" `
+                -Details "CISA CPG: Require MFA/NLA for all remote access methods" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1"
+        }
+        
+        # Check RDP port (should not be default 3389 for additional security)
+        $rdpPort = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "PortNumber" -ErrorAction SilentlyContinue
+        if ($rdpPort -and $rdpPort.PortNumber -eq 3389) {
+            Add-Result -Category "CISA - Multi-Factor Authentication" -Status "Info" `
+                -Message "RDP is using default port 3389" `
+                -Details "CISA CPG: Consider changing default RDP port as additional security measure"
+        }
+    } else {
+        Add-Result -Category "CISA - Multi-Factor Authentication" -Status "Pass" `
+            -Message "Remote Desktop is disabled" `
+            -Details "CISA CPG: RDP is disabled - no remote authentication risk"
+    }
+} catch {
+    Add-Result -Category "CISA - Multi-Factor Authentication" -Status "Error" `
+        -Message "Failed to check RDP/NLA configuration: $_"
+}
+
+# Check for smart card authentication capability
+try {
+    $scPolicyService = Get-Service -Name "SCPolicySvc" -ErrorAction SilentlyContinue
+    if ($scPolicyService) {
+        if ($scPolicyService.Status -eq "Running") {
+            Add-Result -Category "CISA - Multi-Factor Authentication" -Status "Pass" `
+                -Message "Smart Card Policy service is running" `
+                -Details "CISA CPG: Smart card support enables hardware-based MFA"
+        } else {
+            Add-Result -Category "CISA - Multi-Factor Authentication" -Status "Info" `
+                -Message "Smart Card Policy service is not running" `
+                -Details "CISA CPG: Enable if using smart cards for authentication"
+        }
+    }
+} catch {
+    Add-Result -Category "CISA - Multi-Factor Authentication" -Status "Info" `
+        -Message "Could not check Smart Card service status"
+}
+
+# Check Windows Hello for Business configuration
+try {
+    $whfbPolicy = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\PassportForWork" -ErrorAction SilentlyContinue
+    if ($whfbPolicy) {
+        $enabled = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\PassportForWork" -Name "Enabled" -ErrorAction SilentlyContinue
+        if ($enabled -and $enabled.Enabled -eq 1) {
+            Add-Result -Category "CISA - Multi-Factor Authentication" -Status "Pass" `
+                -Message "Windows Hello for Business is enabled" `
+                -Details "CISA CPG: Windows Hello provides modern MFA capabilities"
+        } else {
+            Add-Result -Category "CISA - Multi-Factor Authentication" -Status "Info" `
+                -Message "Windows Hello for Business is not enabled" `
+                -Details "CISA CPG: Consider enabling Windows Hello for passwordless MFA"
+        }
+    }
+} catch {
+    Add-Result -Category "CISA - Multi-Factor Authentication" -Status "Info" `
+        -Message "Windows Hello configuration could not be checked"
+}
+
+# Check for cached credentials limit
+try {
+    $cachedLogons = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "CachedLogonsCount" -ErrorAction SilentlyContinue
+    if ($cachedLogons) {
+        $count = $cachedLogons.CachedLogonsCount
+        if ($count -le 2) {
+            Add-Result -Category "CISA - Multi-Factor Authentication" -Status "Pass" `
+                -Message "Cached credential count is limited to $count" `
+                -Details "CISA CPG: Limit cached credentials to reduce offline attack risk"
+        } else {
+            Add-Result -Category "CISA - Multi-Factor Authentication" -Status "Warning" `
+                -Message "Cached credential count is $count (recommend 2 or less)" `
+                -Details "CISA CPG: Minimize cached credentials" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name CachedLogonsCount -Value 2"
+        }
+    } else {
+        Add-Result -Category "CISA - Multi-Factor Authentication" -Status "Info" `
+            -Message "Using default cached credentials setting (typically 10)" `
+            -Details "CISA CPG: Consider limiting cached credentials to 2"
+    }
+} catch {
+    Add-Result -Category "CISA - Multi-Factor Authentication" -Status "Error" `
+        -Message "Failed to check cached credentials: $_"
+}
+
+# ============================================================================
+# CISA CPG: Patch and Vulnerability Management
+# ============================================================================
+Write-Host "[CISA] Checking Patch and Vulnerability Management..." -ForegroundColor Yellow
 
 # Check Windows Update service
 try {
-    $wuService = Get-Service -Name "wuauserv" -ErrorAction SilentlyContinue
-    if ($wuService) {
-        if ($wuService.Status -eq "Running" -or $wuService.StartType -eq "Manual") {
-            Add-Result -Category "CISA - Patch Management" -Status "Pass" `
-                -Message "Windows Update service is available" `
-                -Details "CISA Best Practice: Enable automatic updates"
-        } else {
-            Add-Result -Category "CISA - Patch Management" -Status "Fail" `
-                -Message "Windows Update service is disabled" `
-                -Details "CISA Best Practice: Enable Windows Update for security patches" `
-                -Remediation "Set-Service -Name wuauserv -StartupType Manual; Start-Service wuauserv"
-        }
+    $wuService = Get-Service -Name "wuauserv" -ErrorAction Stop
+    
+    if ($wuService.Status -eq "Running") {
+        Add-Result -Category "CISA - Patch Management" -Status "Pass" `
+            -Message "Windows Update service is running" `
+            -Details "CISA CPG: Automated patching reduces vulnerability exposure"
+    } else {
+        Add-Result -Category "CISA - Patch Management" -Status "Fail" `
+            -Message "Windows Update service is not running (Status: $($wuService.Status))" `
+            -Details "CISA CPG: Enable Windows Update for timely patch deployment" `
+            -Remediation "Start-Service wuauserv; Set-Service wuauserv -StartupType Automatic"
     }
 } catch {
     Add-Result -Category "CISA - Patch Management" -Status "Error" `
         -Message "Failed to check Windows Update service: $_"
 }
 
-# Check for missing critical updates
+# Check for recent Windows Updates
 try {
-    $updateSession = New-Object -ComObject Microsoft.Update.Session -ErrorAction SilentlyContinue
-    if ($updateSession) {
-        $updateSearcher = $updateSession.CreateUpdateSearcher()
-        $searchResult = $updateSearcher.Search("IsInstalled=0 and Type='Software' and IsHidden=0")
+    $session = New-Object -ComObject Microsoft.Update.Session
+    $searcher = $session.CreateUpdateSearcher()
+    $historyCount = $searcher.GetTotalHistoryCount()
+    
+    if ($historyCount -gt 0) {
+        # Get last 30 days of updates
+        $recentUpdates = $searcher.QueryHistory(0, 20) | 
+            Where-Object { $_.Date -gt (Get-Date).AddDays(-30) }
         
-        $criticalUpdates = $searchResult.Updates | Where-Object { $_.MsrcSeverity -eq "Critical" }
-        $importantUpdates = $searchResult.Updates | Where-Object { $_.MsrcSeverity -eq "Important" }
-        
-        if ($criticalUpdates.Count -eq 0 -and $importantUpdates.Count -eq 0) {
-            Add-Result -Category "CISA - Patch Management" -Status "Pass" `
-                -Message "All security updates are installed" `
-                -Details "CISA Best Practice: Keep systems fully patched"
-        } else {
-            if ($criticalUpdates.Count -gt 0) {
-                Add-Result -Category "CISA - Patch Management" -Status "Fail" `
-                    -Message "$($criticalUpdates.Count) critical security updates are missing" `
-                    -Details "CISA Alert: Install critical patches immediately to reduce attack surface" `
-                    -Remediation "Install updates via Windows Update or WSUS immediately"
+        if ($recentUpdates) {
+            $successfulUpdates = ($recentUpdates | Where-Object { $_.ResultCode -eq 2 }).Count
+            $failedUpdates = ($recentUpdates | Where-Object { $_.ResultCode -eq 4 -or $_.ResultCode -eq 5 }).Count
+            
+            if ($successfulUpdates -gt 0) {
+                Add-Result -Category "CISA - Patch Management" -Status "Pass" `
+                    -Message "Recent updates detected: $successfulUpdates successful in last 30 days" `
+                    -Details "CISA CPG: Regular patching maintains security posture"
             }
-            if ($importantUpdates.Count -gt 0) {
+            
+            if ($failedUpdates -gt 0) {
                 Add-Result -Category "CISA - Patch Management" -Status "Warning" `
-                    -Message "$($importantUpdates.Count) important security updates are missing" `
-                    -Details "CISA Best Practice: Install important updates promptly"
+                    -Message "$failedUpdates update(s) failed in the last 30 days" `
+                    -Details "CISA CPG: Investigate and resolve failed updates" `
+                    -Remediation "Review Windows Update history and resolve failures"
             }
+        } else {
+            Add-Result -Category "CISA - Patch Management" -Status "Fail" `
+                -Message "No updates installed in the last 30 days" `
+                -Details "CISA CPG: System may have critical vulnerabilities - update immediately" `
+                -Remediation "Install-WindowsUpdate -AcceptAll -AutoReboot"
+        }
+        
+        # Check for pending updates
+        $pendingUpdates = $searcher.Search("IsInstalled=0 and Type='Software'")
+        if ($pendingUpdates.Updates.Count -gt 0) {
+            $criticalPending = ($pendingUpdates.Updates | Where-Object { $_.MsrcSeverity -eq "Critical" }).Count
+            $importantPending = ($pendingUpdates.Updates | Where-Object { $_.MsrcSeverity -eq "Important" }).Count
+            
+            if ($criticalPending -gt 0) {
+                Add-Result -Category "CISA - Patch Management" -Status "Fail" `
+                    -Message "$criticalPending critical updates pending installation" `
+                    -Details "CISA CPG: Install critical updates immediately" `
+                    -Remediation "Install pending critical updates via Windows Update"
+            } elseif ($importantPending -gt 0) {
+                Add-Result -Category "CISA - Patch Management" -Status "Warning" `
+                    -Message "$importantPending important updates pending installation" `
+                    -Details "CISA CPG: Install important security updates promptly"
+            } else {
+                Add-Result -Category "CISA - Patch Management" -Status "Info" `
+                    -Message "$($pendingUpdates.Updates.Count) non-critical updates pending" `
+                    -Details "CISA CPG: Schedule maintenance window for updates"
+            }
+        } else {
+            Add-Result -Category "CISA - Patch Management" -Status "Pass" `
+                -Message "No pending updates detected" `
+                -Details "CISA CPG: System is current with available updates"
         }
     } else {
-        Add-Result -Category "CISA - Patch Management" -Status "Info" `
-            -Message "Could not check for missing updates" `
-            -Details "CISA Best Practice: Verify patch status regularly"
-    }
-} catch {
-    Add-Result -Category "CISA - Patch Management" -Status "Info" `
-        -Message "Update check unavailable" `
-        -Details "CISA Best Practice: Implement vulnerability management program"
-}
-
-# Check Windows version support status
-try {
-    $osInfo = Get-CimInstance -ClassName Win32_OperatingSystem
-    $buildNumber = [System.Environment]::OSVersion.Version.Build
-    
-    # List of unsupported builds (this should be updated periodically)
-    $unsupportedBuilds = @(10240, 10586, 14393, 15063, 16299, 17134, 17763, 18362, 18363)
-    
-    if ($unsupportedBuilds -contains $buildNumber) {
-        Add-Result -Category "CISA - Patch Management" -Status "Fail" `
-            -Message "Windows version is out of support (Build: $buildNumber)" `
-            -Details "CISA Alert: Using unsupported software exposes systems to known vulnerabilities" `
-            -Remediation "Upgrade to a supported Windows version immediately"
-    } else {
-        Add-Result -Category "CISA - Patch Management" -Status "Pass" `
-            -Message "Windows version is currently supported (Build: $buildNumber)" `
-            -Details "CISA Best Practice: Use supported operating systems"
+        Add-Result -Category "CISA - Patch Management" -Status "Warning" `
+            -Message "No Windows Update history found" `
+            -Details "CISA CPG: Verify Windows Update is functioning properly"
     }
 } catch {
     Add-Result -Category "CISA - Patch Management" -Status "Error" `
-        -Message "Failed to check Windows version: $_"
+        -Message "Failed to check Windows Update history: $_"
 }
 
-# ============================================================================
-# CISA: Multi-Factor Authentication (MFA)
-# ============================================================================
-Write-Host "[CISA] Checking Multi-Factor Authentication..." -ForegroundColor Yellow
-
-# Check for Windows Hello for Business
+# Check automatic update configuration
 try {
-    $whfb = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\PassportForWork" -ErrorAction SilentlyContinue
-    if ($whfb) {
-        Add-Result -Category "CISA - MFA" -Status "Info" `
-            -Message "Windows Hello for Business policies are configured" `
-            -Details "CISA Best Practice: Implement MFA for all users"
+    $auSettings = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -ErrorAction SilentlyContinue
+    
+    if ($auSettings) {
+        $auOption = $auSettings.AUOptions
+        
+        switch ($auOption) {
+            4 {
+                Add-Result -Category "CISA - Patch Management" -Status "Pass" `
+                    -Message "Automatic updates are configured for automatic download and install" `
+                    -Details "CISA CPG: Automated patching ensures timely updates"
+            }
+            3 {
+                Add-Result -Category "CISA - Patch Management" -Status "Warning" `
+                    -Message "Updates auto-download but require manual installation" `
+                    -Details "CISA CPG: Consider fully automated updates" `
+                    -Remediation "Set AUOptions to 4 for automatic installation"
+            }
+            2 {
+                Add-Result -Category "CISA - Patch Management" -Status "Fail" `
+                    -Message "Updates only notify before download" `
+                    -Details "CISA CPG: Enable automatic updates" `
+                    -Remediation "Configure automatic updates via Group Policy or Settings"
+            }
+            1 {
+                Add-Result -Category "CISA - Patch Management" -Status "Fail" `
+                    -Message "Automatic updates are disabled" `
+                    -Details "CISA CPG: Enable automatic updates immediately" `
+                    -Remediation "Enable Windows Update automatic updates"
+            }
+        }
     } else {
-        Add-Result -Category "CISA - MFA" -Status "Info" `
-            -Message "Windows Hello for Business policies not detected" `
-            -Details "CISA Best Practice: Implement phishing-resistant MFA (Windows Hello, FIDO2)"
-    }
-} catch {
-    Add-Result -Category "CISA - MFA" -Status "Info" `
-        -Message "Could not check Windows Hello configuration" `
-        -Details "CISA Best Practice: Deploy MFA across the organization"
-}
-
-# Check smart card policy
-try {
-    $smartCardPolicy = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "scforceoption" -ErrorAction SilentlyContinue
-    if ($smartCardPolicy -and $smartCardPolicy.scforceoption -eq 1) {
-        Add-Result -Category "CISA - MFA" -Status "Pass" `
-            -Message "Smart card authentication is enforced for interactive logon" `
-            -Details "CISA Best Practice: Strong authentication reduces credential theft risk"
-    } else {
-        Add-Result -Category "CISA - MFA" -Status "Info" `
-            -Message "Smart card enforcement not configured" `
-            -Details "CISA Recommendation: Implement phishing-resistant MFA"
-    }
-} catch {
-    Add-Result -Category "CISA - MFA" -Status "Info" `
-        -Message "Smart card policy check completed" `
-        -Details "CISA Best Practice: Use strong authentication methods"
-}
-
-# ============================================================================
-# CISA: Phishing-Resistant MFA and Credential Protection
-# ============================================================================
-Write-Host "[CISA] Checking Credential Protection..." -ForegroundColor Yellow
-
-# Check Credential Guard
-try {
-    $deviceGuard = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction SilentlyContinue
-    if ($deviceGuard -and ($deviceGuard.SecurityServicesRunning -contains 1)) {
-        Add-Result -Category "CISA - Credential Protection" -Status "Pass" `
-            -Message "Credential Guard is running" `
-            -Details "CISA Best Practice: Credential Guard protects against credential theft attacks"
-    } else {
-        Add-Result -Category "CISA - Credential Protection" -Status "Warning" `
-            -Message "Credential Guard is not running" `
-            -Details "CISA Recommendation: Enable Credential Guard on compatible hardware" `
-            -Remediation "Enable via Group Policy: Device Guard > Turn On Virtualization Based Security"
-    }
-} catch {
-    Add-Result -Category "CISA - Credential Protection" -Status "Info" `
-        -Message "Could not check Credential Guard status" `
-        -Details "CISA Best Practice: Implement credential protection mechanisms"
-}
-
-# Check for WDigest (plaintext credential storage)
-try {
-    $wdigest = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest" -Name "UseLogonCredential" -ErrorAction SilentlyContinue
-    if ($wdigest -and $wdigest.UseLogonCredential -eq 0) {
-        Add-Result -Category "CISA - Credential Protection" -Status "Pass" `
-            -Message "WDigest credential caching is disabled" `
-            -Details "CISA Best Practice: Prevent plaintext credential storage"
-    } elseif ($wdigest -and $wdigest.UseLogonCredential -eq 1) {
-        Add-Result -Category "CISA - Credential Protection" -Status "Fail" `
-            -Message "WDigest credential caching is enabled" `
-            -Details "CISA Alert: WDigest stores plaintext credentials in memory" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' -Name UseLogonCredential -Value 0"
-    } else {
-        Add-Result -Category "CISA - Credential Protection" -Status "Pass" `
-            -Message "WDigest is disabled by default (Windows 8.1+)" `
-            -Details "CISA Best Practice: Credential protection is in place"
-    }
-} catch {
-    Add-Result -Category "CISA - Credential Protection" -Status "Error" `
-        -Message "Failed to check WDigest status: $_"
-}
-
-# ============================================================================
-# CISA: Known Exploited Vulnerabilities (KEV)
-# ============================================================================
-Write-Host "[CISA] Checking for Known Exploited Vulnerabilities..." -ForegroundColor Yellow
-
-# Check for PrintNightmare mitigation
-try {
-    $printNightmare = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers\PointAndPrint" -Name "RestrictDriverInstallationToAdministrators" -ErrorAction SilentlyContinue
-    if ($printNightmare -and $printNightmare.RestrictDriverInstallationToAdministrators -eq 1) {
-        Add-Result -Category "CISA - KEV Mitigation" -Status "Pass" `
-            -Message "PrintNightmare mitigation is in place" `
-            -Details "CISA KEV: CVE-2021-34527 mitigation configured"
-    } else {
-        Add-Result -Category "CISA - KEV Mitigation" -Status "Warning" `
-            -Message "PrintNightmare mitigation not configured" `
-            -Details "CISA KEV: Configure Point and Print restrictions" `
-            -Remediation "Set registry key: RestrictDriverInstallationToAdministrators = 1"
-    }
-} catch {
-    Add-Result -Category "CISA - KEV Mitigation" -Status "Info" `
-        -Message "Could not verify PrintNightmare mitigation" `
-        -Details "CISA KEV: Verify print spooler security settings"
-}
-
-# Check Print Spooler service status
-try {
-    $spooler = Get-Service -Name "Spooler" -ErrorAction SilentlyContinue
-    if ($spooler -and $spooler.Status -eq "Running") {
-        Add-Result -Category "CISA - KEV Mitigation" -Status "Info" `
-            -Message "Print Spooler service is running" `
-            -Details "CISA Guidance: Disable Print Spooler if not needed (reduces attack surface)"
-    } elseif ($spooler -and $spooler.Status -eq "Stopped") {
-        Add-Result -Category "CISA - KEV Mitigation" -Status "Pass" `
-            -Message "Print Spooler service is stopped" `
-            -Details "CISA Best Practice: Disable unnecessary services"
-    }
-} catch {
-    Add-Result -Category "CISA - KEV Mitigation" -Status "Error" `
-        -Message "Failed to check Print Spooler status: $_"
-}
-
-# ============================================================================
-# CISA: Ransomware Protection
-# ============================================================================
-Write-Host "[CISA] Checking Ransomware Protection..." -ForegroundColor Yellow
-
-# Check Controlled Folder Access (ransomware protection)
-try {
-    $defenderStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
-    if ($defenderStatus) {
-        if ($defenderStatus.EnableControlledFolderAccess -eq 1) {
-            Add-Result -Category "CISA - Ransomware Protection" -Status "Pass" `
-                -Message "Controlled Folder Access is enabled (Block mode)" `
-                -Details "CISA Best Practice: Controlled Folder Access protects against ransomware"
-        } elseif ($defenderStatus.EnableControlledFolderAccess -eq 2) {
-            Add-Result -Category "CISA - Ransomware Protection" -Status "Info" `
-                -Message "Controlled Folder Access is in Audit mode" `
-                -Details "CISA Recommendation: Enable Block mode for active protection"
+        # Check via COM object
+        $auSettings = (New-Object -ComObject Microsoft.Update.AutoUpdate).Settings
+        if ($auSettings.NotificationLevel -ge 3) {
+            Add-Result -Category "CISA - Patch Management" -Status "Pass" `
+                -Message "Automatic updates are enabled" `
+                -Details "CISA CPG: Automated patching is configured"
         } else {
-            Add-Result -Category "CISA - Ransomware Protection" -Status "Warning" `
-                -Message "Controlled Folder Access is disabled" `
-                -Details "CISA Best Practice: Enable Controlled Folder Access" `
-                -Remediation "Set-MpPreference -EnableControlledFolderAccess Enabled"
+            Add-Result -Category "CISA - Patch Management" -Status "Fail" `
+                -Message "Automatic updates are not properly configured" `
+                -Details "CISA CPG: Enable automatic Windows updates" `
+                -Remediation "Configure automatic updates in Windows Update settings"
         }
     }
 } catch {
-    Add-Result -Category "CISA - Ransomware Protection" -Status "Error" `
-        -Message "Failed to check Controlled Folder Access: $_"
+    Add-Result -Category "CISA - Patch Management" -Status "Error" `
+        -Message "Failed to check automatic update configuration: $_"
 }
 
-# Check for backups (shadow copies)
+# ============================================================================
+# CISA CPG: Centralized Logging and Monitoring
+# ============================================================================
+Write-Host "[CISA] Checking Centralized Logging and Monitoring..." -ForegroundColor Yellow
+
+# Check Security Event Log configuration
 try {
-    $shadowStorage = vssadmin list shadowstorage 2>$null
-    if ($shadowStorage -match "Maximum Shadow Copy Storage space") {
-        Add-Result -Category "CISA - Ransomware Protection" -Status "Pass" `
-            -Message "Volume Shadow Copy service is configured" `
-            -Details "CISA Best Practice: Maintain offline backups for ransomware recovery"
+    $securityLog = Get-WinEvent -ListLog Security -ErrorAction Stop
+    
+    if ($securityLog.IsEnabled) {
+        $logSizeMB = [math]::Round($securityLog.MaximumSizeInBytes / 1MB, 2)
+        
+        if ($logSizeMB -ge 1024) {
+            Add-Result -Category "CISA - Logging" -Status "Pass" `
+                -Message "Security log is enabled with adequate size ($logSizeMB MB)" `
+                -Details "CISA CPG: Large log size supports forensic investigation"
+        } elseif ($logSizeMB -ge 512) {
+            Add-Result -Category "CISA - Logging" -Status "Pass" `
+                -Message "Security log is enabled ($logSizeMB MB)" `
+                -Details "CISA CPG: Consider increasing for extended retention"
+        } else {
+            Add-Result -Category "CISA - Logging" -Status "Warning" `
+                -Message "Security log size is small ($logSizeMB MB)" `
+                -Details "CISA CPG: Increase log size to at least 512 MB for adequate retention" `
+                -Remediation "wevtutil sl Security /ms:$([int](512MB))"
+        }
+        
+        # Check log retention policy
+        if ($securityLog.LogMode -eq "Circular") {
+            Add-Result -Category "CISA - Logging" -Status "Info" `
+                -Message "Security log uses circular overwrite policy" `
+                -Details "CISA CPG: Ensure logs are forwarded before overwrite"
+        } elseif ($securityLog.LogMode -eq "AutoBackup") {
+            Add-Result -Category "CISA - Logging" -Status "Pass" `
+                -Message "Security log auto-archives when full" `
+                -Details "CISA CPG: Auto-backup preserves forensic evidence"
+        }
     } else {
-        Add-Result -Category "CISA - Ransomware Protection" -Status "Info" `
-            -Message "Could not verify shadow copy configuration" `
-            -Details "CISA Best Practice: Implement regular backups"
+        Add-Result -Category "CISA - Logging" -Status "Fail" `
+            -Message "Security event log is disabled" `
+            -Details "CISA CPG: Security logging is critical for threat detection" `
+            -Remediation "Enable Security event log via Event Viewer or Group Policy"
     }
 } catch {
-    Add-Result -Category "CISA - Ransomware Protection" -Status "Info" `
-        -Message "Shadow copy check completed" `
-        -Details "CISA Best Practice: Maintain immutable backups"
+    Add-Result -Category "CISA - Logging" -Status "Error" `
+        -Message "Failed to check Security event log: $_"
 }
 
-# ============================================================================
-# CISA: Logging and Detection
-# ============================================================================
-Write-Host "[CISA] Checking Logging and Detection..." -ForegroundColor Yellow
-
-# Check audit policy
-$criticalAudits = @(
-    @{Category="Logon/Logoff"; Required="Success and Failure"}
-    @{Category="Account Management"; Required="Success and Failure"}
-    @{Category="Object Access"; Required="Failure"}
-    @{Category="Policy Change"; Required="Success"}
-    @{Category="Privilege Use"; Required="Success and Failure"}
-    @{Category="Process Creation"; Required="Success"}
-)
-
-foreach ($audit in $criticalAudits) {
-    try {
-        $auditSetting = auditpol /get /category:"$($audit.Category)" 2>$null
-        if ($auditSetting) {
-            $hasSuccess = $auditSetting -match "Success"
-            $hasFailure = $auditSetting -match "Failure"
-            
-            $meetsRequirement = $false
-            if ($audit.Required -eq "Success and Failure") {
-                $meetsRequirement = $hasSuccess -and $hasFailure
-            } elseif ($audit.Required -eq "Success") {
-                $meetsRequirement = $hasSuccess
-            } elseif ($audit.Required -eq "Failure") {
-                $meetsRequirement = $hasFailure
-            }
-            
-            if ($meetsRequirement) {
-                Add-Result -Category "CISA - Logging" -Status "Pass" `
-                    -Message "Audit policy configured for: $($audit.Category)" `
-                    -Details "CISA Best Practice: Comprehensive logging enables threat detection"
-            } else {
-                Add-Result -Category "CISA - Logging" -Status "Fail" `
-                    -Message "Insufficient audit policy for: $($audit.Category)" `
-                    -Details "CISA Requirement: Enable $($audit.Required) auditing" `
-                    -Remediation "Configure via Group Policy: Advanced Audit Policy"
-            }
+# Check System Event Log configuration
+try {
+    $systemLog = Get-WinEvent -ListLog System -ErrorAction Stop
+    
+    if ($systemLog.IsEnabled) {
+        $logSizeMB = [math]::Round($systemLog.MaximumSizeInBytes / 1MB, 2)
+        
+        if ($logSizeMB -ge 128) {
+            Add-Result -Category "CISA - Logging" -Status "Pass" `
+                -Message "System log is enabled with adequate size ($logSizeMB MB)" `
+                -Details "CISA CPG: System logs aid in troubleshooting and security analysis"
+        } else {
+            Add-Result -Category "CISA - Logging" -Status "Warning" `
+                -Message "System log size is small ($logSizeMB MB)" `
+                -Details "CISA CPG: Consider increasing to 128 MB or higher"
         }
-    } catch {
-        # Continue with other checks
     }
+} catch {
+    Add-Result -Category "CISA - Logging" -Status "Error" `
+        -Message "Failed to check System event log: $_"
 }
 
-# Check PowerShell logging (for detecting malicious scripts)
+# Check PowerShell logging (Script Block, Module, Transcription)
 try {
     $scriptBlockLogging = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging" -Name "EnableScriptBlockLogging" -ErrorAction SilentlyContinue
+    
     if ($scriptBlockLogging -and $scriptBlockLogging.EnableScriptBlockLogging -eq 1) {
         Add-Result -Category "CISA - Logging" -Status "Pass" `
             -Message "PowerShell Script Block Logging is enabled" `
-            -Details "CISA Best Practice: PowerShell logging detects malicious activity"
+            -Details "CISA CPG: PowerShell logging detects malicious scripting activity"
     } else {
-        Add-Result -Category "CISA - Logging" -Status "Warning" `
+        Add-Result -Category "CISA - Logging" -Status "Fail" `
             -Message "PowerShell Script Block Logging is not enabled" `
-            -Details "CISA Recommendation: Enable PowerShell logging for threat detection" `
-            -Remediation "Enable via Group Policy: Windows PowerShell > Turn on PowerShell Script Block Logging"
+            -Details "CISA CPG: Enable PowerShell logging to detect threats" `
+            -Remediation "New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Force; Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1"
     }
 } catch {
     Add-Result -Category "CISA - Logging" -Status "Error" `
-        -Message "Failed to check PowerShell logging: $_"
+        -Message "Failed to check PowerShell Script Block Logging: $_"
 }
 
-# Check event log size
 try {
-    $securityLog = Get-WinEvent -ListLog Security -ErrorAction SilentlyContinue
-    if ($securityLog) {
-        $logSizeMB = [math]::Round($securityLog.MaximumSizeInBytes / 1MB, 2)
-        
-        if ($logSizeMB -ge 100) {
+    $moduleLogging = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ModuleLogging" -Name "EnableModuleLogging" -ErrorAction SilentlyContinue
+    
+    if ($moduleLogging -and $moduleLogging.EnableModuleLogging -eq 1) {
+        Add-Result -Category "CISA - Logging" -Status "Pass" `
+            -Message "PowerShell Module Logging is enabled" `
+            -Details "CISA CPG: Module logging provides detailed cmdlet execution records"
+    } else {
+        Add-Result -Category "CISA - Logging" -Status "Warning" `
+            -Message "PowerShell Module Logging is not enabled" `
+            -Details "CISA CPG: Consider enabling for comprehensive PowerShell auditing" `
+            -Remediation "New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ModuleLogging' -Force; Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ModuleLogging' -Name EnableModuleLogging -Value 1"
+    }
+} catch {
+    Add-Result -Category "CISA - Logging" -Status "Error" `
+        -Message "Failed to check PowerShell Module Logging: $_"
+}
+
+try {
+    $transcription = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\Transcription" -Name "EnableTranscripting" -ErrorAction SilentlyContinue
+    
+    if ($transcription -and $transcription.EnableTranscripting -eq 1) {
+        $outputDir = $transcription.OutputDirectory
+        Add-Result -Category "CISA - Logging" -Status "Pass" `
+            -Message "PowerShell Transcription is enabled (Output: $outputDir)" `
+            -Details "CISA CPG: Transcription captures full PowerShell session activity"
+    } else {
+        Add-Result -Category "CISA - Logging" -Status "Info" `
+            -Message "PowerShell Transcription is not enabled" `
+            -Details "CISA CPG: Transcription provides complete session logs (optional but recommended)"
+    }
+} catch {
+    Add-Result -Category "CISA - Logging" -Status "Error" `
+        -Message "Failed to check PowerShell Transcription: $_"
+}
+
+# Check Process Creation auditing (Event ID 4688)
+try {
+    $processAuditing = auditpol /get /subcategory:"Process Creation" 2>$null
+    if ($processAuditing -and $processAuditing -match "Success") {
+        Add-Result -Category "CISA - Logging" -Status "Pass" `
+            -Message "Process Creation auditing is enabled" `
+            -Details "CISA CPG: Process auditing tracks program execution"
+    } else {
+        Add-Result -Category "CISA - Logging" -Status "Fail" `
+            -Message "Process Creation auditing is not enabled" `
+            -Details "CISA CPG: Enable process creation auditing for threat detection" `
+            -Remediation "auditpol /set /subcategory:'Process Creation' /success:enable"
+    }
+    
+    # Check if command line logging is enabled for process creation events
+    $cmdLineLogging = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit" -Name "ProcessCreationIncludeCmdLine_Enabled" -ErrorAction SilentlyContinue
+    if ($cmdLineLogging -and $cmdLineLogging.ProcessCreationIncludeCmdLine_Enabled -eq 1) {
+        Add-Result -Category "CISA - Logging" -Status "Pass" `
+            -Message "Command line logging in process auditing is enabled" `
+            -Details "CISA CPG: Command line logging captures full execution parameters"
+    } else {
+        Add-Result -Category "CISA - Logging" -Status "Warning" `
+            -Message "Command line logging in process auditing is not enabled" `
+            -Details "CISA CPG: Enable to capture process command line arguments" `
+            -Remediation "New-Item -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Force; Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1"
+    }
+} catch {
+    Add-Result -Category "CISA - Logging" -Status "Error" `
+        -Message "Failed to check Process Creation auditing: $_"
+}
+
+# Check for Sysmon installation (advanced logging)
+try {
+    $sysmonService = Get-Service -Name "Sysmon*" -ErrorAction SilentlyContinue
+    $sysmonDriver = Get-WmiObject Win32_SystemDriver | Where-Object { $_.Name -like "Sysmon*" }
+    
+    if ($sysmonService -or $sysmonDriver) {
+        if ($sysmonService.Status -eq "Running" -or $sysmonDriver) {
             Add-Result -Category "CISA - Logging" -Status "Pass" `
-                -Message "Security event log size is ${logSizeMB}MB" `
-                -Details "CISA Best Practice: Adequate log retention for investigation"
+                -Message "Sysmon is installed and running" `
+                -Details "CISA CPG: Sysmon provides advanced system monitoring and logging"
         } else {
             Add-Result -Category "CISA - Logging" -Status "Warning" `
-                -Message "Security event log size is ${logSizeMB}MB (may be insufficient)" `
-                -Details "CISA Recommendation: Increase log size or forward to SIEM" `
-                -Remediation "Increase log size and/or implement centralized logging"
+                -Message "Sysmon is installed but not running" `
+                -Details "CISA CPG: Start Sysmon service for enhanced logging"
+        }
+        
+        # Check Sysmon log
+        $sysmonLog = Get-WinEvent -ListLog "Microsoft-Windows-Sysmon/Operational" -ErrorAction SilentlyContinue
+        if ($sysmonLog -and $sysmonLog.IsEnabled) {
+            $logSizeMB = [math]::Round($sysmonLog.MaximumSizeInBytes / 1MB, 2)
+            Add-Result -Category "CISA - Logging" -Status "Pass" `
+                -Message "Sysmon operational log is enabled ($logSizeMB MB)" `
+                -Details "CISA CPG: Sysmon captures detailed system activity"
+        }
+    } else {
+        Add-Result -Category "CISA - Logging" -Status "Info" `
+            -Message "Sysmon is not installed" `
+            -Details "CISA CPG: Consider deploying Sysmon for enhanced logging (optional but highly recommended)"
+    }
+} catch {
+    Add-Result -Category "CISA - Logging" -Status "Info" `
+        -Message "Could not check Sysmon status"
+}
+
+# Check Windows Event Forwarding configuration
+try {
+    $wefService = Get-Service -Name "Wecsvc" -ErrorAction SilentlyContinue
+    if ($wefService) {
+        if ($wefService.Status -eq "Running") {
+            Add-Result -Category "CISA - Logging" -Status "Pass" `
+                -Message "Windows Event Collector service is running" `
+                -Details "CISA CPG: Event forwarding enables centralized log collection"
+            
+            # Check for subscriptions
+            $subscriptions = wecutil es 2>$null
+            if ($subscriptions) {
+                $subCount = ($subscriptions | Measure-Object).Count
+                Add-Result -Category "CISA - Logging" -Status "Pass" `
+                    -Message "Event forwarding subscriptions configured: $subCount" `
+                    -Details "CISA CPG: Centralized logging supports SOC operations"
+            }
+        } else {
+            Add-Result -Category "CISA - Logging" -Status "Info" `
+                -Message "Windows Event Collector service is not running" `
+                -Details "CISA CPG: Enable if using centralized log collection"
         }
     }
 } catch {
-    Add-Result -Category "CISA - Logging" -Status "Error" `
-        -Message "Failed to check event log configuration: $_"
+    Add-Result -Category "CISA - Logging" -Status "Info" `
+        -Message "Could not check Windows Event Forwarding configuration"
 }
 
 # ============================================================================
-# CISA: Network Security and Segmentation
+# CISA CPG: Endpoint Detection and Response
+# ============================================================================
+Write-Host "[CISA] Checking Endpoint Detection and Response..." -ForegroundColor Yellow
+
+# Check Windows Defender Antivirus status
+try {
+    $defenderStatus = Get-MpComputerStatus -ErrorAction Stop
+    
+    # Real-time protection
+    if ($defenderStatus.RealTimeProtectionEnabled) {
+        Add-Result -Category "CISA - EDR" -Status "Pass" `
+            -Message "Windows Defender real-time protection is enabled" `
+            -Details "CISA CPG: Real-time protection prevents malware execution"
+    } else {
+        Add-Result -Category "CISA - EDR" -Status "Fail" `
+            -Message "Windows Defender real-time protection is DISABLED" `
+            -Details "CISA CPG: Enable real-time protection immediately" `
+            -Remediation "Set-MpPreference -DisableRealtimeMonitoring `$false"
+    }
+    
+    # Cloud-delivered protection
+    if ($defenderStatus.MAPSReporting -ge 1) {
+        Add-Result -Category "CISA - EDR" -Status "Pass" `
+            -Message "Cloud-delivered protection is enabled (Level: $($defenderStatus.MAPSReporting))" `
+            -Details "CISA CPG: Cloud protection provides rapid threat intelligence"
+    } else {
+        Add-Result -Category "CISA - EDR" -Status "Fail" `
+            -Message "Cloud-delivered protection is disabled" `
+            -Details "CISA CPG: Enable cloud protection for enhanced detection" `
+            -Remediation "Set-MpPreference -MAPSReporting Advanced"
+    }
+    
+    # Behavior monitoring
+    if ($defenderStatus.BehaviorMonitorEnabled) {
+        Add-Result -Category "CISA - EDR" -Status "Pass" `
+            -Message "Behavior monitoring is enabled" `
+            -Details "CISA CPG: Behavior analysis detects zero-day threats"
+    } else {
+        Add-Result -Category "CISA - EDR" -Status "Fail" `
+            -Message "Behavior monitoring is disabled" `
+            -Details "CISA CPG: Enable behavior monitoring" `
+            -Remediation "Set-MpPreference -DisableBehaviorMonitoring `$false"
+    }
+    
+    # On-access protection
+    if ($defenderStatus.OnAccessProtectionEnabled) {
+        Add-Result -Category "CISA - EDR" -Status "Pass" `
+            -Message "On-access protection is enabled" `
+            -Details "CISA CPG: Scans files when accessed"
+    } else {
+        Add-Result -Category "CISA - EDR" -Status "Fail" `
+            -Message "On-access protection is disabled" `
+            -Details "CISA CPG: Enable on-access protection" `
+            -Remediation "Set-MpPreference -DisableIOAVProtection `$false"
+    }
+    
+    # Signature updates
+    $signatureAge = (Get-Date) - $defenderStatus.AntivirusSignatureLastUpdated
+    if ($signatureAge.Days -eq 0) {
+        Add-Result -Category "CISA - EDR" -Status "Pass" `
+            -Message "Antivirus signatures are current (updated today at $($defenderStatus.AntivirusSignatureLastUpdated.ToString('HH:mm')))" `
+            -Details "CISA CPG: Current signatures ensure protection against latest threats"
+    } elseif ($signatureAge.Days -le 3) {
+        Add-Result -Category "CISA - EDR" -Status "Pass" `
+            -Message "Antivirus signatures are $($signatureAge.Days) day(s) old" `
+            -Details "CISA CPG: Signatures are reasonably current"
+    } elseif ($signatureAge.Days -le 7) {
+        Add-Result -Category "CISA - EDR" -Status "Warning" `
+            -Message "Antivirus signatures are $($signatureAge.Days) days old" `
+            -Details "CISA CPG: Update signatures more frequently" `
+            -Remediation "Update-MpSignature"
+    } else {
+        Add-Result -Category "CISA - EDR" -Status "Fail" `
+            -Message "Antivirus signatures are severely outdated ($($signatureAge.Days) days old)" `
+            -Details "CISA CPG: Update signatures immediately - system is vulnerable" `
+            -Remediation "Update-MpSignature -UpdateSource Microsoft"
+    }
+    
+    # Check scan status
+    $daysSinceLastFullScan = $null
+    if ($defenderStatus.FullScanAge) {
+        $daysSinceLastFullScan = $defenderStatus.FullScanAge
+        if ($daysSinceLastFullScan -le 7) {
+            Add-Result -Category "CISA - EDR" -Status "Pass" `
+                -Message "Full scan performed $daysSinceLastFullScan day(s) ago" `
+                -Details "CISA CPG: Regular full scans detect dormant threats"
+        } else {
+            Add-Result -Category "CISA - EDR" -Status "Warning" `
+                -Message "Last full scan was $daysSinceLastFullScan days ago" `
+                -Details "CISA CPG: Perform weekly full scans" `
+                -Remediation "Start-MpScan -ScanType FullScan"
+        }
+    } else {
+        Add-Result -Category "CISA - EDR" -Status "Warning" `
+            -Message "No full scan has been performed or scan history unavailable" `
+            -Details "CISA CPG: Schedule regular full system scans" `
+            -Remediation "Start-MpScan -ScanType FullScan"
+    }
+    
+    # Check quick scan status
+    $daysSinceLastQuickScan = $defenderStatus.QuickScanAge
+    if ($daysSinceLastQuickScan -le 1) {
+        Add-Result -Category "CISA - EDR" -Status "Pass" `
+            -Message "Quick scan performed $daysSinceLastQuickScan day(s) ago" `
+            -Details "CISA CPG: Recent quick scan indicates active protection"
+    }
+    
+    # Network protection
+    $networkProtection = Get-MpPreference | Select-Object -ExpandProperty EnableNetworkProtection -ErrorAction SilentlyContinue
+    if ($networkProtection -eq 1) {
+        Add-Result -Category "CISA - EDR" -Status "Pass" `
+            -Message "Network protection is enabled and in block mode" `
+            -Details "CISA CPG: Network protection blocks malicious network traffic"
+    } elseif ($networkProtection -eq 2) {
+        Add-Result -Category "CISA - EDR" -Status "Warning" `
+            -Message "Network protection is in audit mode only" `
+            -Details "CISA CPG: Enable block mode for network protection" `
+            -Remediation "Set-MpPreference -EnableNetworkProtection Enabled"
+    } else {
+        Add-Result -Category "CISA - EDR" -Status "Fail" `
+            -Message "Network protection is disabled" `
+            -Details "CISA CPG: Enable network protection" `
+            -Remediation "Set-MpPreference -EnableNetworkProtection Enabled"
+    }
+    
+    # Controlled folder access (ransomware protection)
+    $controlledFolderAccess = Get-MpPreference | Select-Object -ExpandProperty EnableControlledFolderAccess -ErrorAction SilentlyContinue
+    if ($controlledFolderAccess -eq 1) {
+        Add-Result -Category "CISA - EDR" -Status "Pass" `
+            -Message "Controlled Folder Access (ransomware protection) is enabled" `
+            -Details "CISA CPG: Protects critical folders from ransomware"
+    } elseif ($controlledFolderAccess -eq 2) {
+        Add-Result -Category "CISA - EDR" -Status "Info" `
+            -Message "Controlled Folder Access is in audit mode" `
+            -Details "CISA CPG: Consider enabling block mode after testing"
+    } else {
+        Add-Result -Category "CISA - EDR" -Status "Warning" `
+            -Message "Controlled Folder Access is disabled" `
+            -Details "CISA CPG: Consider enabling for ransomware protection" `
+            -Remediation "Set-MpPreference -EnableControlledFolderAccess Enabled"
+    }
+    
+    # Attack Surface Reduction rules
+    $asrRules = Get-MpPreference | Select-Object -ExpandProperty AttackSurfaceReductionRules_Ids -ErrorAction SilentlyContinue
+    if ($asrRules -and $asrRules.Count -gt 0) {
+        Add-Result -Category "CISA - EDR" -Status "Pass" `
+            -Message "Attack Surface Reduction rules are configured ($($asrRules.Count) rules)" `
+            -Details "CISA CPG: ASR rules reduce attack vectors"
+    } else {
+        Add-Result -Category "CISA - EDR" -Status "Info" `
+            -Message "No Attack Surface Reduction rules configured" `
+            -Details "CISA CPG: Consider configuring ASR rules for additional protection"
+    }
+    
+} catch {
+    Add-Result -Category "CISA - EDR" -Status "Error" `
+        -Message "Failed to check Windows Defender status: $_" `
+        -Details "CISA CPG: Ensure endpoint protection is functioning"
+}
+
+# Check for Microsoft Defender for Endpoint (advanced EDR)
+try {
+    $defenderATPService = Get-Service -Name "Sense" -ErrorAction SilentlyContinue
+    if ($defenderATPService) {
+        if ($defenderATPService.Status -eq "Running") {
+            Add-Result -Category "CISA - EDR" -Status "Pass" `
+                -Message "Microsoft Defender for Endpoint service is running" `
+                -Details "CISA CPG: Advanced EDR provides enhanced threat detection and response"
+            
+            # Check onboarding status
+            $senseOnboarded = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows Advanced Threat Protection\Status" -Name "OnboardingState" -ErrorAction SilentlyContinue
+            if ($senseOnboarded -and $senseOnboarded.OnboardingState -eq 1) {
+                Add-Result -Category "CISA - EDR" -Status "Pass" `
+                    -Message "System is onboarded to Microsoft Defender for Endpoint" `
+                    -Details "CISA CPG: MDE provides centralized threat visibility"
+            }
+        } else {
+            Add-Result -Category "CISA - EDR" -Status "Warning" `
+                -Message "Microsoft Defender for Endpoint service exists but is not running" `
+                -Details "CISA CPG: Start MDE service" `
+                -Remediation "Start-Service Sense; Set-Service Sense -StartupType Automatic"
+        }
+    } else {
+        Add-Result -Category "CISA - EDR" -Status "Info" `
+            -Message "Microsoft Defender for Endpoint is not installed" `
+            -Details "CISA CPG: Consider deploying advanced EDR solution"
+    }
+} catch {
+    Add-Result -Category "CISA - EDR" -Status "Info" `
+        -Message "Could not check Microsoft Defender for Endpoint status"
+}
+
+# ============================================================================
+# CISA CPG: Data Encryption
+# ============================================================================
+Write-Host "[CISA] Checking Data Encryption..." -ForegroundColor Yellow
+
+# Check BitLocker status on all drives
+try {
+    $volumes = Get-BitLockerVolume -ErrorAction Stop
+    $protectedVolumes = 0
+    $unprotectedVolumes = 0
+    
+    foreach ($volume in $volumes) {
+        if ($volume.VolumeStatus -eq "FullyEncrypted") {
+            $protectedVolumes++
+            Add-Result -Category "CISA - Data Encryption" -Status "Pass" `
+                -Message "Drive $($volume.MountPoint) is fully encrypted" `
+                -Details "CISA CPG: BitLocker protects data at rest (Method: $($volume.EncryptionMethod))"
+        } elseif ($volume.VolumeStatus -eq "EncryptionInProgress") {
+            Add-Result -Category "CISA - Data Encryption" -Status "Info" `
+                -Message "Drive $($volume.MountPoint) encryption in progress ($($volume.EncryptionPercentage)%)" `
+                -Details "CISA CPG: Allow encryption to complete"
+        } else {
+            $unprotectedVolumes++
+            Add-Result -Category "CISA - Data Encryption" -Status "Fail" `
+                -Message "Drive $($volume.MountPoint) is NOT encrypted (Status: $($volume.VolumeStatus))" `
+                -Details "CISA CPG: Enable BitLocker on all system and data volumes" `
+                -Remediation "Enable-BitLocker -MountPoint '$($volume.MountPoint)' -EncryptionMethod XtsAes256 -TpmProtector"
+        }
+        
+        # Check recovery key backup
+        if ($volume.VolumeStatus -eq "FullyEncrypted") {
+            $keyProtectors = $volume.KeyProtector
+            $hasRecoveryPassword = $keyProtectors | Where-Object { $_.KeyProtectorType -eq "RecoveryPassword" }
+            
+            if ($hasRecoveryPassword) {
+                Add-Result -Category "CISA - Data Encryption" -Status "Pass" `
+                    -Message "Drive $($volume.MountPoint) has recovery password configured" `
+                    -Details "CISA CPG: Recovery keys enable data recovery"
+            } else {
+                Add-Result -Category "CISA - Data Encryption" -Status "Warning" `
+                    -Message "Drive $($volume.MountPoint) lacks recovery password" `
+                    -Details "CISA CPG: Add recovery password for emergency access" `
+                    -Remediation "Add-BitLockerKeyProtector -MountPoint '$($volume.MountPoint)' -RecoveryPasswordProtector"
+            }
+        }
+    }
+    
+    if ($protectedVolumes -gt 0 -and $unprotectedVolumes -eq 0) {
+        Add-Result -Category "CISA - Data Encryption" -Status "Pass" `
+            -Message "All $protectedVolumes volume(s) are encrypted with BitLocker" `
+            -Details "CISA CPG: Full disk encryption protects against data theft"
+    } elseif ($unprotectedVolumes -gt 0) {
+        Add-Result -Category "CISA - Data Encryption" -Status "Fail" `
+            -Message "$unprotectedVolumes volume(s) are not encrypted" `
+            -Details "CISA CPG: Encrypt all drives containing sensitive data"
+    }
+    
+} catch {
+    $errorMsg = $_.Exception.Message
+    if ($errorMsg -like "*not supported*" -or $errorMsg -like "*requires*") {
+        Add-Result -Category "CISA - Data Encryption" -Status "Info" `
+            -Message "BitLocker is not available on this Windows edition" `
+            -Details "CISA CPG: BitLocker requires Pro/Enterprise editions"
+    } else {
+        Add-Result -Category "CISA - Data Encryption" -Status "Error" `
+            -Message "Failed to check BitLocker status: $_"
+    }
+}
+
+# Check EFS (Encrypting File System) usage
+try {
+    $efsUsers = cipher /u /n 2>$null | Select-String "User:" | Measure-Object
+    if ($efsUsers.Count -gt 0) {
+        Add-Result -Category "CISA - Data Encryption" -Status "Info" `
+            -Message "EFS (Encrypting File System) is in use by $($efsUsers.Count) user(s)" `
+            -Details "CISA CPG: EFS provides file-level encryption"
+    }
+} catch {
+    # EFS check is optional
+}
+
+# ============================================================================
+# CISA CPG: Network Security
 # ============================================================================
 Write-Host "[CISA] Checking Network Security..." -ForegroundColor Yellow
 
-# Check Windows Firewall
+# Check Windows Firewall status
 try {
     $profiles = @("Domain", "Private", "Public")
     $allEnabled = $true
     
-    foreach ($profile in $profiles) {
-        $fwProfile = Get-NetFirewallProfile -Name $profile
+    foreach ($profileName in $profiles) {
+        $profile = Get-NetFirewallProfile -Name $profileName -ErrorAction Stop
         
-        if ($fwProfile.Enabled) {
-            if ($fwProfile.DefaultInboundAction -eq "Block") {
-                Add-Result -Category "CISA - Network Security" -Status "Pass" `
-                    -Message "$profile firewall: Enabled with default deny" `
-                    -Details "CISA Best Practice: Host-based firewalls reduce lateral movement"
-            } else {
-                Add-Result -Category "CISA - Network Security" -Status "Warning" `
-                    -Message "$profile firewall allows inbound by default" `
-                    -Details "CISA Best Practice: Implement default deny" `
-                    -Remediation "Set-NetFirewallProfile -Name $profile -DefaultInboundAction Block"
-            }
+        if ($profile.Enabled) {
+            Add-Result -Category "CISA - Network Security" -Status "Pass" `
+                -Message "$profileName firewall profile is enabled" `
+                -Details "CISA CPG: Firewall provides first line of network defense (Default Inbound: $($profile.DefaultInboundAction), Outbound: $($profile.DefaultOutboundAction))"
         } else {
             $allEnabled = $false
             Add-Result -Category "CISA - Network Security" -Status "Fail" `
-                -Message "$profile firewall is disabled" `
-                -Details "CISA Alert: Enable host-based firewalls" `
-                -Remediation "Set-NetFirewallProfile -Name $profile -Enabled True"
+                -Message "$profileName firewall profile is DISABLED" `
+                -Details "CISA CPG: Enable firewall on all network profiles" `
+                -Remediation "Set-NetFirewallProfile -Name $profileName -Enabled True"
+        }
+        
+        # Check if default deny for inbound is configured
+        if ($profile.DefaultInboundAction -eq "Block") {
+            Add-Result -Category "CISA - Network Security" -Status "Pass" `
+                -Message "$profileName profile: Default inbound is set to Block" `
+                -Details "CISA CPG: Default deny reduces attack surface"
+        } else {
+            Add-Result -Category "CISA - Network Security" -Status "Warning" `
+                -Message "$profileName profile: Default inbound is set to Allow" `
+                -Details "CISA CPG: Configure default deny for inbound traffic" `
+                -Remediation "Set-NetFirewallProfile -Name $profileName -DefaultInboundAction Block"
+        }
+        
+        # Check logging
+        if ($profile.LogBlocked -eq "True") {
+            Add-Result -Category "CISA - Network Security" -Status "Pass" `
+                -Message "$profileName profile: Logging blocked connections" `
+                -Details "CISA CPG: Firewall logging aids security monitoring"
+        } else {
+            Add-Result -Category "CISA - Network Security" -Status "Info" `
+                -Message "$profileName profile: Not logging blocked connections" `
+                -Details "CISA CPG: Consider enabling firewall logging"
         }
     }
+    
+    if ($allEnabled) {
+        Add-Result -Category "CISA - Network Security" -Status "Pass" `
+            -Message "Windows Firewall is enabled on all profiles" `
+            -Details "CISA CPG: Comprehensive firewall protection is active"
+    }
+    
 } catch {
     Add-Result -Category "CISA - Network Security" -Status "Error" `
         -Message "Failed to check firewall configuration: $_"
 }
 
-# Check for SMBv1 (major ransomware vector)
+# Check SMBv1 status (should be disabled per CISA KEV)
 try {
-    $smbv1 = Get-SmbServerConfiguration -ErrorAction SilentlyContinue | Select-Object EnableSMB1Protocol
-    if ($smbv1 -and $smbv1.EnableSMB1Protocol -eq $false) {
+    $smb1Feature = Get-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -ErrorAction Stop
+    
+    if ($smb1Feature.State -eq "Disabled") {
         Add-Result -Category "CISA - Network Security" -Status "Pass" `
             -Message "SMBv1 protocol is disabled" `
-            -Details "CISA Alert: SMBv1 was exploited by WannaCry, NotPetya"
-    } elseif ($smbv1 -and $smbv1.EnableSMB1Protocol -eq $true) {
+            -Details "CISA CPG: SMBv1 has critical vulnerabilities (WannaCry, NotPetya)"
+    } else {
         Add-Result -Category "CISA - Network Security" -Status "Fail" `
-            -Message "SMBv1 protocol is enabled" `
-            -Details "CISA CRITICAL: Disable SMBv1 immediately (used by major ransomware)" `
-            -Remediation "Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force"
+            -Message "SMBv1 protocol is ENABLED" `
+            -Details "CISA CPG: Disable SMBv1 immediately - actively exploited" `
+            -Remediation "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart"
+    }
+    
+    # Also check SMB server configuration
+    $smbServer = Get-SmbServerConfiguration -ErrorAction SilentlyContinue
+    if ($smbServer) {
+        if (-not $smbServer.EnableSMB1Protocol) {
+            Add-Result -Category "CISA - Network Security" -Status "Pass" `
+                -Message "SMBv1 is disabled in server configuration" `
+                -Details "CISA CPG: Server-level SMBv1 protection"
+        } else {
+            Add-Result -Category "CISA - Network Security" -Status "Fail" `
+                -Message "SMBv1 is enabled in server configuration" `
+                -Details "CISA CPG: Disable SMBv1 at server level" `
+                -Remediation "Set-SmbServerConfiguration -EnableSMB1Protocol `$false -Force"
+        }
+        
+        # Check SMB signing
+        if ($smbServer.RequireSecuritySignature) {
+            Add-Result -Category "CISA - Network Security" -Status "Pass" `
+                -Message "SMB signing is required" `
+                -Details "CISA CPG: SMB signing prevents man-in-the-middle attacks"
+        } else {
+            Add-Result -Category "CISA - Network Security" -Status "Warning" `
+                -Message "SMB signing is not required" `
+                -Details "CISA CPG: Require SMB signing to prevent tampering" `
+                -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature `$true -Force"
+        }
+        
+        # Check SMB encryption
+        if ($smbServer.EncryptData) {
+            Add-Result -Category "CISA - Network Security" -Status "Pass" `
+                -Message "SMB encryption is enabled globally" `
+                -Details "CISA CPG: SMB encryption protects data in transit"
+        } else {
+            Add-Result -Category "CISA - Network Security" -Status "Info" `
+                -Message "SMB encryption is not enabled globally" `
+                -Details "CISA CPG: Consider enabling SMB encryption for sensitive data"
+        }
     }
 } catch {
     Add-Result -Category "CISA - Network Security" -Status "Error" `
-        -Message "Failed to check SMBv1 status: $_"
+        -Message "Failed to check SMB configuration: $_"
 }
 
-# Check LLMNR/NBT-NS (credential theft vectors)
+# Check for LLMNR (should be disabled)
 try {
     $llmnr = Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient" -Name "EnableMulticast" -ErrorAction SilentlyContinue
+    
     if ($llmnr -and $llmnr.EnableMulticast -eq 0) {
         Add-Result -Category "CISA - Network Security" -Status "Pass" `
-            -Message "LLMNR is disabled" `
-            -Details "CISA Best Practice: Disable LLMNR to prevent credential theft"
+            -Message "LLMNR (Link-Local Multicast Name Resolution) is disabled" `
+            -Details "CISA CPG: Disabling LLMNR prevents name resolution poisoning attacks"
     } else {
         Add-Result -Category "CISA - Network Security" -Status "Warning" `
-            -Message "LLMNR may be enabled" `
-            -Details "CISA Recommendation: Disable LLMNR and NetBIOS" `
-            -Remediation "Disable via Group Policy: DNS Client > Turn off multicast name resolution"
+            -Message "LLMNR may be enabled (default)" `
+            -Details "CISA CPG: Disable LLMNR to prevent credential theft attacks" `
+            -Remediation "New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient' -Force; Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient' -Name EnableMulticast -Value 0"
     }
 } catch {
-    Add-Result -Category "CISA - Network Security" -Status "Info" `
-        -Message "Could not verify LLMNR status" `
-        -Details "CISA Best Practice: Disable legacy name resolution protocols"
+    Add-Result -Category "CISA - Network Security" -Status "Error" `
+        -Message "Failed to check LLMNR status: $_"
 }
 
-# ============================================================================
-# CISA: Endpoint Detection and Response (EDR)
-# ============================================================================
-Write-Host "[CISA] Checking Endpoint Protection..." -ForegroundColor Yellow
-
+# Check for NetBIOS over TCP/IP (should be disabled)
 try {
-    $defenderStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
+    $adapters = Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration -Filter "IPEnabled=True" -ErrorAction SilentlyContinue
+    $netbiosEnabled = $false
+    $netbiosDisabled = $false
     
-    if ($defenderStatus) {
-        # Real-time protection
-        if ($defenderStatus.RealTimeProtectionEnabled) {
-            Add-Result -Category "CISA - Endpoint Protection" -Status "Pass" `
-                -Message "Real-time antivirus protection is enabled" `
-                -Details "CISA Best Practice: Deploy and maintain endpoint protection"
-        } else {
-            Add-Result -Category "CISA - Endpoint Protection" -Status "Fail" `
-                -Message "Real-time antivirus protection is disabled" `
-                -Details "CISA CRITICAL: Enable endpoint protection" `
-                -Remediation "Set-MpPreference -DisableRealtimeMonitoring $false"
-        }
-        
-        # Cloud-delivered protection (enhanced detection)
-        if ($defenderStatus.CloudProtectionEnabled -and $defenderStatus.MAPSReporting -ne 0) {
-            Add-Result -Category "CISA - Endpoint Protection" -Status "Pass" `
-                -Message "Cloud-delivered protection is enabled" `
-                -Details "CISA Best Practice: Cloud protection provides rapid threat intelligence"
-        } else {
-            Add-Result -Category "CISA - Endpoint Protection" -Status "Warning" `
-                -Message "Cloud-delivered protection is not fully enabled" `
-                -Details "CISA Recommendation: Enable cloud protection for advanced threats" `
-                -Remediation "Set-MpPreference -MAPSReporting Advanced"
-        }
-        
-        # Tamper Protection
-        if ($defenderStatus.IsTamperProtected) {
-            Add-Result -Category "CISA - Endpoint Protection" -Status "Pass" `
-                -Message "Tamper Protection is enabled" `
-                -Details "CISA Best Practice: Prevent malware from disabling security"
-        } else {
-            Add-Result -Category "CISA - Endpoint Protection" -Status "Warning" `
-                -Message "Tamper Protection is not enabled" `
-                -Details "CISA Recommendation: Enable Tamper Protection" `
-                -Remediation "Enable via Windows Security app or Intune"
-        }
-        
-        # Signature age
-        $signatureAge = (Get-Date) - $defenderStatus.AntivirusSignatureLastUpdated
-        if ($signatureAge.TotalHours -le 24) {
-            Add-Result -Category "CISA - Endpoint Protection" -Status "Pass" `
-                -Message "Antivirus signatures updated in last 24 hours" `
-                -Details "CISA Best Practice: Keep signatures current"
-        } elseif ($signatureAge.Days -le 7) {
-            Add-Result -Category "CISA - Endpoint Protection" -Status "Warning" `
-                -Message "Antivirus signatures are $([math]::Round($signatureAge.TotalDays, 1)) days old" `
-                -Details "CISA Recommendation: Update signatures daily" `
-                -Remediation "Update-MpSignature"
-        } else {
-            Add-Result -Category "CISA - Endpoint Protection" -Status "Fail" `
-                -Message "Antivirus signatures are severely outdated ($([math]::Round($signatureAge.TotalDays)) days)" `
-                -Details "CISA CRITICAL: Update signatures immediately" `
-                -Remediation "Update-MpSignature"
+    foreach ($adapter in $adapters) {
+        # TcpipNetbiosOptions: 0=Default, 1=Enabled, 2=Disabled
+        if ($adapter.TcpipNetbiosOptions -eq 2) {
+            $netbiosDisabled = $true
+        } elseif ($adapter.TcpipNetbiosOptions -eq 1) {
+            $netbiosEnabled = $true
         }
     }
-} catch {
-    Add-Result -Category "CISA - Endpoint Protection" -Status "Error" `
-        -Message "Failed to check Windows Defender status: $_"
-}
-
-# ============================================================================
-# CISA: Secure Configuration
-# ============================================================================
-Write-Host "[CISA] Checking Secure Configuration..." -ForegroundColor Yellow
-
-# Check for default accounts
-try {
-    $adminAccount = Get-LocalUser | Where-Object { $_.SID -like "*-500" }
-    if ($adminAccount -and $adminAccount.Enabled) {
-        Add-Result -Category "CISA - Secure Configuration" -Status "Fail" `
-            -Message "Built-in Administrator account is enabled" `
-            -Details "CISA Best Practice: Disable or rename default accounts" `
-            -Remediation "Disable-LocalUser -SID $($adminAccount.SID)"
+    
+    if ($netbiosDisabled -and -not $netbiosEnabled) {
+        Add-Result -Category "CISA - Network Security" -Status "Pass" `
+            -Message "NetBIOS over TCP/IP is disabled on all network adapters" `
+            -Details "CISA CPG: Disabling NetBIOS reduces attack surface"
+    } elseif ($netbiosEnabled) {
+        Add-Result -Category "CISA - Network Security" -Status "Warning" `
+            -Message "NetBIOS over TCP/IP is enabled on one or more adapters" `
+            -Details "CISA CPG: Disable NetBIOS over TCP/IP to reduce exposure" `
+            -Remediation "Configure via network adapter TCP/IP properties or DHCP scope options"
     } else {
-        Add-Result -Category "CISA - Secure Configuration" -Status "Pass" `
-            -Message "Built-in Administrator account is disabled" `
-            -Details "CISA Best Practice: Default accounts are secured"
-    }
-    
-    $guestAccount = Get-LocalUser -Name "Guest" -ErrorAction SilentlyContinue
-    if ($guestAccount -and $guestAccount.Enabled) {
-        Add-Result -Category "CISA - Secure Configuration" -Status "Fail" `
-            -Message "Guest account is enabled" `
-            -Details "CISA Best Practice: Disable guest access" `
-            -Remediation "Disable-LocalUser -Name Guest"
+        Add-Result -Category "CISA - Network Security" -Status "Info" `
+            -Message "NetBIOS over TCP/IP is using default settings" `
+            -Details "CISA CPG: Explicitly disable NetBIOS on all adapters"
     }
 } catch {
-    Add-Result -Category "CISA - Secure Configuration" -Status "Error" `
-        -Message "Failed to check default accounts: $_"
+    Add-Result -Category "CISA - Network Security" -Status "Error" `
+        -Message "Failed to check NetBIOS configuration: $_"
 }
 
-# Check UAC
+# ============================================================================
+# CISA CPG: Secure Configuration Management
+# ============================================================================
+Write-Host "[CISA] Checking Secure Configuration Management..." -ForegroundColor Yellow
+
+# Check User Account Control (UAC) settings
 try {
-    $uac = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "EnableLUA" -ErrorAction SilentlyContinue
-    if ($uac -and $uac.EnableLUA -eq 1) {
-        Add-Result -Category "CISA - Secure Configuration" -Status "Pass" `
+    $uac = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -ErrorAction Stop
+    
+    # EnableLUA - UAC enabled
+    if ($uac.EnableLUA -eq 1) {
+        Add-Result -Category "CISA - Configuration" -Status "Pass" `
             -Message "User Account Control (UAC) is enabled" `
-            -Details "CISA Best Practice: UAC prevents unauthorized elevation"
+            -Details "CISA CPG: UAC prevents unauthorized privilege elevation"
     } else {
-        Add-Result -Category "CISA - Secure Configuration" -Status "Fail" `
-            -Message "User Account Control (UAC) is disabled" `
-            -Details "CISA CRITICAL: Enable UAC" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1"
+        Add-Result -Category "CISA - Configuration" -Status "Fail" `
+            -Message "User Account Control (UAC) is DISABLED" `
+            -Details "CISA CPG: Enable UAC for security isolation" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1; Restart-Computer"
+    }
+    
+    # ConsentPromptBehaviorAdmin - Admin approval mode
+    $consentLevel = $uac.ConsentPromptBehaviorAdmin
+    switch ($consentLevel) {
+        0 {
+            Add-Result -Category "CISA - Configuration" -Status "Fail" `
+                -Message "UAC: Admin approval mode is disabled (Elevate without prompting)" `
+                -Details "CISA CPG: This bypasses UAC protection" `
+                -Remediation "Set ConsentPromptBehaviorAdmin to 2 or higher"
+        }
+        1 {
+            Add-Result -Category "CISA - Configuration" -Status "Warning" `
+                -Message "UAC: Prompt for credentials on secure desktop" `
+                -Details "CISA CPG: Consider using 'Prompt for consent' for better usability"
+        }
+        2 {
+            Add-Result -Category "CISA - Configuration" -Status "Pass" `
+                -Message "UAC: Prompt for consent on secure desktop (Recommended)" `
+                -Details "CISA CPG: Balanced security and usability"
+        }
+        3 {
+            Add-Result -Category "CISA - Configuration" -Status "Warning" `
+                -Message "UAC: Prompt for credentials (not on secure desktop)" `
+                -Details "CISA CPG: Secure desktop provides additional protection"
+        }
+        4 {
+            Add-Result -Category "CISA - Configuration" -Status "Warning" `
+                -Message "UAC: Prompt for consent (not on secure desktop)" `
+                -Details "CISA CPG: Secure desktop recommended"
+        }
+        5 {
+            Add-Result -Category "CISA - Configuration" -Status "Pass" `
+                -Message "UAC: Prompt for consent for non-Windows binaries" `
+                -Details "CISA CPG: Protects against malicious executables"
+        }
+    }
+    
+    # PromptOnSecureDesktop
+    if ($uac.PromptOnSecureDesktop -eq 1) {
+        Add-Result -Category "CISA - Configuration" -Status "Pass" `
+            -Message "UAC: Elevation prompts display on secure desktop" `
+            -Details "CISA CPG: Secure desktop prevents UI spoofing attacks"
+    } else {
+        Add-Result -Category "CISA - Configuration" -Status "Warning" `
+            -Message "UAC: Elevation prompts do not use secure desktop" `
+            -Details "CISA CPG: Enable secure desktop for UAC prompts" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name PromptOnSecureDesktop -Value 1"
+    }
+    
+    # FilterAdministratorToken
+    if ($uac.FilterAdministratorToken -eq 1) {
+        Add-Result -Category "CISA - Configuration" -Status "Pass" `
+            -Message "UAC: Built-in Administrator account runs in Admin Approval Mode" `
+            -Details "CISA CPG: Applies UAC restrictions to built-in admin account"
+    } else {
+        Add-Result -Category "CISA - Configuration" -Status "Info" `
+            -Message "UAC: Built-in Administrator bypasses UAC" `
+            -Details "CISA CPG: Consider applying UAC to built-in admin account"
+    }
+    
+} catch {
+    Add-Result -Category "CISA - Configuration" -Status "Error" `
+        -Message "Failed to check UAC configuration: $_"
+}
+
+# Check Administrator account status
+try {
+    $adminAccount = Get-LocalUser -Name "Administrator" -ErrorAction SilentlyContinue
+    
+    if ($adminAccount) {
+        if ($adminAccount.Enabled) {
+            Add-Result -Category "CISA - Configuration" -Status "Warning" `
+                -Message "Built-in Administrator account is ENABLED" `
+                -Details "CISA CPG: Disable or rename built-in Administrator account" `
+                -Remediation "Disable-LocalUser -Name Administrator"
+        } else {
+            Add-Result -Category "CISA - Configuration" -Status "Pass" `
+                -Message "Built-in Administrator account is disabled" `
+                -Details "CISA CPG: Disabled admin accounts reduce attack surface"
+        }
+        
+        # Check if account has been renamed
+        if ($adminAccount.Name -eq "Administrator") {
+            Add-Result -Category "CISA - Configuration" -Status "Info" `
+                -Message "Built-in Administrator account has not been renamed" `
+                -Details "CISA CPG: Consider renaming for additional obscurity"
+        }
     }
 } catch {
-    Add-Result -Category "CISA - Secure Configuration" -Status "Error" `
-        -Message "Failed to check UAC: $_"
+    Add-Result -Category "CISA - Configuration" -Status "Error" `
+        -Message "Failed to check Administrator account: $_"
+}
+
+# Check Guest account status
+try {
+    $guestAccount = Get-LocalUser -Name "Guest" -ErrorAction SilentlyContinue
+    
+    if ($guestAccount) {
+        if ($guestAccount.Enabled) {
+            Add-Result -Category "CISA - Configuration" -Status "Fail" `
+                -Message "Guest account is ENABLED" `
+                -Details "CISA CPG: Disable Guest account - presents security risk" `
+                -Remediation "Disable-LocalUser -Name Guest"
+        } else {
+            Add-Result -Category "CISA - Configuration" -Status "Pass" `
+                -Message "Guest account is disabled" `
+                -Details "CISA CPG: Guest account is properly disabled"
+        }
+    }
+} catch {
+    Add-Result -Category "CISA - Configuration" -Status "Error" `
+        -Message "Failed to check Guest account: $_"
+}
+
+# Check for Secure Boot
+try {
+    $secureBoot = Confirm-SecureBootUEFI -ErrorAction SilentlyContinue
+    
+    if ($secureBoot -eq $true) {
+        Add-Result -Category "CISA - Configuration" -Status "Pass" `
+            -Message "Secure Boot is enabled" `
+            -Details "CISA CPG: Secure Boot protects against bootkit and rootkit malware"
+    } elseif ($secureBoot -eq $false) {
+        Add-Result -Category "CISA - Configuration" -Status "Warning" `
+            -Message "Secure Boot is disabled" `
+            -Details "CISA CPG: Enable Secure Boot in UEFI firmware settings" `
+            -Remediation "Enable Secure Boot in BIOS/UEFI settings"
+    } else {
+        Add-Result -Category "CISA - Configuration" -Status "Info" `
+            -Message "Secure Boot status cannot be determined (Legacy BIOS system)" `
+            -Details "CISA CPG: UEFI with Secure Boot is recommended for modern systems"
+    }
+} catch {
+    Add-Result -Category "CISA - Configuration" -Status "Info" `
+        -Message "Could not determine Secure Boot status" `
+        -Details "CISA CPG: Verify Secure Boot is enabled in firmware"
+}
+
+# Check for default credentials/passwords
+try {
+    # Check for accounts with passwords that don't expire
+    $users = Get-LocalUser | Where-Object { $_.Enabled -eq $true }
+    $passwordNeverExpires = $users | Where-Object { $_.PasswordExpires -eq $null }
+    
+    if ($passwordNeverExpires) {
+        foreach ($user in $passwordNeverExpires) {
+            Add-Result -Category "CISA - Configuration" -Status "Warning" `
+                -Message "User account '$($user.Name)' has password set to never expire" `
+                -Details "CISA CPG: Enforce password expiration policies" `
+                -Remediation "Set-LocalUser -Name '$($user.Name)' -PasswordNeverExpires `$false"
+        }
+    }
+    
+    # Check for blank passwords
+    $nullPasswordPolicy = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LimitBlankPasswordUse" -ErrorAction SilentlyContinue
+    if ($nullPasswordPolicy -and $nullPasswordPolicy.LimitBlankPasswordUse -eq 1) {
+        Add-Result -Category "CISA - Configuration" -Status "Pass" `
+            -Message "Blank password use is restricted to console logon only" `
+            -Details "CISA CPG: Prevents remote logon with blank passwords"
+    } else {
+        Add-Result -Category "CISA - Configuration" -Status "Warning" `
+            -Message "Blank password use is not properly restricted" `
+            -Details "CISA CPG: Enable blank password restrictions" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name LimitBlankPasswordUse -Value 1"
+    }
+    
+} catch {
+    Add-Result -Category "CISA - Configuration" -Status "Error" `
+        -Message "Failed to check password policies: $_"
+}
+
+# Check for automatic Windows updates
+try {
+    $autoUpdateNotification = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update" -Name "AUOptions" -ErrorAction SilentlyContinue
+    
+    if ($autoUpdateNotification) {
+        $option = $autoUpdateNotification.AUOptions
+        if ($option -eq 4) {
+            Add-Result -Category "CISA - Configuration" -Status "Pass" `
+                -Message "Windows Updates are configured to automatically download and install" `
+                -Details "CISA CPG: Automatic updates ensure timely patching"
+        } elseif ($option -eq 3) {
+            Add-Result -Category "CISA - Configuration" -Status "Warning" `
+                -Message "Windows Updates download automatically but require manual installation" `
+                -Details "CISA CPG: Enable automatic installation" `
+                -Remediation "Configure automatic installation via Group Policy or Settings"
+        } else {
+            Add-Result -Category "CISA - Configuration" -Status "Fail" `
+                -Message "Windows Updates are not configured for automatic download/install" `
+                -Details "CISA CPG: Enable automatic updates" `
+                -Remediation "Enable automatic updates in Windows Update settings"
+        }
+    }
+} catch {
+    Add-Result -Category "CISA - Configuration" -Status "Info" `
+        -Message "Could not determine automatic update configuration"
+}
+
+# ============================================================================
+# CISA CPG: Access Control and Privileges
+# ============================================================================
+Write-Host "[CISA] Checking Access Control and Privileges..." -ForegroundColor Yellow
+
+# Enumerate local administrators
+try {
+    $admins = Get-LocalGroupMember -Group "Administrators" -ErrorAction Stop
+    
+    Add-Result -Category "CISA - Access Control" -Status "Info" `
+        -Message "Local Administrators group has $($admins.Count) member(s)" `
+        -Details "CISA CPG: Review and minimize administrative accounts. Members: $($admins.Name -join ', ')"
+    
+    if ($admins.Count -gt 5) {
+        Add-Result -Category "CISA - Access Control" -Status "Warning" `
+            -Message "Large number of administrators detected ($($admins.Count) members)" `
+            -Details "CISA CPG: Limit administrative access to essential personnel only" `
+            -Remediation "Review and remove unnecessary administrative accounts"
+    }
+    
+    # Check for domain accounts in local admin group
+    $domainAdmins = $admins | Where-Object { $_.ObjectClass -eq "User" -and $_.PrincipalSource -eq "ActiveDirectory" }
+    if ($domainAdmins) {
+        Add-Result -Category "CISA - Access Control" -Status "Info" `
+            -Message "Domain accounts in local Administrators: $($domainAdmins.Count)" `
+            -Details "CISA CPG: Minimize domain accounts with local admin rights. Accounts: $($domainAdmins.Name -join ', ')"
+    }
+    
+} catch {
+    Add-Result -Category "CISA - Access Control" -Status "Error" `
+        -Message "Failed to enumerate local administrators: $_"
+}
+
+# Check Remote Desktop Users group
+try {
+    $rdpUsers = Get-LocalGroupMember -Group "Remote Desktop Users" -ErrorAction SilentlyContinue
+    
+    if ($rdpUsers) {
+        Add-Result -Category "CISA - Access Control" -Status "Info" `
+            -Message "Remote Desktop Users group has $($rdpUsers.Count) member(s)" `
+            -Details "CISA CPG: Review remote access permissions. Members: $($rdpUsers.Name -join ', ')"
+        
+        if ($rdpUsers.Count -gt 10) {
+            Add-Result -Category "CISA - Access Control" -Status "Warning" `
+                -Message "Large number of RDP users ($($rdpUsers.Count))" `
+                -Details "CISA CPG: Limit remote access to necessary users only"
+        }
+    } else {
+        Add-Result -Category "CISA - Access Control" -Status "Pass" `
+            -Message "Remote Desktop Users group is empty" `
+            -Details "CISA CPG: No additional RDP access granted beyond administrators"
+    }
+} catch {
+    # Remote Desktop Users group may not exist
+}
+
+# Check for privileged SID history
+try {
+    $localUsers = Get-LocalUser | Where-Object { $_.Enabled -eq $true }
+    
+    foreach ($user in $localUsers) {
+        # Check last logon
+        if ($user.LastLogon) {
+            $daysSinceLogon = (Get-Date) - $user.LastLogon
+            if ($daysSinceLogon.Days -gt 90) {
+                Add-Result -Category "CISA - Access Control" -Status "Warning" `
+                    -Message "User account '$($user.Name)' has not logged on in $($daysSinceLogon.Days) days" `
+                    -Details "CISA CPG: Disable inactive accounts" `
+                    -Remediation "Disable-LocalUser -Name '$($user.Name)'"
+            }
+        }
+        
+        # Check for accounts that never expire
+        if ($user.AccountExpires -eq $null) {
+            Add-Result -Category "CISA - Access Control" -Status "Info" `
+                -Message "User account '$($user.Name)' is set to never expire" `
+                -Details "CISA CPG: Consider setting expiration for non-permanent accounts"
+        }
+    }
+} catch {
+    Add-Result -Category "CISA - Access Control" -Status "Error" `
+        -Message "Failed to check user account status: $_"
+}
+
+# Check for shared folders/network shares
+try {
+    $shares = Get-SmbShare | Where-Object { $_.Name -notin @("ADMIN$", "C$", "IPC$") }
+    
+    if ($shares) {
+        Add-Result -Category "CISA - Access Control" -Status "Info" `
+            -Message "Network shares detected: $($shares.Count)" `
+            -Details "CISA CPG: Review share permissions. Shares: $($shares.Name -join ', ')"
+        
+        foreach ($share in $shares) {
+            $access = Get-SmbShareAccess -Name $share.Name -ErrorAction SilentlyContinue
+            $everyoneAccess = $access | Where-Object { $_.AccountName -eq "Everyone" }
+            
+            if ($everyoneAccess) {
+                Add-Result -Category "CISA - Access Control" -Status "Warning" `
+                    -Message "Share '$($share.Name)' grants access to 'Everyone'" `
+                    -Details "CISA CPG: Remove 'Everyone' permissions and use specific groups" `
+                    -Remediation "Revoke-SmbShareAccess -Name '$($share.Name)' -AccountName Everyone -Force"
+            }
+        }
+    } else {
+        Add-Result -Category "CISA - Access Control" -Status "Pass" `
+            -Message "No non-administrative network shares detected" `
+            -Details "CISA CPG: No file sharing exposure"
+    }
+} catch {
+    Add-Result -Category "CISA - Access Control" -Status "Error" `
+        -Message "Failed to check network shares: $_"
+}
+
+# ============================================================================
+# CISA CPG: Incident Response Preparation
+# ============================================================================
+Write-Host "[CISA] Checking Incident Response Preparation..." -ForegroundColor Yellow
+
+# Check System Restore status
+try {
+    $restoreEnabled = Get-ComputerRestorePoint -ErrorAction SilentlyContinue
+    
+    if ($restoreEnabled) {
+        Add-Result -Category "CISA - Incident Response" -Status "Pass" `
+            -Message "System Restore is enabled with $($restoreEnabled.Count) restore point(s)" `
+            -Details "CISA CPG: System Restore aids in recovery from incidents"
+        
+        # Check age of most recent restore point
+        $newestRestore = $restoreEnabled | Sort-Object CreationTime -Descending | Select-Object -First 1
+        $age = (Get-Date) - $newestRestore.CreationTime
+        
+        if ($age.Days -le 7) {
+            Add-Result -Category "CISA - Incident Response" -Status "Pass" `
+                -Message "Recent restore point available ($($age.Days) days old)" `
+                -Details "CISA CPG: Recent restore points support rapid recovery"
+        } else {
+            Add-Result -Category "CISA - Incident Response" -Status "Warning" `
+                -Message "Most recent restore point is $($age.Days) days old" `
+                -Details "CISA CPG: Create recent restore points before major changes"
+        }
+    } else {
+        Add-Result -Category "CISA - Incident Response" -Status "Warning" `
+            -Message "No System Restore points found or System Restore is disabled" `
+            -Details "CISA CPG: Enable System Restore for recovery capability" `
+            -Remediation "Enable-ComputerRestore -Drive 'C:\'; Checkpoint-Computer -Description 'Security Baseline'"
+    }
+} catch {
+    Add-Result -Category "CISA - Incident Response" -Status "Info" `
+        -Message "Could not check System Restore status"
+}
+
+# Check Windows Error Reporting status
+try {
+    $werDisabled = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" -Name "Disabled" -ErrorAction SilentlyContinue
+    
+    if ($werDisabled -and $werDisabled.Disabled -eq 1) {
+        Add-Result -Category "CISA - Incident Response" -Status "Info" `
+            -Message "Windows Error Reporting is disabled" `
+            -Details "CISA CPG: WER can provide diagnostic information for incidents"
+    } else {
+        Add-Result -Category "CISA - Incident Response" -Status "Pass" `
+            -Message "Windows Error Reporting is enabled" `
+            -Details "CISA CPG: Error reports aid in identifying system issues"
+    }
+} catch {
+    Add-Result -Category "CISA - Incident Response" -Status "Info" `
+        -Message "Could not check Windows Error Reporting status"
+}
+
+# Check for backup software
+try {
+    $backupService = Get-Service -Name "wbengine" -ErrorAction SilentlyContinue
+    
+    if ($backupService) {
+        if ($backupService.Status -eq "Running") {
+            Add-Result -Category "CISA - Incident Response" -Status "Pass" `
+                -Message "Windows Backup service is running" `
+                -Details "CISA CPG: Regular backups are critical for recovery"
+        } else {
+            Add-Result -Category "CISA - Incident Response" -Status "Info" `
+                -Message "Windows Backup service exists but is not running" `
+                -Details "CISA CPG: Configure and schedule regular backups"
+        }
+    } else {
+        Add-Result -Category "CISA - Incident Response" -Status "Info" `
+            -Message "Windows Backup service not found" `
+            -Details "CISA CPG: Implement backup solution for data protection"
+    }
+} catch {
+    Add-Result -Category "CISA - Incident Response" -Status "Info" `
+        -Message "Could not check backup configuration"
+}
+
+# Check Volume Shadow Copy Service
+try {
+    $vssService = Get-Service -Name "VSS" -ErrorAction Stop
+    
+    if ($vssService.Status -eq "Running") {
+        Add-Result -Category "CISA - Incident Response" -Status "Pass" `
+            -Message "Volume Shadow Copy Service is running" `
+            -Details "CISA CPG: VSS enables point-in-time recovery of files"
+    } else {
+        Add-Result -Category "CISA - Incident Response" -Status "Warning" `
+            -Message "Volume Shadow Copy Service is not running" `
+            -Details "CISA CPG: VSS is needed for System Restore and Windows Backup" `
+            -Remediation "Start-Service VSS; Set-Service VSS -StartupType Automatic"
+    }
+    
+    # Check for shadow copies
+    $shadowCopies = Get-CimInstance -ClassName Win32_ShadowCopy -ErrorAction SilentlyContinue
+    if ($shadowCopies) {
+        Add-Result -Category "CISA - Incident Response" -Status "Pass" `
+            -Message "Shadow copies available: $($shadowCopies.Count)" `
+            -Details "CISA CPG: Shadow copies enable file recovery"
+    }
+} catch {
+    Add-Result -Category "CISA - Incident Response" -Status "Error" `
+        -Message "Failed to check Volume Shadow Copy Service: $_"
 }
 
 # ============================================================================
@@ -582,10 +1419,5 @@ Write-Host "  Failed: $failCount" -ForegroundColor Red
 Write-Host "  Warnings: $warningCount" -ForegroundColor Yellow
 Write-Host "  Info: $infoCount" -ForegroundColor Cyan
 Write-Host "  Errors: $errorCount" -ForegroundColor Magenta
-
-Write-Host "`nCISA Cybersecurity Performance Goals (CPGs) focus on:" -ForegroundColor Cyan
-Write-Host "- Patch critical vulnerabilities within 15 days" -ForegroundColor White
-Write-Host "- Implement MFA for all users" -ForegroundColor White
-Write-Host "- Enable comprehensive logging and monitoring" -ForegroundColor White
 
 return $results
