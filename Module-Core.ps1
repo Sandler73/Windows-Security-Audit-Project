@@ -1,714 +1,590 @@
+# Module-Core.ps1
+# Core Security Baseline Module
+# Version: 5.0
+# Performs fundamental Windows security checks
+
 <#
 .SYNOPSIS
-    Core Security Checks Module - Essential Security Configuration
-    
+    Core security baseline checks for Windows systems.
+
 .DESCRIPTION
-    Contains fundamental security checks (82 checks) that should always be performed.
-    Includes Windows Defender, Firewall, UAC, Password Policy, SMB, RDP, and more.
+    This module performs essential security checks including:
+    - Windows Defender antivirus status
+    - Windows Firewall configuration
+    - Windows Update status
+    - User Account Control (UAC)
+    - Account security and password policies
+    - BitLocker encryption status
+    - Remote Desktop configuration
+    - Network protocol security (SMBv1)
+    - System information and disk space
+
+.PARAMETER SharedData
+    Hashtable containing shared data from the main script
+
+.NOTES
+    Version: 5.0
 #>
 
-function Invoke-CoreChecks {
-    param([string]$Severity = 'ALL')
-    
-    $results = @{Passed=@(); Failed=@(); Warnings=@(); Info=@()}
-    
-    function Add-Check {
-        param($Category,$Status,$Message,$Details="",$Current="N/A",$Expected="N/A",$Sev="Medium",$Remediation="",$Frameworks=@{})
-        
-        if($Severity -ne 'ALL' -and $Severity -ne $Sev){return}
-        
-        $fwList = ($Frameworks.GetEnumerator() | ForEach-Object{"$($_.Key) $($_.Value)"}) -join " | "
-        
-        $result = [PSCustomObject]@{
-            Category=$Category; Status=$Status; Message=$Message; Details=$Details
-            CurrentValue=$Current; ExpectedValue=$Expected; Severity=$Sev
-            Remediation=$Remediation; Frameworks=$fwList
-        }
-        
-        $results.$Status += $result
+param(
+    [Parameter(Mandatory=$false)]
+    [hashtable]$SharedData = @{}
+)
+
+$moduleName = "Core"
+$results = @()
+
+# Helper function to add results
+function Add-Result {
+    param($Category, $Status, $Message, $Details = "", $Remediation = "")
+    $script:results += [PSCustomObject]@{
+        Module = $moduleName
+        Category = $Category
+        Status = $Status
+        Message = $Message
+        Details = $Details
+        Remediation = $Remediation
+        Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     }
+}
+
+Write-Host "`n[Core] Starting core security baseline checks..." -ForegroundColor Cyan
+
+# ============================================================================
+# Windows Defender Status
+# ============================================================================
+Write-Host "[Core] Checking Windows Defender..." -ForegroundColor Yellow
+
+try {
+    $defender = Get-MpComputerStatus -ErrorAction SilentlyContinue
     
-    Write-Host "Running Core Security Checks (82 checks)..." -ForegroundColor Cyan
-    
-    # Windows Defender - 15 checks
-    try {
-        $mpStatus = Get-MpComputerStatus -ErrorAction Stop
-        $mpPref = Get-MpPreference -ErrorAction Stop
-        
-        # 1. Real-time protection
-        if($mpStatus.RealTimeProtectionEnabled){
-            Add-Check -Category "Windows Defender" -Status "Passed" -Message "Real-time protection enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "Critical" `
-                -Frameworks @{'CIS'='18.9.45.4.1';'NIST'='SI-3';'NSA'='WNSS'}
+    if ($defender) {
+        # Real-time protection
+        if ($defender.RealTimeProtectionEnabled) {
+            Add-Result -Category "Core - Antivirus" -Status "Pass" `
+                -Message "Windows Defender real-time protection is enabled" `
+                -Details "Real-time scanning provides continuous malware protection"
         } else {
-            Add-Check -Category "Windows Defender" -Status "Failed" -Message "Real-time protection DISABLED" `
-                -Current "Disabled" -Expected "Enabled" -Sev "Critical" `
-                -Remediation "Set-MpPreference -DisableRealtimeMonitoring `$false" `
-                -Frameworks @{'CIS'='18.9.45.4.1';'NIST'='SI-3'}
+            Add-Result -Category "Core - Antivirus" -Status "Fail" `
+                -Message "Windows Defender real-time protection is disabled" `
+                -Details "System is vulnerable to malware without real-time protection" `
+                -Remediation "Set-MpPreference -DisableRealtimeMonitoring `$false"
         }
         
-        # 2. Behavior monitoring
-        if($mpStatus.BehaviorMonitorEnabled){
-            Add-Check -Category "Windows Defender" -Status "Passed" -Message "Behavior monitoring enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "High" -Frameworks @{'CIS'='18.9.45.4.2';'NIST'='SI-3'}
+        # Signature age
+        $signatureAge = (Get-Date) - $defender.AntivirusSignatureLastUpdated
+        if ($signatureAge.Days -le 7) {
+            Add-Result -Category "Core - Antivirus" -Status "Pass" `
+                -Message "Antivirus signatures are up to date (last updated: $($defender.AntivirusSignatureLastUpdated.ToString('yyyy-MM-dd')))" `
+                -Details "Signatures are $($signatureAge.Days) day(s) old"
         } else {
-            Add-Check -Category "Windows Defender" -Status "Failed" -Message "Behavior monitoring disabled" `
-                -Current "Disabled" -Expected "Enabled" -Sev "High" `
-                -Remediation "Set-MpPreference -DisableBehaviorMonitoring `$false" -Frameworks @{'CIS'='18.9.45.4.2'}
+            Add-Result -Category "Core - Antivirus" -Status "Warning" `
+                -Message "Antivirus signatures are outdated (last updated: $($defender.AntivirusSignatureLastUpdated.ToString('yyyy-MM-dd')))" `
+                -Details "Signatures are $($signatureAge.Days) day(s) old - should update daily" `
+                -Remediation "Update-MpSignature"
         }
         
-        # 3. On-access protection
-        if($mpStatus.OnAccessProtectionEnabled){
-            Add-Check -Category "Windows Defender" -Status "Passed" -Message "On-access protection enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "Critical" -Frameworks @{'NIST'='SI-3'}
+        # Quick scan age
+        if ($defender.QuickScanAge -le 7) {
+            Add-Result -Category "Core - Antivirus" -Status "Pass" `
+                -Message "Recent malware scan performed ($($defender.QuickScanAge) days ago)" `
+                -Details "Regular scans help detect dormant malware"
         } else {
-            Add-Check -Category "Windows Defender" -Status "Failed" -Message "On-access protection disabled" `
-                -Current "Disabled" -Expected "Enabled" -Sev "Critical" -Frameworks @{'NIST'='SI-3'}
+            Add-Result -Category "Core - Antivirus" -Status "Info" `
+                -Message "No recent malware scan (last scan: $($defender.QuickScanAge) days ago)" `
+                -Details "Consider running regular system scans" `
+                -Remediation "Start-MpScan -ScanType QuickScan"
         }
         
-        # 4. IOAV protection
-        if($mpStatus.IoavProtectionEnabled){
-            Add-Check -Category "Windows Defender" -Status "Passed" -Message "IOAV protection enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "Medium" -Frameworks @{'MS'='Defender'}
+        # Cloud-delivered protection
+        if ($defender.MAPSReporting -ne 0) {
+            Add-Result -Category "Core - Antivirus" -Status "Pass" `
+                -Message "Cloud-delivered protection is enabled" `
+                -Details "Cloud protection provides rapid response to new threats"
         } else {
-            Add-Check -Category "Windows Defender" -Status "Failed" -Message "IOAV protection disabled" `
-                -Current "Disabled" -Expected "Enabled" -Sev "Medium" -Frameworks @{'MS'='Defender'}
+            Add-Result -Category "Core - Antivirus" -Status "Warning" `
+                -Message "Cloud-delivered protection is disabled" `
+                -Details "Cloud protection enhances threat detection" `
+                -Remediation "Set-MpPreference -MAPSReporting Advanced"
         }
         
-        # 5. Cloud protection
-        $cloudProtection = switch($mpPref.MAPSReporting){0{"Disabled"}1{"Basic"}2{"Advanced"}default{"Unknown"}}
-        if($mpPref.MAPSReporting -gt 0){
-            Add-Check -Category "Windows Defender" -Status "Passed" -Message "Cloud protection: $cloudProtection" `
-                -Current $cloudProtection -Expected "Basic/Advanced" -Sev "High" -Frameworks @{'CIS'='18.9.45.11';'NIST'='SI-3'}
+        # Behavior monitoring
+        if ($defender.BehaviorMonitorEnabled) {
+            Add-Result -Category "Core - Antivirus" -Status "Pass" `
+                -Message "Behavior monitoring is enabled" `
+                -Details "Detects suspicious behavior patterns"
         } else {
-            Add-Check -Category "Windows Defender" -Status "Failed" -Message "Cloud protection disabled" `
-                -Current "Disabled" -Expected "Basic/Advanced" -Sev "High" `
-                -Remediation "Set-MpPreference -MAPSReporting 2" -Frameworks @{'CIS'='18.9.45.11'}
+            Add-Result -Category "Core - Antivirus" -Status "Warning" `
+                -Message "Behavior monitoring is disabled" `
+                -Details "Behavior monitoring helps detect zero-day threats" `
+                -Remediation "Set-MpPreference -DisableBehaviorMonitoring `$false"
         }
         
-        # 6. Signature age
-        $sigAge = $mpStatus.AntivirusSignatureAge
-        if($sigAge -le 7){
-            Add-Check -Category "Windows Defender" -Status "Passed" -Message "Signatures current ($sigAge days)" `
-                -Current "$sigAge days" -Expected "<=7 days" -Sev "High" -Frameworks @{'NIST'='SI-3';'CISA'='M1049'}
-        } else {
-            Add-Check -Category "Windows Defender" -Status "Failed" -Message "Signatures outdated ($sigAge days)" `
-                -Current "$sigAge days" -Expected "<=7 days" -Sev "High" `
-                -Remediation "Update-MpSignature" -Frameworks @{'NIST'='SI-3';'CISA'='M1049'}
-        }
-        
-        # 7. Script scanning
-        if($mpPref.DisableScriptScanning -eq $false){
-            Add-Check -Category "Windows Defender" -Status "Passed" -Message "Script scanning enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "High" -Frameworks @{'MS'='Defender';'NSA'='WNSS'}
-        } else {
-            Add-Check -Category "Windows Defender" -Status "Failed" -Message "Script scanning disabled" `
-                -Current "Disabled" -Expected "Enabled" -Sev "High" `
-                -Remediation "Set-MpPreference -DisableScriptScanning `$false" -Frameworks @{'MS'='Defender'}
-        }
-        
-        # 8. Download/attachment scanning
-        if($mpPref.DisableIOAVProtection -eq $false){
-            Add-Check -Category "Windows Defender" -Status "Passed" -Message "Download/attachment scanning enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "Medium" -Frameworks @{'MS'='Defender'}
-        } else {
-            Add-Check -Category "Windows Defender" -Status "Warnings" -Message "Download/attachment scanning disabled" `
-                -Current "Disabled" -Expected "Enabled" -Sev "Medium" -Frameworks @{'MS'='Defender'}
-        }
-        
-        # 9. Sample submission
-        $sampleSubmit = switch($mpPref.SubmitSamplesConsent){0{"Prompt"}1{"Safe"}2{"Never"}3{"All"}default{"Unknown"}}
-        if($mpPref.SubmitSamplesConsent -ne 2){
-            Add-Check -Category "Windows Defender" -Status "Passed" -Message "Sample submission: $sampleSubmit" `
-                -Current $sampleSubmit -Expected "Not Never" -Sev "Medium" -Frameworks @{'MS'='Defender'}
-        } else {
-            Add-Check -Category "Windows Defender" -Status "Warnings" -Message "Sample submission disabled" `
-                -Current "Never" -Expected "Safe/All" -Sev "Medium" -Frameworks @{'MS'='Defender'}
-        }
-        
-        # 10. PUA protection
-        $puaProtection = switch($mpPref.PUAProtection){0{"Disabled"}1{"Enabled"}2{"Audit"}default{"Unknown"}}
-        if($mpPref.PUAProtection -eq 1){
-            Add-Check -Category "Windows Defender" -Status "Passed" -Message "PUA protection enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "Medium" -Frameworks @{'MS'='Defender';'CISA'='M1049'}
-        } else {
-            Add-Check -Category "Windows Defender" -Status "Failed" -Message "PUA protection not enabled" `
-                -Current $puaProtection -Expected "Enabled" -Sev "Medium" `
-                -Remediation "Set-MpPreference -PUAProtection 1" -Frameworks @{'MS'='Defender'}
-        }
-        
-        # 11. Archive scanning
-        if($mpPref.DisableArchiveScanning -eq $false){
-            Add-Check -Category "Windows Defender" -Status "Passed" -Message "Archive file scanning enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "Medium" -Frameworks @{'MS'='Defender'}
-        } else {
-            Add-Check -Category "Windows Defender" -Status "Warnings" -Message "Archive scanning disabled" `
-                -Current "Disabled" -Expected "Enabled" -Sev "Medium" -Frameworks @{'MS'='Defender'}
-        }
-        
-        # 12. Removable drive scanning
-        if($mpPref.DisableRemovableDriveScanning -eq $false){
-            Add-Check -Category "Windows Defender" -Status "Passed" -Message "Removable drive scanning enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "High" -Frameworks @{'MS'='Defender';'CISA'='M1042'}
-        } else {
-            Add-Check -Category "Windows Defender" -Status "Failed" -Message "Removable drive scanning disabled" `
-                -Current "Disabled" -Expected "Enabled" -Sev "High" `
-                -Remediation "Set-MpPreference -DisableRemovableDriveScanning `$false" -Frameworks @{'MS'='Defender'}
-        }
-        
-        # 13. Network inspection
-        if($mpStatus.NISEnabled){
-            Add-Check -Category "Windows Defender" -Status "Passed" -Message "Network inspection enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "High" -Frameworks @{'MS'='Defender'}
-        } else {
-            Add-Check -Category "Windows Defender" -Status "Warnings" -Message "Network inspection disabled" `
-                -Current "Disabled" -Expected "Enabled" -Sev "High" -Frameworks @{'MS'='Defender'}
-        }
-        
-        # 14. Block at First Sight
-        if($mpPref.DisableBlockAtFirstSeen -eq $false){
-            Add-Check -Category "Windows Defender" -Status "Passed" -Message "Block at First Sight enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "High" -Frameworks @{'MS'='Defender'}
-        } else {
-            Add-Check -Category "Windows Defender" -Status "Warnings" -Message "Block at First Sight disabled" `
-                -Current "Disabled" -Expected "Enabled" -Sev "High" -Frameworks @{'MS'='Defender'}
-        }
-        
-        # 15. AntiSpyware
-        if($mpStatus.AntiSpywareEnabled){
-            Add-Check -Category "Windows Defender" -Status "Passed" -Message "AntiSpyware enabled" `
-                -Current "Enabled" -Expected "Enabled" -Sev "High" -Frameworks @{'NIST'='SI-3'}
-        } else {
-            Add-Check -Category "Windows Defender" -Status "Failed" -Message "AntiSpyware disabled" `
-                -Current "Disabled" -Expected "Enabled" -Sev "High" -Frameworks @{'NIST'='SI-3'}
-        }
-        
-    } catch {
-        Add-Check -Category "Windows Defender" -Status "Failed" -Message "Cannot query Windows Defender" `
-            -Details $_.Exception.Message -Sev "Critical" -Frameworks @{'NIST'='SI-3'}
-    }
-    
-    # Windows Firewall - 15 checks (5 per profile)
-    foreach($profile in @("Domain","Private","Public")){
-        $fw = Get-NetFirewallProfile -Name $profile -ErrorAction SilentlyContinue
-        if($fw){
-            # Enabled
-            if($fw.Enabled -eq "True"){
-                Add-Check -Category "Windows Firewall" -Status "Passed" -Message "$profile firewall enabled" `
-                    -Current "Enabled" -Expected "Enabled" -Sev "Critical" `
-                    -Frameworks @{'CIS'='9.1';'NIST'='SC-7';'NSA'='WNSS';'CISA'='CPG'}
-            } else {
-                Add-Check -Category "Windows Firewall" -Status "Failed" -Message "$profile firewall DISABLED" `
-                    -Current "Disabled" -Expected "Enabled" -Sev "Critical" `
-                    -Remediation "Set-NetFirewallProfile -Name $profile -Enabled True" `
-                    -Frameworks @{'CIS'='9.1';'NIST'='SC-7'}
-            }
-            
-            # Default inbound
-            if($fw.DefaultInboundAction -eq "Block"){
-                Add-Check -Category "Windows Firewall" -Status "Passed" -Message "$profile inbound: Block" `
-                    -Current "Block" -Expected "Block" -Sev "High" -Frameworks @{'CIS'='9.1';'NIST'='SC-7'}
-            } else {
-                Add-Check -Category "Windows Firewall" -Status "Failed" -Message "$profile inbound: Allow" `
-                    -Current "Allow" -Expected "Block" -Sev "High" `
-                    -Remediation "Set-NetFirewallProfile -Name $profile -DefaultInboundAction Block" `
-                    -Frameworks @{'CIS'='9.1'}
-            }
-            
-            # Default outbound
-            if($fw.DefaultOutboundAction -eq "Allow"){
-                Add-Check -Category "Windows Firewall" -Status "Passed" -Message "$profile outbound: Allow" `
-                    -Current "Allow" -Expected "Allow" -Sev "Low" -Frameworks @{'CIS'='9.1'}
-            }
-            
-            # Logging blocked
-            if($fw.LogBlocked -eq "True"){
-                Add-Check -Category "Windows Firewall" -Status "Passed" -Message "$profile logging blocked" `
-                    -Current "Enabled" -Expected "Enabled" -Sev "Low" -Frameworks @{'NIST'='AU-2'}
-            } else {
-                Add-Check -Category "Windows Firewall" -Status "Warnings" -Message "$profile not logging blocked" `
-                    -Current "Disabled" -Expected "Enabled" -Sev "Low" -Frameworks @{'NIST'='AU-2'}
-            }
-            
-            # Notifications
-            if($fw.NotifyOnListen -eq "False"){
-                Add-Check -Category "Windows Firewall" -Status "Passed" -Message "$profile notifications disabled" `
-                    -Current "Disabled" -Expected "Disabled" -Sev "Low" -Frameworks @{'CIS'='9.1'}
-            }
-        }
-    }
-    
-    # UAC - 8 checks
-    $uacPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
-    
-    # 1. UAC enabled
-    $enableLUA = (Get-ItemProperty -Path $uacPath -Name "EnableLUA" -ErrorAction SilentlyContinue).EnableLUA
-    if($enableLUA -eq 1){
-        Add-Check -Category "UAC" -Status "Passed" -Message "UAC enabled" `
-            -Current "Enabled" -Expected "Enabled" -Sev "Critical" `
-            -Frameworks @{'CIS'='2.3.17.1';'NIST'='AC-6';'NSA'='WNSS'}
     } else {
-        Add-Check -Category "UAC" -Status "Failed" -Message "UAC DISABLED" `
-            -Current "Disabled" -Expected "Enabled" -Sev "Critical" `
-            -Remediation "Set-ItemProperty -Path '$uacPath' -Name 'EnableLUA' -Value 1" `
-            -Frameworks @{'CIS'='2.3.17.1';'NIST'='AC-6'}
+        Add-Result -Category "Core - Antivirus" -Status "Warning" `
+            -Message "Unable to query Windows Defender status" `
+            -Details "May indicate third-party antivirus or Defender is disabled"
     }
+} catch {
+    Add-Result -Category "Core - Antivirus" -Status "Error" `
+        -Message "Failed to check Windows Defender status: $_"
+}
+
+# ============================================================================
+# Windows Firewall Status
+# ============================================================================
+Write-Host "[Core] Checking Windows Firewall..." -ForegroundColor Yellow
+
+try {
+    $firewallProfiles = @("Domain", "Private", "Public")
     
-    # 2. Prompt on secure desktop
-    $promptSecure = (Get-ItemProperty -Path $uacPath -Name "PromptOnSecureDesktop" -ErrorAction SilentlyContinue).PromptOnSecureDesktop
-    if($promptSecure -eq 1){
-        Add-Check -Category "UAC" -Status "Passed" -Message "UAC on secure desktop" `
-            -Current "Enabled" -Expected "Enabled" -Sev "High" -Frameworks @{'CIS'='2.3.17.6';'NIST'='AC-6'}
-    } else {
-        Add-Check -Category "UAC" -Status "Failed" -Message "UAC not on secure desktop" `
-            -Current "Disabled" -Expected "Enabled" -Sev "High" `
-            -Remediation "Set-ItemProperty -Path '$uacPath' -Name 'PromptOnSecureDesktop' -Value 1" `
-            -Frameworks @{'CIS'='2.3.17.6'}
-    }
-    
-    # 3. Admin consent prompt
-    $consentAdmin = (Get-ItemProperty -Path $uacPath -Name "ConsentPromptBehaviorAdmin" -ErrorAction SilentlyContinue).ConsentPromptBehaviorAdmin
-    if($consentAdmin -ge 2){
-        Add-Check -Category "UAC" -Status "Passed" -Message "Admin consent prompt enabled" `
-            -Current $consentAdmin -Expected "2+" -Sev "High" -Frameworks @{'CIS'='2.3.17.2'}
-    } else {
-        Add-Check -Category "UAC" -Status "Failed" -Message "Admin consent prompt disabled" `
-            -Current $consentAdmin -Expected "2+" -Sev "High" `
-            -Remediation "Set-ItemProperty -Path '$uacPath' -Name 'ConsentPromptBehaviorAdmin' -Value 2" `
-            -Frameworks @{'CIS'='2.3.17.2'}
-    }
-    
-    # 4. Standard user elevation prompt
-    $elevatePrompt = (Get-ItemProperty -Path $uacPath -Name "ConsentPromptBehaviorUser" -ErrorAction SilentlyContinue).ConsentPromptBehaviorUser
-    if($elevatePrompt -eq 0){
-        Add-Check -Category "UAC" -Status "Passed" -Message "Standard user elevation denied" `
-            -Current "Auto deny" -Expected "Auto deny" -Sev "Medium" -Frameworks @{'CIS'='2.3.17.3'}
-    } else {
-        Add-Check -Category "UAC" -Status "Warnings" -Message "Standard user can request elevation" `
-            -Current $elevatePrompt -Expected "0 (auto deny)" -Sev "Medium" -Frameworks @{'CIS'='2.3.17.3'}
-    }
-    
-    # 5. Secure UI paths
-    $secureUIPath = (Get-ItemProperty -Path $uacPath -Name "EnableSecureUIAPaths" -ErrorAction SilentlyContinue).EnableSecureUIAPaths
-    if($secureUIPath -eq 1){
-        Add-Check -Category "UAC" -Status "Passed" -Message "Secure UI paths enabled" `
-            -Current "Enabled" -Expected "Enabled" -Sev "Medium" -Frameworks @{'CIS'='2.3.17.7'}
-    } else {
-        Add-Check -Category "UAC" -Status "Warnings" -Message "Secure UI paths not enabled" `
-            -Current "Disabled" -Expected "Enabled" -Sev "Medium" -Frameworks @{'CIS'='2.3.17.7'}
-    }
-    
-    # 6. Virtualization
-    $virtualization = (Get-ItemProperty -Path $uacPath -Name "EnableVirtualization" -ErrorAction SilentlyContinue).EnableVirtualization
-    if($virtualization -eq 1){
-        Add-Check -Category "UAC" -Status "Passed" -Message "File/registry virtualization enabled" `
-            -Current "Enabled" -Expected "Enabled" -Sev "Medium" -Frameworks @{'CIS'='2.3.17.8'}
-    } else {
-        Add-Check -Category "UAC" -Status "Warnings" -Message "Virtualization disabled" `
-            -Current "Disabled" -Expected "Enabled" -Sev "Medium" -Frameworks @{'CIS'='2.3.17.8'}
-    }
-    
-    # 7. Admin approval mode
-    $filterAdmin = (Get-ItemProperty -Path $uacPath -Name "FilterAdministratorToken" -ErrorAction SilentlyContinue).FilterAdministratorToken
-    if($filterAdmin -eq 1){
-        Add-Check -Category "UAC" -Status "Passed" -Message "Admin approval mode enabled" `
-            -Current "Enabled" -Expected "Enabled" -Sev "High" -Frameworks @{'CIS'='2.3.17.4'}
-    } else {
-        Add-Check -Category "UAC" -Status "Warnings" -Message "Admin approval mode disabled" `
-            -Current "Disabled" -Expected "Enabled" -Sev "High" -Frameworks @{'CIS'='2.3.17.4'}
-    }
-    
-    # 8. Installer detection
-    $installerDetect = (Get-ItemProperty -Path $uacPath -Name "EnableInstallerDetection" -ErrorAction SilentlyContinue).EnableInstallerDetection
-    if($installerDetect -eq 1){
-        Add-Check -Category "UAC" -Status "Passed" -Message "Installer detection enabled" `
-            -Current "Enabled" -Expected "Enabled" -Sev "Low" -Frameworks @{'CIS'='2.3.17.5'}
-    }
-    
-    # Password and Lockout Policy - 8 checks
-    try {
-        $secpol = secedit /export /cfg "$env:TEMP\secpol.cfg" /quiet 2>&1
-        $content = Get-Content "$env:TEMP\secpol.cfg" -ErrorAction Stop
-        Remove-Item "$env:TEMP\secpol.cfg" -Force -ErrorAction SilentlyContinue
+    foreach ($Coreprofile in $firewallProfiles) {
+        $fwProfile = Get-NetFirewallProfile -Name $Coreprofile
         
-        # 1. Min password length
-        if($content -match 'MinimumPasswordLength\s*=\s*(\d+)'){
-            $minLen = [int]$matches[1]
-            if($minLen -ge 14){
-                Add-Check -Category "Password Policy" -Status "Passed" -Message "Min password length: $minLen" `
-                    -Current $minLen -Expected "14+" -Sev "High" -Frameworks @{'CIS'='1.1.1';'NIST'='IA-5(1)';'NSA'='WNSS'}
-            } else {
-                Add-Check -Category "Password Policy" -Status "Failed" -Message "Min password length too short: $minLen" `
-                    -Current $minLen -Expected "14+" -Sev "High" `
-                    -Remediation "# Configure via Local Security Policy: secpol.msc" `
-                    -Frameworks @{'CIS'='1.1.1';'NIST'='IA-5(1)'}
-            }
+        if ($fwProfile.Enabled) {
+            Add-Result -Category "Core - Firewall" -Status "Pass" `
+                -Message "${Coreprofile} firewall profile is enabled" `
+                -Details "Host-based firewall provides network-level protection"
+        } else {
+            Add-Result -Category "Core - Firewall" -Status "Fail" `
+                -Message "${Coreprofile} firewall profile is disabled" `
+                -Details "System is exposed to network-based attacks" `
+                -Remediation "Set-NetFirewallProfile -Name $Coreprofile -Enabled True"
         }
         
-        # 2. Password history
-        if($content -match 'PasswordHistorySize\s*=\s*(\d+)'){
-            $history = [int]$matches[1]
-            if($history -ge 24){
-                Add-Check -Category "Password Policy" -Status "Passed" -Message "Password history: $history" `
-                    -Current $history -Expected "24+" -Sev "Medium" -Frameworks @{'CIS'='1.1.2';'NIST'='IA-5(1)'}
-            } else {
-                Add-Check -Category "Password Policy" -Status "Warnings" -Message "Password history too small: $history" `
-                    -Current $history -Expected "24+" -Sev "Medium" -Frameworks @{'CIS'='1.1.2'}
-            }
+        # Check default inbound action
+        if ($fwProfile.DefaultInboundAction -eq "Block") {
+            Add-Result -Category "Core - Firewall" -Status "Pass" `
+                -Message "${Coreprofile} firewall: Default inbound action is Block" `
+                -Details "Default deny provides better security posture"
+        } else {
+            Add-Result -Category "Core - Firewall" -Status "Warning" `
+                -Message "${Coreprofile} firewall: Default inbound action is Allow" `
+                -Details "Consider setting default inbound action to Block" `
+                -Remediation "Set-NetFirewallProfile -Name $Coreprofile -DefaultInboundAction Block"
         }
-        
-        # 3. Max password age
-        if($content -match 'MaximumPasswordAge\s*=\s*(\d+)'){
-            $maxAge = [int]$matches[1]
-            if($maxAge -le 60 -and $maxAge -gt 0){
-                Add-Check -Category "Password Policy" -Status "Passed" -Message "Max password age: $maxAge days" `
-                    -Current "$maxAge days" -Expected "1-60 days" -Sev "Medium" -Frameworks @{'CIS'='1.1.3';'NIST'='IA-5(1)'}
-            } else {
-                Add-Check -Category "Password Policy" -Status "Warnings" -Message "Max password age not optimal: $maxAge" `
-                    -Current "$maxAge days" -Expected "1-60 days" -Sev "Medium" -Frameworks @{'CIS'='1.1.3'}
-            }
+    }
+} catch {
+    Add-Result -Category "Core - Firewall" -Status "Error" `
+        -Message "Failed to check firewall status: $_"
+}
+
+# ============================================================================
+# Windows Update Status
+# ============================================================================
+Write-Host "[Core] Checking Windows Update..." -ForegroundColor Yellow
+
+try {
+    $updateService = Get-Service -Name "wuauserv" -ErrorAction SilentlyContinue
+    
+    if ($updateService) {
+        if ($updateService.Status -eq "Running" -or $updateService.StartType -ne "Disabled") {
+            Add-Result -Category "Core - Updates" -Status "Pass" `
+                -Message "Windows Update service is available" `
+                -Details "Service status: $($updateService.Status), Start type: $($updateService.StartType)"
+        } else {
+            Add-Result -Category "Core - Updates" -Status "Fail" `
+                -Message "Windows Update service is disabled" `
+                -Details "System cannot receive critical security updates" `
+                -Remediation "Set-Service -Name wuauserv -StartupType Manual; Start-Service wuauserv"
         }
-        
-        # 4. Min password age
-        if($content -match 'MinimumPasswordAge\s*=\s*(\d+)'){
-            $minAge = [int]$matches[1]
-            if($minAge -ge 1){
-                Add-Check -Category "Password Policy" -Status "Passed" -Message "Min password age: $minAge day(s)" `
-                    -Current "$minAge days" -Expected "1+ days" -Sev "Low" -Frameworks @{'CIS'='1.1.4'}
-            } else {
-                Add-Check -Category "Password Policy" -Status "Warnings" -Message "Min password age not set" `
-                    -Current "0 days" -Expected "1+ days" -Sev "Low" -Frameworks @{'CIS'='1.1.4'}
-            }
-        }
-        
-        # 5. Password complexity
-        if($content -match 'PasswordComplexity\s*=\s*(\d+)'){
-            $complexity = [int]$matches[1]
-            if($complexity -eq 1){
-                Add-Check -Category "Password Policy" -Status "Passed" -Message "Password complexity required" `
-                    -Current "Enabled" -Expected "Enabled" -Sev "High" -Frameworks @{'CIS'='1.1.5';'NIST'='IA-5(1)'}
-            } else {
-                Add-Check -Category "Password Policy" -Status "Failed" -Message "Password complexity NOT required" `
-                    -Current "Disabled" -Expected "Enabled" -Sev "High" `
-                    -Remediation "# Enable via Local Security Policy" -Frameworks @{'CIS'='1.1.5'}
-            }
-        }
-        
-        # 6. Reversible encryption
-        if($content -match 'ClearTextPassword\s*=\s*(\d+)'){
-            $cleartext = [int]$matches[1]
-            if($cleartext -eq 0){
-                Add-Check -Category "Password Policy" -Status "Passed" -Message "Reversible encryption disabled" `
-                    -Current "Disabled" -Expected "Disabled" -Sev "High" -Frameworks @{'CIS'='1.1.6';'NIST'='IA-5(1)'}
-            } else {
-                Add-Check -Category "Password Policy" -Status "Failed" -Message "Reversible encryption ENABLED" `
-                    -Current "Enabled" -Expected "Disabled" -Sev "High" `
-                    -Remediation "# Disable via Local Security Policy" -Frameworks @{'CIS'='1.1.6'}
-            }
-        }
-        
-        # 7. Account lockout threshold
-        if($content -match 'LockoutBadCount\s*=\s*(\d+)'){
-            $lockCount = [int]$matches[1]
-            if($lockCount -ge 5 -and $lockCount -le 10){
-                Add-Check -Category "Account Lockout" -Status "Passed" -Message "Lockout threshold: $lockCount" `
-                    -Current $lockCount -Expected "5-10" -Sev "High" -Frameworks @{'CIS'='1.2.1';'NIST'='AC-7';'NSA'='WNSS'}
-            } elseif($lockCount -eq 0) {
-                Add-Check -Category "Account Lockout" -Status "Failed" -Message "Account lockout not configured" `
-                    -Current "Never" -Expected "5-10 attempts" -Sev "High" `
-                    -Remediation "# Configure via Local Security Policy" -Frameworks @{'CIS'='1.2.1'}
-            } else {
-                Add-Check -Category "Account Lockout" -Status "Warnings" -Message "Lockout threshold not optimal: $lockCount" `
-                    -Current $lockCount -Expected "5-10" -Sev "High" -Frameworks @{'CIS'='1.2.1'}
-            }
-        }
-        
-        # 8. Lockout duration
-        if($content -match 'LockoutDuration\s*=\s*(\d+)'){
-            $lockDuration = [int]$matches[1]
-            if($lockDuration -ge 15){
-                Add-Check -Category "Account Lockout" -Status "Passed" -Message "Lockout duration: $lockDuration min" `
-                    -Current "$lockDuration min" -Expected "15+ min" -Sev "Medium" -Frameworks @{'CIS'='1.2.2';'NIST'='AC-7'}
-            } else {
-                Add-Check -Category "Account Lockout" -Status "Warnings" -Message "Lockout duration too short: $lockDuration" `
-                    -Current "$lockDuration min" -Expected "15+ min" -Sev "Medium" -Frameworks @{'CIS'='1.2.2'}
-            }
-        }
-        
-    } catch {
-        Add-Check -Category "Password Policy" -Status "Warnings" -Message "Cannot export security policy" `
-            -Details $_.Exception.Message -Sev "High" -Frameworks @{'CIS'='1.1'}
     }
     
-    # Windows Update - 2 checks
-    $wuPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
-    $noAutoUpdate = (Get-ItemProperty -Path $wuPath -Name "NoAutoUpdate" -ErrorAction SilentlyContinue).NoAutoUpdate
-    if($noAutoUpdate -eq 0 -or $null -eq $noAutoUpdate){
-        Add-Check -Category "Windows Update" -Status "Passed" -Message "Automatic updates enabled" `
-            -Current "Enabled" -Expected "Enabled" -Sev "High" -Frameworks @{'NIST'='SI-2';'CISA'='CPG'}
-    } else {
-        Add-Check -Category "Windows Update" -Status "Failed" -Message "Automatic updates DISABLED" `
-            -Current "Disabled" -Expected "Enabled" -Sev "High" `
-            -Remediation "Remove-ItemProperty -Path '$wuPath' -Name 'NoAutoUpdate' -Force" `
-            -Frameworks @{'NIST'='SI-2';'CISA'='CPG'}
-    }
-    
+    # Check for pending updates
     try {
         $updateSession = New-Object -ComObject Microsoft.Update.Session
         $updateSearcher = $updateSession.CreateUpdateSearcher()
-        $pending = $updateSearcher.Search("IsInstalled=0 and IsHidden=0")
+        $searchResult = $updateSearcher.Search("IsInstalled=0 and Type='Software' and IsHidden=0")
         
-        if($pending.Updates.Count -eq 0){
-            Add-Check -Category "Windows Update" -Status "Passed" -Message "No pending updates" `
-                -Current "0 updates" -Expected "0 updates" -Sev "Medium" -Frameworks @{'NIST'='SI-2'}
+        $pendingUpdates = $searchResult.Updates.Count
+        $criticalUpdates = ($searchResult.Updates | Where-Object { $_.MsrcSeverity -eq "Critical" }).Count
+        
+        if ($pendingUpdates -eq 0) {
+            Add-Result -Category "Core - Updates" -Status "Pass" `
+                -Message "No pending Windows updates" `
+                -Details "System is up to date"
+        } elseif ($criticalUpdates -gt 0) {
+            Add-Result -Category "Core - Updates" -Status "Fail" `
+                -Message "$criticalUpdates critical update(s) pending installation" `
+                -Details "Total pending updates: $pendingUpdates" `
+                -Remediation "Install updates via Windows Update: Start ms-settings:windowsupdate"
         } else {
-            $critical = ($pending.Updates | Where-Object{$_.MsrcSeverity -eq "Critical"}).Count
-            if($critical -gt 0){
-                Add-Check -Category "Windows Update" -Status "Failed" -Message "$critical critical updates pending" `
-                    -Current "$critical critical" -Expected "0 pending" -Sev "Critical" `
-                    -Remediation "# Install updates via Settings > Windows Update" -Frameworks @{'NIST'='SI-2';'CISA'='CPG'}
-            } else {
-                Add-Check -Category "Windows Update" -Status "Warnings" -Message "$($pending.Updates.Count) updates pending" `
-                    -Current "$($pending.Updates.Count) updates" -Expected "0 pending" -Sev "Medium" `
-                    -Frameworks @{'NIST'='SI-2'}
+            Add-Result -Category "Core - Updates" -Status "Warning" `
+                -Message "$pendingUpdates update(s) pending installation" `
+                -Details "No critical updates, but system should be kept current"
+        }
+    } catch {
+        Add-Result -Category "Core - Updates" -Status "Info" `
+            -Message "Could not check for pending updates" `
+            -Details "May require elevated privileges or COM object is unavailable"
+    }
+} catch {
+    Add-Result -Category "Core - Updates" -Status "Error" `
+        -Message "Failed to check Windows Update service: $_"
+}
+
+# ============================================================================
+# User Account Control (UAC)
+# ============================================================================
+Write-Host "[Core] Checking User Account Control..." -ForegroundColor Yellow
+
+try {
+    $uacEnabled = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "EnableLUA" -ErrorAction SilentlyContinue
+    
+    if ($uacEnabled -and $uacEnabled.EnableLUA -eq 1) {
+        Add-Result -Category "Core - UAC" -Status "Pass" `
+            -Message "User Account Control (UAC) is enabled" `
+            -Details "UAC prevents unauthorized privilege escalation"
+    } else {
+        Add-Result -Category "Core - UAC" -Status "Fail" `
+            -Message "User Account Control (UAC) is disabled" `
+            -Details "System is vulnerable to privilege escalation attacks" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1"
+    }
+    
+    # Check UAC prompt behavior
+    $uacPrompt = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "ConsentPromptBehaviorAdmin" -ErrorAction SilentlyContinue
+    if ($uacPrompt) {
+        $promptLevel = switch ($uacPrompt.ConsentPromptBehaviorAdmin) {
+            0 { "Never notify" }
+            1 { "Prompt for credentials on secure desktop" }
+            2 { "Prompt for consent on secure desktop" }
+            3 { "Prompt for credentials" }
+            4 { "Prompt for consent" }
+            5 { "Prompt for consent for non-Windows binaries" }
+            default { "Unknown ($($uacPrompt.ConsentPromptBehaviorAdmin))" }
+        }
+        
+        if ($uacPrompt.ConsentPromptBehaviorAdmin -ge 2) {
+            Add-Result -Category "Core - UAC" -Status "Pass" `
+                -Message "UAC prompt level: $promptLevel" `
+                -Details "Adequate protection against unauthorized elevation"
+        } else {
+            Add-Result -Category "Core - UAC" -Status "Warning" `
+                -Message "UAC prompt level: $promptLevel" `
+                -Details "Consider increasing UAC prompt level for better security"
+        }
+    }
+} catch {
+    Add-Result -Category "Core - UAC" -Status "Error" `
+        -Message "Failed to check UAC status: $_"
+}
+
+# ============================================================================
+# Account Security
+# ============================================================================
+Write-Host "[Core] Checking account security..." -ForegroundColor Yellow
+
+try {
+    # Check for disabled built-in Administrator account
+    $adminAccount = Get-LocalUser | Where-Object { $_.SID -like "*-500" }
+    if ($adminAccount) {
+        if ($adminAccount.Enabled -eq $false) {
+            Add-Result -Category "Core - Accounts" -Status "Pass" `
+                -Message "Built-in Administrator account is disabled" `
+                -Details "Reduces attack surface by disabling well-known account"
+        } else {
+            Add-Result -Category "Core - Accounts" -Status "Fail" `
+                -Message "Built-in Administrator account is enabled" `
+                -Details "Well-known account is a common attack target" `
+                -Remediation "Disable-LocalUser -SID $($adminAccount.SID)"
+        }
+    }
+    
+    # Check for disabled Guest account
+    $guestAccount = Get-LocalUser -Name "Guest" -ErrorAction SilentlyContinue
+    if ($guestAccount) {
+        if ($guestAccount.Enabled -eq $false) {
+            Add-Result -Category "Core - Accounts" -Status "Pass" `
+                -Message "Guest account is disabled" `
+                -Details "Prevents anonymous access to system"
+        } else {
+            Add-Result -Category "Core - Accounts" -Status "Fail" `
+                -Message "Guest account is enabled" `
+                -Details "Guest account allows anonymous access" `
+                -Remediation "Disable-LocalUser -Name Guest"
+        }
+    }
+    
+    # Check for accounts without passwords
+    $usersWithoutPasswords = Get-LocalUser | Where-Object { $_.PasswordRequired -eq $false -and $_.Enabled -eq $true }
+    if ($usersWithoutPasswords.Count -gt 0) {
+        $userList = $usersWithoutPasswords.Name -join ", "
+        Add-Result -Category "Core - Accounts" -Status "Fail" `
+            -Message "$($usersWithoutPasswords.Count) account(s) without password requirements: $userList" `
+            -Details "Accounts without passwords are security vulnerabilities" `
+            -Remediation "Set passwords for all accounts or disable them"
+    } else {
+        Add-Result -Category "Core - Accounts" -Status "Pass" `
+            -Message "All enabled accounts require passwords" `
+            -Details "Password requirements are enforced"
+    }
+    
+    # Check for inactive accounts
+    $inactiveThreshold = (Get-Date).AddDays(-90)
+    $users = Get-LocalUser | Where-Object { $_.Enabled -eq $true }
+    $inactiveUsers = @()
+    
+    foreach ($user in $users) {
+        if ($user.LastLogon -and $user.LastLogon -lt $inactiveThreshold) {
+            $inactiveUsers += $user.Name
+        }
+    }
+    
+    if ($inactiveUsers.Count -gt 0) {
+        Add-Result -Category "Core - Accounts" -Status "Warning" `
+            -Message "$($inactiveUsers.Count) inactive account(s) detected (no login in 90+ days)" `
+            -Details "Inactive accounts: $($inactiveUsers -join ', ')" `
+            -Remediation "Review and disable or remove inactive accounts"
+    } else {
+        Add-Result -Category "Core - Accounts" -Status "Pass" `
+            -Message "No inactive accounts detected (90+ days)" `
+            -Details "Account activity is within acceptable range"
+    }
+    
+} catch {
+    Add-Result -Category "Core - Accounts" -Status "Error" `
+        -Message "Failed to check account security: $_"
+}
+
+# ============================================================================
+# Password Policy
+# ============================================================================
+Write-Host "[Core] Checking password policy..." -ForegroundColor Yellow
+
+try {
+    $passwordPolicy = net accounts | Out-String
+    
+    # Minimum password length
+    if ($passwordPolicy -match "Minimum password length\s+(\d+)") {
+        $minLength = [int]$Matches[1]
+        if ($minLength -ge 8) {
+            Add-Result -Category "Core - Password Policy" -Status "Pass" `
+                -Message "Minimum password length is $minLength characters" `
+                -Details "Meets basic password complexity requirements"
+        } else {
+            Add-Result -Category "Core - Password Policy" -Status "Fail" `
+                -Message "Minimum password length is $minLength characters (should be 8+)" `
+                -Details "Weak passwords are easily compromised" `
+                -Remediation "net accounts /minpwlen:8"
+        }
+    }
+    
+    # Maximum password age
+    if ($passwordPolicy -match "Maximum password age \(days\):\s+(\d+)") {
+        $maxAge = [int]$Matches[1]
+        if ($maxAge -gt 0 -and $maxAge -le 90) {
+            Add-Result -Category "Core - Password Policy" -Status "Pass" `
+                -Message "Maximum password age is $maxAge days" `
+                -Details "Regular password changes are enforced"
+        } elseif ($maxAge -eq 0) {
+            Add-Result -Category "Core - Password Policy" -Status "Warning" `
+                -Message "Passwords are set to never expire" `
+                -Details "Consider implementing password expiration policy"
+        } else {
+            Add-Result -Category "Core - Password Policy" -Status "Info" `
+                -Message "Maximum password age is $maxAge days" `
+                -Details "Password expiration is configured"
+        }
+    }
+    
+    # Account lockout threshold
+    if ($passwordPolicy -match "Lockout threshold:\s+(\d+)") {
+        $lockoutThreshold = [int]$Matches[1]
+        if ($lockoutThreshold -gt 0 -and $lockoutThreshold -le 10) {
+            Add-Result -Category "Core - Password Policy" -Status "Pass" `
+                -Message "Account lockout threshold is $lockoutThreshold attempts" `
+                -Details "Protects against brute force password attacks"
+        } elseif ($lockoutThreshold -eq 0) {
+            Add-Result -Category "Core - Password Policy" -Status "Fail" `
+                -Message "Account lockout is disabled" `
+                -Details "No protection against brute force attacks" `
+                -Remediation "net accounts /lockoutthreshold:5"
+        } else {
+            Add-Result -Category "Core - Password Policy" -Status "Warning" `
+                -Message "Account lockout threshold is $lockoutThreshold (consider 5-10)" `
+                -Details "Lower threshold provides better protection"
+        }
+    }
+    
+    # Lockout duration
+    if ($passwordPolicy -match "Lockout duration \(minutes\):\s+(\d+)") {
+        $lockoutDuration = [int]$Matches[1]
+        if ($lockoutDuration -ge 15) {
+            Add-Result -Category "Core - Password Policy" -Status "Pass" `
+                -Message "Account lockout duration is $lockoutDuration minutes" `
+                -Details "Adequate lockout period configured"
+        } elseif ($lockoutDuration -gt 0) {
+            Add-Result -Category "Core - Password Policy" -Status "Info" `
+                -Message "Account lockout duration is $lockoutDuration minutes" `
+                -Details "Consider 15+ minutes for better security"
+        }
+    }
+    
+} catch {
+    Add-Result -Category "Core - Password Policy" -Status "Error" `
+        -Message "Failed to check password policy: $_"
+}
+
+# ============================================================================
+# BitLocker Encryption
+# ============================================================================
+Write-Host "[Core] Checking disk encryption..." -ForegroundColor Yellow
+
+try {
+    $bitlockerVolumes = Get-BitLockerVolume -ErrorAction SilentlyContinue
+    
+    if ($bitlockerVolumes) {
+        $encryptedVolumes = $bitlockerVolumes | Where-Object { $_.VolumeStatus -eq "FullyEncrypted" }
+        $unencryptedVolumes = $bitlockerVolumes | Where-Object { $_.VolumeStatus -eq "FullyDecrypted" }
+        
+        if ($encryptedVolumes) {
+            foreach ($vol in $encryptedVolumes) {
+                Add-Result -Category "Core - Encryption" -Status "Pass" `
+                    -Message "Volume $($vol.MountPoint) is encrypted" `
+                    -Details "Encryption method: $($vol.EncryptionMethod)"
             }
         }
-    } catch {}
-    
-    # User Accounts - 2 checks
-    $guest = Get-LocalUser -Name "Guest" -ErrorAction SilentlyContinue
-    if($guest -and -not $guest.Enabled){
-        Add-Check -Category "User Accounts" -Status "Passed" -Message "Guest account disabled" `
-            -Current "Disabled" -Expected "Disabled" -Sev "High" `
-            -Frameworks @{'CIS'='2.3.1.1';'NIST'='AC-2';'NSA'='WNSS'}
-    } else {
-        Add-Check -Category "User Accounts" -Status "Failed" -Message "Guest account ENABLED" `
-            -Current "Enabled" -Expected "Disabled" -Sev "High" `
-            -Remediation "Disable-LocalUser -Name 'Guest'" `
-            -Frameworks @{'CIS'='2.3.1.1';'NIST'='AC-2'}
-    }
-    
-    $admin = Get-LocalUser | Where-Object{$_.SID -like "*-500"}
-    if($admin -and -not $admin.Enabled){
-        Add-Check -Category "User Accounts" -Status "Passed" -Message "Built-in Administrator disabled" `
-            -Current "Disabled" -Expected "Disabled" -Sev "High" -Frameworks @{'CIS'='2.3.1.2';'NSA'='WNSS'}
-    } else {
-        Add-Check -Category "User Accounts" -Status "Warnings" -Message "Built-in Administrator enabled" `
-            -Current "Enabled" -Expected "Disabled" -Sev "High" -Frameworks @{'CIS'='2.3.1.2'}
-    }
-    
-    # SMB - 3 checks
-    $smbv1 = Get-WindowsOptionalFeature -Online -FeatureName "SMB1Protocol" -ErrorAction SilentlyContinue
-    if($smbv1 -and $smbv1.State -eq "Disabled"){
-        Add-Check -Category "SMB" -Status "Passed" -Message "SMBv1 disabled" `
-            -Current "Disabled" -Expected "Disabled" -Sev "Critical" `
-            -Frameworks @{'CIS'='18.3.1';'MS'='Baseline';'NSA'='WNSS';'CISA'='CPG'}
-    } elseif($smbv1 -and $smbv1.State -eq "Enabled") {
-        Add-Check -Category "SMB" -Status "Failed" -Message "SMBv1 ENABLED" `
-            -Current "Enabled" -Expected "Disabled" -Sev "Critical" `
-            -Remediation "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" `
-            -Frameworks @{'CIS'='18.3.1';'MS'='Baseline'}
-    }
-    
-    $smbSigning = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "RequireSecuritySignature" -ErrorAction SilentlyContinue).RequireSecuritySignature
-    if($smbSigning -eq 1){
-        Add-Check -Category "SMB" -Status "Passed" -Message "SMB server signing required" `
-            -Current "Required" -Expected "Required" -Sev "High" `
-            -Frameworks @{'CIS'='2.3.8.3';'NIST'='SC-8';'NSA'='WNSS'}
-    } else {
-        Add-Check -Category "SMB" -Status "Failed" -Message "SMB server signing NOT required" `
-            -Current "Not required" -Expected "Required" -Sev "High" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'RequireSecuritySignature' -Value 1" `
-            -Frameworks @{'CIS'='2.3.8.3';'NIST'='SC-8'}
-    }
-    
-    $smbClientSign = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters" -Name "RequireSecuritySignature" -ErrorAction SilentlyContinue).RequireSecuritySignature
-    if($smbClientSign -eq 1){
-        Add-Check -Category "SMB" -Status "Passed" -Message "SMB client signing required" `
-            -Current "Required" -Expected "Required" -Sev "High" -Frameworks @{'CIS'='2.3.6.3';'NIST'='SC-8'}
-    } else {
-        Add-Check -Category "SMB" -Status "Warnings" -Message "SMB client signing not required" `
-            -Current "Not required" -Expected "Required" -Sev "High" -Frameworks @{'CIS'='2.3.6.3'}
-    }
-    
-    # PowerShell - 3 checks
-    $execPolicy = Get-ExecutionPolicy -Scope LocalMachine
-    if($execPolicy -in @('AllSigned','RemoteSigned','Restricted')){
-        Add-Check -Category "PowerShell" -Status "Passed" -Message "Execution policy: $execPolicy" `
-            -Current $execPolicy -Expected "AllSigned/RemoteSigned/Restricted" -Sev "Medium" `
-            -Frameworks @{'CIS'='18.9.95';'MS'='Baseline'}
-    } else {
-        Add-Check -Category "PowerShell" -Status "Warnings" -Message "Execution policy permissive: $execPolicy" `
-            -Current $execPolicy -Expected "AllSigned/RemoteSigned" -Sev "Medium" `
-            -Frameworks @{'CIS'='18.9.95'}
-    }
-    
-    $psv2 = Get-WindowsOptionalFeature -Online -FeatureName "MicrosoftWindowsPowerShellV2Root" -ErrorAction SilentlyContinue
-    if($psv2 -and $psv2.State -eq "Disabled"){
-        Add-Check -Category "PowerShell" -Status "Passed" -Message "PowerShell v2 disabled" `
-            -Current "Disabled" -Expected "Disabled" -Sev "High" `
-            -Frameworks @{'CIS'='18.9.95.1';'STIG'='V-220719';'NSA'='WNSS'}
-    } elseif($psv2 -and $psv2.State -eq "Enabled") {
-        Add-Check -Category "PowerShell" -Status "Failed" -Message "PowerShell v2 ENABLED" `
-            -Current "Enabled" -Expected "Disabled" -Sev "High" `
-            -Remediation "Disable-WindowsOptionalFeature -Online -FeatureName MicrosoftWindowsPowerShellV2Root -NoRestart" `
-            -Frameworks @{'CIS'='18.9.95.1';'STIG'='V-220719'}
-    }
-    
-    $scriptLogging = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging" -Name "EnableScriptBlockLogging" -ErrorAction SilentlyContinue).EnableScriptBlockLogging
-    if($scriptLogging -eq 1){
-        Add-Check -Category "PowerShell" -Status "Passed" -Message "Script block logging enabled" `
-            -Current "Enabled" -Expected "Enabled" -Sev "Medium" `
-            -Frameworks @{'CIS'='18.9.95.2';'NIST'='AU-2'}
-    } else {
-        Add-Check -Category "PowerShell" -Status "Warnings" -Message "Script block logging not enabled" `
-            -Current "Disabled" -Expected "Enabled" -Sev "Medium" -Frameworks @{'CIS'='18.9.95.2'}
-    }
-    
-    # RDP - 3 checks
-    $rdpDeny = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -ErrorAction SilentlyContinue).fDenyTSConnections
-    if($rdpDeny -eq 1){
-        Add-Check -Category "RDP" -Status "Passed" -Message "RDP disabled" `
-            -Current "Disabled" -Expected "Disabled (if not needed)" -Sev "Medium" `
-            -Frameworks @{'NIST'='AC-17';'CISA'='CPG'}
-    } else {
-        $nla = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "UserAuthentication" -ErrorAction SilentlyContinue).UserAuthentication
-        if($nla -eq 1){
-            Add-Check -Category "RDP" -Status "Passed" -Message "RDP enabled with NLA" `
-                -Current "NLA enabled" -Expected "NLA required" -Sev "Medium" `
-                -Frameworks @{'CIS'='18.9.62.3.9.1';'NIST'='AC-17'}
-        } else {
-            Add-Check -Category "RDP" -Status "Failed" -Message "RDP enabled WITHOUT NLA" `
-                -Current "No NLA" -Expected "NLA required" -Sev "High" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name 'UserAuthentication' -Value 1" `
-                -Frameworks @{'CIS'='18.9.62.3.9.1';'NIST'='AC-17'}
+        
+        if ($unencryptedVolumes) {
+            foreach ($vol in $unencryptedVolumes) {
+                Add-Result -Category "Core - Encryption" -Status "Warning" `
+                    -Message "Volume $($vol.MountPoint) is not encrypted" `
+                    -Details "Data at rest is not protected" `
+                    -Remediation "Enable-BitLocker -MountPoint '$($vol.MountPoint)' -EncryptionMethod XtsAes256 -UsedSpaceOnly"
+            }
         }
-    }
-    
-    $rdpEncryption = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "MinEncryptionLevel" -ErrorAction SilentlyContinue).MinEncryptionLevel
-    if($rdpEncryption -eq 3){
-        Add-Check -Category "RDP" -Status "Passed" -Message "RDP encryption: High" `
-            -Current "High" -Expected "High" -Sev "High" -Frameworks @{'CIS'='18.9.62.3.9.2'}
     } else {
-        Add-Check -Category "RDP" -Status "Warnings" -Message "RDP encryption not set to High" `
-            -Current $(if($rdpEncryption){"Level $rdpEncryption"}else{"Not set"}) -Expected "3 (High)" -Sev "High" `
-            -Frameworks @{'CIS'='18.9.62.3.9.2'}
+        Add-Result -Category "Core - Encryption" -Status "Info" `
+            -Message "Unable to check BitLocker status" `
+            -Details "May require elevated privileges or BitLocker is not available"
     }
-    
-    $rdpSecurityLayer = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "SecurityLayer" -ErrorAction SilentlyContinue).SecurityLayer
-    if($rdpSecurityLayer -eq 2){
-        Add-Check -Category "RDP" -Status "Passed" -Message "RDP security layer: SSL/TLS" `
-            -Current "SSL/TLS" -Expected "SSL/TLS" -Sev "High" -Frameworks @{'CIS'='18.9.62.3.9.3'}
-    }
-    
-    # Credential Protection - 2 checks
-    $lsaProtection = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "RunAsPPL" -ErrorAction SilentlyContinue).RunAsPPL
-    if($lsaProtection -eq 1){
-        Add-Check -Category "Credential Protection" -Status "Passed" -Message "LSA Protection enabled" `
-            -Current "Enabled" -Expected "Enabled" -Sev "High" `
-            -Frameworks @{'MS'='Baseline';'NSA'='WNSS'}
-    } else {
-        Add-Check -Category "Credential Protection" -Status "Warnings" -Message "LSA Protection not enabled" `
-            -Current "Disabled" -Expected "Enabled" -Sev "High" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name 'RunAsPPL' -Value 1" `
-            -Frameworks @{'MS'='Baseline'}
-    }
-    
-    $wdigest = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest" -Name "UseLogonCredential" -ErrorAction SilentlyContinue).UseLogonCredential
-    if($wdigest -eq 0){
-        Add-Check -Category "Credential Protection" -Status "Passed" -Message "WDigest disabled" `
-            -Current "Disabled" -Expected "Disabled" -Sev "High" -Frameworks @{'MS'='Baseline';'NSA'='WNSS'}
-    } else {
-        Add-Check -Category "Credential Protection" -Status "Failed" -Message "WDigest NOT disabled" `
-            -Current $(if($null -eq $wdigest){"Not set (enabled)"}else{"Enabled"}) -Expected "Disabled" -Sev "High" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' -Name 'UseLogonCredential' -Value 0" `
-            -Frameworks @{'MS'='Baseline'}
-    }
-    
-    # Network Security - 5 checks
-    $llmnr = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient" -Name "EnableMulticast" -ErrorAction SilentlyContinue).EnableMulticast
-    if($llmnr -eq 0){
-        Add-Check -Category "Network Security" -Status "Passed" -Message "LLMNR disabled" `
-            -Current "Disabled" -Expected "Disabled" -Sev "Medium" `
-            -Frameworks @{'CIS'='18.5.10.2';'NIST'='SC-20';'NSA'='WNSS'}
-    } else {
-        Add-Check -Category "Network Security" -Status "Failed" -Message "LLMNR NOT disabled" `
-            -Current "Enabled" -Expected "Disabled" -Sev "Medium" `
-            -Remediation "New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient' -Force; Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient' -Name 'EnableMulticast' -Value 0" `
-            -Frameworks @{'CIS'='18.5.10.2';'NIST'='SC-20'}
-    }
-    
-    $netbios = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters" -Name "NoNameReleaseOnDemand" -ErrorAction SilentlyContinue).NoNameReleaseOnDemand
-    if($netbios -eq 1){
-        Add-Check -Category "Network Security" -Status "Passed" -Message "NetBIOS name release protected" `
-            -Current "Protected" -Expected "Protected" -Sev "Low" -Frameworks @{'NSA'='WNSS'}
-    }
-    
-    $icmpRedirect = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" -Name "EnableICMPRedirect" -ErrorAction SilentlyContinue).EnableICMPRedirect
-    if($icmpRedirect -eq 0){
-        Add-Check -Category "Network Security" -Status "Passed" -Message "ICMP redirects disabled" `
-            -Current "Disabled" -Expected "Disabled" -Sev "Medium" -Frameworks @{'CIS'='18.4.1';'NIST'='SC-7'}
-    } else {
-        Add-Check -Category "Network Security" -Status "Warnings" -Message "ICMP redirects enabled" `
-            -Current "Enabled" -Expected "Disabled" -Sev "Medium" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters' -Name 'EnableICMPRedirect' -Value 0" `
-            -Frameworks @{'CIS'='18.4.1'}
-    }
-    
-    $ipSourceRoute = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" -Name "DisableIPSourceRouting" -ErrorAction SilentlyContinue).DisableIPSourceRouting
-    if($ipSourceRoute -eq 2){
-        Add-Check -Category "Network Security" -Status "Passed" -Message "IP source routing disabled" `
-            -Current "Highest protection" -Expected "Highest protection" -Sev "Medium" `
-            -Frameworks @{'CIS'='18.4.2';'NIST'='SC-7'}
-    } else {
-        Add-Check -Category "Network Security" -Status "Warnings" -Message "IP source routing not fully disabled" `
-            -Current $(if($ipSourceRoute -eq 1){"Medium"}elseif($ipSourceRoute -eq 0){"Enabled"}else{"Not set"}) -Expected "2 (Highest)" -Sev "Medium" `
-            -Frameworks @{'CIS'='18.4.2'}
-    }
-    
-    $ipv6SourceRoute = (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters" -Name "DisableIPSourceRouting" -ErrorAction SilentlyContinue).DisableIPSourceRouting
-    if($ipv6SourceRoute -eq 2){
-        Add-Check -Category "Network Security" -Status "Passed" -Message "IPv6 source routing disabled" `
-            -Current "Highest protection" -Expected "Highest protection" -Sev "Medium" -Frameworks @{'CIS'='18.4.3'}
-    }
-    
-    # AutoRun - 1 check
-    $autoRun = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoDriveTypeAutoRun" -ErrorAction SilentlyContinue).NoDriveTypeAutoRun
-    if($autoRun -eq 255){
-        Add-Check -Category "AutoRun" -Status "Passed" -Message "AutoRun disabled all drives" `
-            -Current "255 (all drives)" -Expected "255" -Sev "High" `
-            -Frameworks @{'CIS'='18.9.8';'NIST'='CM-7';'CISA'='M1042'}
-    } else {
-        Add-Check -Category "AutoRun" -Status "Failed" -Message "AutoRun not fully disabled" `
-            -Current $(if($autoRun){"$autoRun"}else{"Not Set"}) -Expected "255" -Sev "High" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name 'NoDriveTypeAutoRun' -Value 255" `
-            -Frameworks @{'CIS'='18.9.8';'NIST'='CM-7'}
-    }
-    
-    # Services - 3 checks
-    $criticalServices = @{
-        'EventLog' = 'Windows Event Log'
-        'MpsSvc' = 'Windows Firewall'
-        'WinDefend' = 'Windows Defender'
-    }
-    
-    foreach($svcName in $criticalServices.Keys){
-        $svc = Get-Service -Name $svcName -ErrorAction SilentlyContinue
-        if($svc -and $svc.Status -eq 'Running'){
-            Add-Check -Category "Services" -Status "Passed" -Message "$($criticalServices[$svcName]) running" `
-                -Current "Running" -Expected "Running" -Sev "Critical" -Frameworks @{'NIST'='CM-7'}
-        } elseif($svc) {
-            Add-Check -Category "Services" -Status "Failed" -Message "$($criticalServices[$svcName]) NOT running" `
-                -Current $svc.Status -Expected "Running" -Sev "Critical" `
-                -Remediation "Start-Service -Name $svcName; Set-Service -Name $svcName -StartupType Automatic" `
-                -Frameworks @{'NIST'='CM-7'}
-        }
-    }
-    
-    $totalChecks = $results.Passed.Count + $results.Failed.Count + $results.Warnings.Count + $results.Info.Count
-    Write-Host "Core checks complete: $totalChecks executed, $($results.Passed.Count) passed, $($results.Failed.Count) failed, $($results.Warnings.Count) warnings" -ForegroundColor Green
-    return $results
+} catch {
+    Add-Result -Category "Core - Encryption" -Status "Info" `
+        -Message "BitLocker check skipped (requires elevated privileges)" `
+        -Details "Run as Administrator to check disk encryption status"
 }
+
+# ============================================================================
+# Remote Desktop Configuration
+# ============================================================================
+Write-Host "[Core] Checking Remote Desktop..." -ForegroundColor Yellow
+
+try {
+    $rdpEnabled = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -ErrorAction SilentlyContinue
+    
+    if ($rdpEnabled -and $rdpEnabled.fDenyTSConnections -eq 1) {
+        Add-Result -Category "Core - Remote Access" -Status "Pass" `
+            -Message "Remote Desktop is disabled" `
+            -Details "Reduces attack surface when not needed"
+    } else {
+        # RDP is enabled - check security settings
+        Add-Result -Category "Core - Remote Access" -Status "Info" `
+            -Message "Remote Desktop is enabled" `
+            -Details "Ensure RDP is secured with NLA and strong passwords"
+        
+        # Check Network Level Authentication
+        $nlaRequired = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "UserAuthentication" -ErrorAction SilentlyContinue
+        if ($nlaRequired -and $nlaRequired.UserAuthentication -eq 1) {
+            Add-Result -Category "Core - Remote Access" -Status "Pass" `
+                -Message "RDP: Network Level Authentication (NLA) is required" `
+                -Details "NLA provides additional authentication security"
+        } else {
+            Add-Result -Category "Core - Remote Access" -Status "Warning" `
+                -Message "RDP: Network Level Authentication (NLA) is not required" `
+                -Details "NLA should be enabled for secure RDP access" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1"
+        }
+    }
+} catch {
+    Add-Result -Category "Core - Remote Access" -Status "Error" `
+        -Message "Failed to check Remote Desktop configuration: $_"
+}
+
+# ============================================================================
+# SMBv1 Protocol Check
+# ============================================================================
+Write-Host "[Core] Checking SMBv1 protocol..." -ForegroundColor Yellow
+
+try {
+    $smbv1 = Get-SmbServerConfiguration -ErrorAction SilentlyContinue | Select-Object EnableSMB1Protocol
+    
+    if ($smbv1 -and $smbv1.EnableSMB1Protocol -eq $false) {
+        Add-Result -Category "Core - Network Security" -Status "Pass" `
+            -Message "SMBv1 protocol is disabled" `
+            -Details "SMBv1 has known vulnerabilities (WannaCry, NotPetya)"
+    } elseif ($smbv1 -and $smbv1.EnableSMB1Protocol -eq $true) {
+        Add-Result -Category "Core - Network Security" -Status "Fail" `
+            -Message "SMBv1 protocol is enabled" `
+            -Details "SMBv1 is vulnerable to ransomware and should be disabled" `
+            -Remediation "Set-SmbServerConfiguration -EnableSMB1Protocol `$false -Force"
+    }
+} catch {
+    Add-Result -Category "Core - Network Security" -Status "Error" `
+        -Message "Failed to check SMBv1 status: $_"
+}
+
+# ============================================================================
+# System Information
+# ============================================================================
+Write-Host "[Core] Gathering system information..." -ForegroundColor Yellow
+
+try {
+    $os = Get-CimInstance -ClassName Win32_OperatingSystem
+    $cs = Get-CimInstance -ClassName Win32_ComputerSystem
+    
+    Add-Result -Category "Core - System Info" -Status "Info" `
+        -Message "Computer: $($cs.Name)" `
+        -Details "Domain/Workgroup: $($cs.Domain)"
+    
+    Add-Result -Category "Core - System Info" -Status "Info" `
+        -Message "OS: $($os.Caption)" `
+        -Details "Version: $($os.Version), Build: $($os.BuildNumber), Architecture: $($os.OSArchitecture)"
+    
+    $lastBoot = $os.LastBootUpTime
+    $uptime = (Get-Date) - $lastBoot
+    Add-Result -Category "Core - System Info" -Status "Info" `
+        -Message "Last Boot: $($lastBoot.ToString('yyyy-MM-dd HH:mm:ss'))" `
+        -Details "Uptime: $([math]::Round($uptime.TotalDays, 2)) days"
+} catch {
+    Add-Result -Category "Core - System Info" -Status "Error" `
+        -Message "Failed to gather system information: $_"
+}
+
+# ============================================================================
+# Disk Space Check
+# ============================================================================
+Write-Host "[Core] Checking disk space..." -ForegroundColor Yellow
+
+try {
+    $drives = Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Used -gt 0 }
+    
+    foreach ($drive in $drives) {
+        $freeSpacePercent = [math]::Round(($drive.Free / ($drive.Used + $drive.Free)) * 100, 2)
+        $freeSpaceGB = [math]::Round($drive.Free / 1GB, 2)
+        $usedSpaceGB = [math]::Round($drive.Used / 1GB, 2)
+        
+        if ($freeSpacePercent -ge 20) {
+            Add-Result -Category "Core - Disk Space" -Status "Pass" `
+                -Message "Drive ${drive}:\ has $freeSpacePercent% free space" `
+                -Details "Free: ${freeSpaceGB} GB, Used: ${usedSpaceGB} GB"
+        } elseif ($freeSpacePercent -ge 10) {
+            Add-Result -Category "Core - Disk Space" -Status "Warning" `
+                -Message "Drive ${drive}:\ has only $freeSpacePercent% free space" `
+                -Details "Free: ${freeSpaceGB} GB, Used: ${usedSpaceGB} GB" `
+                -Remediation "Free up disk space or expand volume"
+        } else {
+            Add-Result -Category "Core - Disk Space" -Status "Fail" `
+                -Message "Drive ${drive}:\ is critically low on space ($freeSpacePercent% free)" `
+                -Details "Free: ${freeSpaceGB} GB, Used: ${usedSpaceGB} GB" `
+                -Remediation "Immediately free up disk space or expand volume"
+        }
+    }
+} catch {
+    Add-Result -Category "Core - Disk Space" -Status "Error" `
+        -Message "Failed to check disk space: $_"
+}
+
 # ============================================================================
 # Summary Statistics
 # ============================================================================
@@ -727,7 +603,4 @@ Write-Host "  Warnings: $warningCount" -ForegroundColor Yellow
 Write-Host "  Info: $infoCount" -ForegroundColor Cyan
 Write-Host "  Errors: $errorCount" -ForegroundColor Magenta
 
-return $results  # THIS LINE MUST BE PRESENT
-    Write-Host "Core checks complete: $($results.Passed.Count) passed, $($results.Failed.Count) failed" -ForegroundColor Green
-    return $results
-}
+return $results
