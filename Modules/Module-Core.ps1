@@ -588,11 +588,11 @@ try {
 # ============================================================================
 # Summary Statistics
 # ============================================================================
-$passCount = ($results | Where-Object { $_.Status -eq "Pass" }).Count
-$failCount = ($results | Where-Object { $_.Status -eq "Fail" }).Count
-$warningCount = ($results | Where-Object { $_.Status -eq "Warning" }).Count
-$infoCount = ($results | Where-Object { $_.Status -eq "Info" }).Count
-$errorCount = ($results | Where-Object { $_.Status -eq "Error" }).Count
+$passCount = @($results | Where-Object { $_.Status -eq "Pass" }).Count
+$failCount = @($results | Where-Object { $_.Status -eq "Fail" }).Count
+$warningCount = @($results | Where-Object { $_.Status -eq "Warning" }).Count
+$infoCount = @($results | Where-Object { $_.Status -eq "Info" }).Count
+$errorCount = @($results | Where-Object { $_.Status -eq "Error" }).Count
 $totalChecks = $results.Count
 
 Write-Host "`n[Core] Module completed:" -ForegroundColor Cyan
