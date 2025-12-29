@@ -1087,17 +1087,17 @@ try {
 # ============================================================================
 # STIG Summary and Categorization
 # ============================================================================
-$passCount = ($results | Where-Object { $_.Status -eq "Pass" }).Count
-$failCount = ($results | Where-Object { $_.Status -eq "Fail" }).Count
-$warningCount = ($results | Where-Object { $_.Status -eq "Warning" }).Count
-$infoCount = ($results | Where-Object { $_.Status -eq "Info" }).Count
-$errorCount = ($results | Where-Object { $_.Status -eq "Error" }).Count
+$passCount = @($results | Where-Object { $_.Status -eq "Pass" }).Count
+$failCount = @($results | Where-Object { $_.Status -eq "Fail" }).Count
+$warningCount = @($results | Where-Object { $_.Status -eq "Warning" }).Count
+$infoCount = @($results | Where-Object { $_.Status -eq "Info" }).Count
+$errorCount = @($results | Where-Object { $_.Status -eq "Error" }).Count
 $totalChecks = $results.Count
 
 # Count by severity
-$catI = ($results | Where-Object { $_.Category -like "*CAT I*" }).Count
-$catII = ($results | Where-Object { $_.Category -like "*CAT II*" }).Count
-$catIII = ($results | Where-Object { $_.Category -like "*CAT III*" }).Count
+$catI = @($results | Where-Object { $_.Category -like "*CAT I*" }).Count
+$catII = @($results | Where-Object { $_.Category -like "*CAT II*" }).Count
+$catIII = @($results | Where-Object { $_.Category -like "*CAT III*" }).Count
 
 Write-Host "`n[STIG] Module completed:" -ForegroundColor Cyan
 Write-Host "  Total Checks: $totalChecks" -ForegroundColor White
