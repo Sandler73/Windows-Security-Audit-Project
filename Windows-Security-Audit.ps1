@@ -1,6 +1,6 @@
 # Windows-Security-Audit-Script.ps1
 # Comprehensive Windows Security Audit Script
-# Version: 6.1
+# Version: 5.3 - Fixed
 # GitHub: https://github.com/Sandler73/Windows-Security-Audit-Script
 
 <#
@@ -1539,6 +1539,8 @@ function Start-SecurityAudit {
             Write-Host "[!] Failed to execute module ${module}: $_" -ForegroundColor Red
         }
     }
+    
+    $allResults = $allResults | Sort-Object -Property Module
     
     if ($allResults.Count -eq 0) {
         Write-Host "`n[!] No results generated" -ForegroundColor Red
