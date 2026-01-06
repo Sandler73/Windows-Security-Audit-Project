@@ -21,7 +21,7 @@ We recommend always using the latest release version for the most up-to-date sec
 ### Before Running the Script
 
 **Verify Source:**
-- Only download from the official GitHub repository: https://github.com/Sandler73/Windows-Security-Audit-Script
+- Only download from the official GitHub repository: https://github.com/Sandler73/Windows-Security-Audit-Project/tree/main
 - Verify file integrity using checksums (provided in releases)
 - Review the code before execution (open source for transparency)
 
@@ -320,11 +320,11 @@ We appreciate researchers who responsibly disclose vulnerabilities:
 
 ## Contact
 
-**Security Issues:** [Create private security advisory](https://github.com/Sandler73/Windows-Security-Audit-Script/security/advisories/new)
+**Security Issues:** [Create private security advisory](https://github.com/Sandler73/Windows-Security-Audit-Project/security/advisories/new)
 
-**General Questions:** [GitHub Discussions](https://github.com/Sandler73/Windows-Security-Audit-Script/discussions)
+**General Questions:** [GitHub Discussions](https://github.com/Sandler73/Windows-Security-Audit-Project/discussions)
 
-**Other Issues:** [GitHub Issues](https://github.com/Sandler73/Windows-Security-Audit-Script/issues)
+**Other Issues:** [GitHub Issues](https://github.com/Sandler73/Windows-Security-Audit-Project/issues)
 
 ---
 
