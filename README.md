@@ -85,8 +85,8 @@ The tool performs **550+ automated security checks** across seven compliance mod
 
 1. **Clone the repository:**
 ```powershell
-   git clone https://github.com/Sandler73/Windows-Security-Audit-Script.git
-   cd Windows-Security-Audit-Script
+   git clone https://github.com/Sandler73/Windows-Security-Audit-Project.git
+   cd Windows-Security-Audit-Project
 ```
 
 2. **Set execution policy (if needed):**
@@ -365,21 +365,21 @@ Duration:        00:02:34
 
 ## 📖 Documentation
 
-Comprehensive documentation is available in the [Project Wiki](https://github.com/Sandler73/Windows-Security-Audit-Script/wiki):
+Comprehensive documentation is available in the [Project Wiki](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki):
 
 ### Getting Started
-- **[Quick Start Guide](https://github.com/Sandler73/Windows-Security-Audit-Script/wiki/Quick-Start-Guide)** - Get up and running in 5 minutes
-- **[Usage Guide](https://github.com/Sandler73/Windows-Security-Audit-Script/wiki/Windows-Security-Audit-Tool-‐-Usage-Guide)** - Detailed command-line options and workflows
+- **[Quick Start Guide](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Quick-Start-Guide)** - Get up and running in 5 minutes
+- **[Usage Guide](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Windows-Security-Audit-Tool-‐-Usage-Guide)** - Detailed command-line options and workflows
 
 ### Reference Documentation
-- **[Framework Reference](https://github.com/Sandler73/Windows-Security-Audit-Script/wiki/Framework-Reference)** - Detailed framework mappings and control IDs
-- **[Module Documentation](https://github.com/Sandler73/Windows-Security-Audit-Script/wiki/Module-Documentation)** - Individual module specifications
-- **[Output Reference](https://github.com/Sandler73/Windows-Security-Audit-Script/wiki/Output-Reference)** - Report format specifications
+- **[Framework Reference](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Framework-Reference)** - Detailed framework mappings and control IDs
+- **[Module Documentation](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Module-Documentation)** - Individual module specifications
+- **[Output Reference](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Output-Reference)** - Report format specifications
 
 ### Advanced Topics
-- **[Development Guide](https://github.com/Sandler73/Windows-Security-Audit-Script/wiki/Development-Guide)** - Contributing and extending modules
-- **[Troubleshooting Guide](https://github.com/Sandler73/Windows-Security-Audit-Script/wiki/Troubleshooting-Guide)** - Common issues and solutions
-- **[FAQ](https://github.com/Sandler73/Windows-Security-Audit-Script/wiki/Frequently-Asked-Questions-(FAQ))** - Frequently asked questions
+- **[Development Guide](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Development-Guide)** - Contributing and extending modules
+- **[Troubleshooting Guide](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Troubleshooting-Guide)** - Common issues and solutions
+- **[FAQ](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Frequently-Asked-Questions-(FAQ))** - Frequently asked questions
 
 ## 🛠️ Command-Line Parameters
 ```powershell
@@ -594,7 +594,7 @@ Windows-Security-Audit-Script/
 - Secure Boot enabled
 - Unnecessary services disabled
 
-See [Module Documentation](https://github.com/Sandler73/Windows-Security-Audit-Script/wiki/Module-Documentation) for complete check listings.
+See [Module Documentation](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Module-Documentation) for complete check listings.
 
 ## ⚠️ Important Considerations
 
@@ -679,7 +679,7 @@ This tool is provided for **security assessment and compliance auditing purposes
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](https://github.com/Sandler73/Windows-Security-Audit-Script/blob/main/CONTRIBUTING.md) for details.
+We welcome contributions! Please see [CONTRIBUTING.md](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/CONTRIBUTING.md) for details.
 
 ### Ways to Contribute
 
@@ -695,7 +695,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](https://github.com/Sandle
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/NewSecurityCheck`)
-3. Follow coding standards (see [Development Guide](https://github.com/Sandler73/Windows-Security-Audit-Script/wiki/Development-Guide))
+3. Follow coding standards (see [Development Guide](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Development-Guide))
 4. Test thoroughly on multiple Windows versions
 5. Update documentation
 6. Commit changes (`git commit -m 'Add: New SMB3 encryption check'`)
@@ -713,7 +713,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](https://github.com/Sandle
 
 ## 📜 License
 
-This project is licensed under the **MIT License** - see [LICENSE](https://github.com/Sandler73/Windows-Security-Audit-Script/blob/main/LICENSE) for details.
+This project is licensed under the **MIT License** - see [LICENSE](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/LICENSE) for details.
 
 ### What This Means
 
@@ -755,9 +755,9 @@ This project builds upon the work and guidance of various security organizations
 ## 📞 Support & Resources
 
 ### Get Help
-- **📖 Documentation** - [Project Wiki](https://github.com/Sandler73/Windows-Security-Audit-Script/wiki)
-- **❓ Questions** - [GitHub Discussions](https://github.com/Sandler73/Windows-Security-Audit-Script/discussions)
-- **🐛 Bug Reports** - [GitHub Issues](https://github.com/Sandler73/Windows-Security-Audit-Script/issues)
+- **📖 Documentation** - [Project Wiki](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki)
+- **❓ Questions** - [GitHub Discussions](https://github.com/Sandler73/Windows-Security-Audit-Project/discussions)
+- **🐛 Bug Reports** - [GitHub Issues](https://github.com/Sandler73/Windows-Security-Audit-Project/issues)
 - **💬 Community** - [Security Community Forums]
 
 ### Stay Updated
@@ -766,7 +766,7 @@ This project builds upon the work and guidance of various security organizations
 - 🔔 **Subscribe to releases** - Get notified of new versions
 
 ### Security Issues
-- Review [SECURITY.md]([SECURITY.md](https://github.com/Sandler73/Windows-Security-Audit-Script/blob/main/SECURITY.md)) for vulnerability reporting
+- Review [SECURITY.md](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/SECURITY.md) for vulnerability reporting
 - Report security issues privately via GitHub Security Advisories
 - Expected response time: 48-72 hours
 
@@ -806,7 +806,7 @@ This project builds upon the work and guidance of various security organizations
 - Improved error handling and logging
 - Comprehensive documentation
 
-See [CHANGELOG.md]([CHANGELOG.md](https://github.com/Sandler73/Windows-Security-Audit-Script/blob/main/CHANGELOG.md)) for complete version history.
+See [CHANGELOG.md](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/CHANGELOG.md) for complete version history.
 
 ---
 
