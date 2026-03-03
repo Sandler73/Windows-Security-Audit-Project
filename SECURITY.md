@@ -10,9 +10,9 @@ We provide security updates for the following versions:
 
 | Version | Supported          | Notes |
 | ------- | ------------------ | ----- |
-| 5.0.x   | :white_check_mark: | Current release, actively maintained |
-| 4.x     | :x:                | End of life, upgrade recommended |
-| < 4.0   | :x:                | No longer supported |
+| 6.0.x   | :white_check_mark: | Current release, actively maintained |
+| 5.x     | :x:                | Upgrade recommended |, upgrade recommended |
+| < 5.0   | :x:                | No longer supported |
 
 We recommend always using the latest release version for the most up-to-date security features and protections.
 
@@ -328,6 +328,6 @@ We appreciate researchers who responsibly disclose vulnerabilities:
 
 ---
 
-**Last Updated:** December 2024
+**Last Updated: March 2026
 
 This security policy is subject to change. Please review periodically for updates.
