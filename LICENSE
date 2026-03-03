@@ -1,6 +1,8 @@
-MIT License
+# License
 
-Copyright (c) 2025 Ryan
+## MIT License
+
+Copyright (c) 2024-2026 Sandler
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +21,52 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+## Supplementary Terms
+
+The following sections provide additional clarity and do not alter, restrict, or extend the MIT License above in any way. In the event of conflict, the MIT License governs.
+
+### Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE AUTHORS, COPYRIGHT HOLDERS, OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; BUSINESS INTERRUPTION; SYSTEM DAMAGE OR MISCONFIGURATION; SECURITY INCIDENTS; COMPLIANCE FAILURES; OR REGULATORY PENALTIES) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+**Security Auditing Specific Disclaimers:**
+
+- This software performs read-only security assessments by default. However, optional remediation features may modify system configuration. Users accept all responsibility for changes applied through the remediation system.
+- Audit results are informational and must not be treated as a substitute for professional security assessment, compliance certification, or penetration testing.
+- The software checks system configuration against published security frameworks. Framework guidance may change, and the software may not reflect the most current version of any referenced standard.
+- False positives, false negatives, and incomplete results are inherent limitations of automated security scanning. Users should validate findings independently.
+
+### Disclaimer of Warranty
+
+THE SOFTWARE IS PROVIDED ON AN "AS IS" AND "AS AVAILABLE" BASIS WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED. THE AUTHORS AND CONTRIBUTORS EXPRESSLY DISCLAIM ALL WARRANTIES, INCLUDING WITHOUT LIMITATION:
+
+- **Merchantability** — No guarantee of commercial fitness or suitability for any specific deployment environment.
+- **Fitness for a Particular Purpose** — No guarantee that the software will meet any compliance, regulatory, audit, or certification requirement including but not limited to DISA STIG, NIST 800-53, CIS Benchmarks, NSA guidance, CISA performance goals, ISO 27001, PCI-DSS, HIPAA, or any other security framework.
+- **Accuracy** — No guarantee that audit results, compliance scores, severity ratings, or cross-reference mappings are complete, current, or accurate.
+- **Non-Infringement** — No guarantee that the software does not infringe on patents, copyrights, trade secrets, or other intellectual property rights of third parties.
+- **Availability** — No guarantee of continued maintenance, updates, support, or compatibility with future operating system releases.
+
+Users are solely responsible for determining the appropriateness of using this software and assume all risks associated with its use, including but not limited to the risks of system misconfiguration, data loss, and non-compliance with applicable laws, regulations, or standards.
+
+### License and Copyright Notice
+
+1. **Attribution Requirement** — The above copyright notice and the full text of the MIT License must be included in all copies or substantial portions of the Software, whether distributed in source form, compiled form, or as part of a larger work.
+
+2. **Notice Placement** — When redistributing the Software, the license and copyright notice may be included as:
+   - A `LICENSE` or `LICENSE.md` file in the root of the distribution
+   - A comment block in the source code
+   - A notice in application "About" dialogs or documentation
+   - Any other reasonable and conspicuous location
+
+3. **Derivative Works** — Derivative works may use their own license terms for new code, provided that the MIT License and copyright notice are retained for the original portions of the Software.
+
+4. **Third-Party Framework References** — This software references security frameworks and standards developed by third-party organizations (DISA, NIST, CIS, NSA, CISA, Microsoft, ISO, ENISA). These frameworks are the intellectual property of their respective owners. References to these frameworks within this software are for identification and compliance-mapping purposes only and do not imply endorsement, affiliation, or certification by any framework authority.
+
+5. **No Trademark Rights** — This license does not grant permission to use the trade names, trademarks, service marks, or product names of the licensor or any referenced framework authority, except as required for reasonable and customary use in describing the origin of the Software.
+
+---
+
+**Full license text**: [MIT License](https://opensource.org/licenses/MIT)
