@@ -318,7 +318,7 @@ try {
             -CrossReferences @{ NIST='SI-3'; CIS='8.1'; STIG='V-220916' }
     } else {
         Add-Result -Category "MS - Defender AV" -Status "Fail" `
-            -Message "Antivirus signatures are severely outdated ($($signatureAge.Days) days old)" `
+            -Message "Antivirus signatures are severely outdated `($($signatureAge.Days) days old)" `
             -Details "MS Baseline: Critical - outdated signatures leave system vulnerable" `
             -Remediation "Update-MpSignature" `
             -Severity "High" `
@@ -345,7 +345,7 @@ try {
     if ($mpStatus.FullScanAge -le 30) {
         Add-Result -Category "MS - Defender AV" -Status "Pass" `
             -Message "Full scan performed within the last 30 days" `
-            -Details "MS Baseline: Comprehensive scan completed recently ($($mpStatus.FullScanAge) days ago)" `
+            -Details "MS Baseline: Comprehensive scan completed recently `($($mpStatus.FullScanAge) days ago)" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='SI-3'; CIS='8.1'; STIG='V-220916' }
     } else {
@@ -376,7 +376,7 @@ try {
     } catch {
         Add-Result -Category "MS - Defender AV" -Status "Info" `
             -Message "Could not verify Tamper Protection status" `
-            -Details "MS Baseline: Check via Windows Security > Virus & threat protection settings" `
+            -Details "MS Baseline: Check via Windows Security `> Virus & threat protection settings" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='SI-3'; CIS='8.1'; STIG='V-220916' }
     }
@@ -506,7 +506,7 @@ try {
         $disabledCount = ($asrRuleActions | Where-Object { $_ -eq 0 }).Count
         
         Add-Result -Category "MS - ASR" -Status "Pass" `
-            -Message "Attack Surface Reduction rules are configured ($($asrRuleIds.Count) rules)" `
+            -Message "Attack Surface Reduction rules are configured `($($asrRuleIds.Count) rules)" `
             -Details "MS Baseline: ASR reduces attack vectors. Enabled: $enabledCount, Audit: $auditCount, Disabled: $disabledCount" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='CM-7'; NSA='Attack Surface Reduction' }
@@ -752,7 +752,7 @@ try {
         Add-Result -Category "MS - SmartScreen" -Status "Warning" `
             -Message "Microsoft Edge SmartScreen is disabled" `
             -Details "MS Baseline: Edge lacks protection against phishing and malicious websites" `
-            -Remediation "Configure via Group Policy: Computer Configuration > Administrative Templates > Microsoft Edge > SmartScreen settings" `
+            -Remediation "Configure via Group Policy: Computer Configuration `> Administrative Templates `> Microsoft Edge `> SmartScreen settings" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='SI-3'; CIS='18.9.85' }
     } else {
@@ -1166,7 +1166,7 @@ try {
             if ($protectionStatus -eq "On") {
                 Add-Result -Category "MS - BitLocker" -Status "Pass" `
                     -Message "BitLocker is enabled on $mountPoint" `
-                    -Details "MS Baseline: Drive is encrypted ($encryptionPercentage% complete), Type: $volumeType" `
+                    -Details "MS Baseline: Drive is encrypted ($encryptionPercentage`% complete), Type: $volumeType" `
                     -Severity "Medium" `
                     -CrossReferences @{ NIST='SC-28'; CIS='3.11'; STIG='V-220920' }
             } elseif ($protectionStatus -eq "Off" -and $volumeType -eq "OperatingSystem") {
@@ -2369,7 +2369,7 @@ try {
         Add-Result -Category "MS - Audit Policy" -Status "Warning" `
             -Message "Advanced Audit Policy may not be fully configured" `
             -Details "MS Baseline: Enable comprehensive audit logging for security monitoring" `
-            -Remediation "Configure via Group Policy: Computer Configuration > Windows Settings > Security Settings > Advanced Audit Policy Configuration" `
+            -Remediation "Configure via Group Policy: Computer Configuration `> Windows Settings `> Security Settings `> Advanced Audit Policy Configuration" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AU-2'; CIS='17.1'; STIG='V-220748' }
     }
@@ -3114,7 +3114,7 @@ try {
             Add-Result -Category "MS - LAPS" -Status "Warning" `
                 -Message "LAPS is installed but not enabled" `
                 -Details "MS Baseline: Enable LAPS via Group Policy" `
-                -Remediation "Configure via GPO: Computer Configuration > Policies > Administrative Templates > LAPS" `
+                -Remediation "Configure via GPO: Computer Configuration `> Policies `> Administrative Templates `> LAPS" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='IA-5'; CIS='18.2.1' }
         }
@@ -3157,13 +3157,13 @@ foreach ($r in ($results | Where-Object { $_.Status -eq "Fail" })) {
 }
 
 Write-Host "`n[MS] ======================================================================" -ForegroundColor Cyan
-Write-Host "[MS] MODULE COMPLETED — v$moduleVersion" -ForegroundColor Cyan
+Write-Host "[MS] MODULE COMPLETED -- v$moduleVersion" -ForegroundColor Cyan
 Write-Host "[MS] ======================================================================" -ForegroundColor Cyan
 Write-Host "[MS] Total Checks Executed: $totalChecks" -ForegroundColor White
 Write-Host "[MS]" -ForegroundColor Cyan
 Write-Host "[MS] Results Summary:" -ForegroundColor Cyan
 $pctPass = if ($totalChecks -gt 0) { [Math]::Round(($passCount / $totalChecks) * 100, 1) } else { 0 }
-Write-Host "[MS]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass%)" -ForegroundColor Green
+Write-Host "[MS]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass`%)" -ForegroundColor Green
 Write-Host "[MS]   Failed:   $($failCount.ToString().PadLeft(3))" -ForegroundColor Red
 Write-Host "[MS]   Warnings: $($warnCount.ToString().PadLeft(3))" -ForegroundColor Yellow
 Write-Host "[MS]   Info:     $($infoCount.ToString().PadLeft(3))" -ForegroundColor Cyan
@@ -3192,7 +3192,7 @@ return $results
 # ============================================================================
 if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "=" * 80 -ForegroundColor White
-    Write-Host "  Microsoft Security Baseline — Standalone Test v$moduleVersion" -ForegroundColor Cyan
+    Write-Host "  Microsoft Security Baseline -- Standalone Test v$moduleVersion" -ForegroundColor Cyan
     Write-Host "=" * 80 -ForegroundColor White
 
     $standaloneData = @{
@@ -3215,7 +3215,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "`n  Status Distribution:" -ForegroundColor White
     foreach ($st in @("Pass","Fail","Warning","Info","Error")) {
         $c = @($results | Where-Object { $_.Status -eq $st }).Count
-        if ($c -gt 0) { $p = [Math]::Round(($c/$results.Count)*100,1); $b = "#"*[Math]::Floor($p/2); $cl = switch($st){"Pass"{"Green"};"Fail"{"Red"};"Warning"{"Yellow"};"Info"{"Cyan"};default{"Magenta"}}; Write-Host "    $($st.PadRight(8)): $($c.ToString().PadLeft(3)) ($($p.ToString().PadLeft(5))%) $b" -ForegroundColor $cl }
+        if ($c -gt 0) { $p = [Math]::Round(($c/$results.Count)*100,1); $b = "#"*[Math]::Floor($p/2); $cl = switch($st){"Pass"{"Green"};"Fail"{"Red"};"Warning"{"Yellow"};"Info"{"Cyan"};default{"Magenta"}}; Write-Host "    $($st.PadRight(8)): $($c.ToString().PadLeft(3)) `($($p.ToString().PadLeft(5))`%`) $b" -ForegroundColor $cl }
     }
 
     Write-Host "`n  Category Coverage:" -ForegroundColor White
@@ -3223,9 +3223,10 @@ if ($MyInvocation.InvocationName -ne '.') {
     foreach ($k in ($cc.Keys | Sort-Object)) { Write-Host "    $($k.PadRight(45)): $($cc[$k].ToString().PadLeft(3))" -ForegroundColor Gray }
 
     Write-Host "`n$("=" * 80)" -ForegroundColor White
-    Write-Host "  MS module standalone test complete — $($results.Count) checks" -ForegroundColor Cyan
+    Write-Host "  MS module standalone test complete -- $($results.Count) checks" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
+
 # ============================================================================
 # End of Microsoft Security Baseline Module (Module-MS.ps1)
 # ============================================================================
