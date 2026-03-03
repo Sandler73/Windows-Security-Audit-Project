@@ -188,7 +188,7 @@ try {
         # 1.3 Quick scan age
         if ($defender.QuickScanAge -le 7) {
             Add-Result -Category "Core - Antivirus" -Status "Pass" `
-                -Message "Recent malware scan performed ($($defender.QuickScanAge) days ago)" `
+                -Message "Recent malware scan performed `($($defender.QuickScanAge) days ago)" `
                 -Details "Regular scans help detect dormant malware" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST="SI-3"; CISA="Malware Defense" }
@@ -246,7 +246,7 @@ try {
                     -Message "Tamper Protection is disabled" `
                     -Details "Malware or attackers could disable Defender protection" `
                     -Severity "High" `
-                    -Remediation "Enable via Windows Security > Virus & threat protection > Manage settings > Tamper Protection" `
+                    -Remediation "Enable via Windows Security `> Virus & threat protection `> Manage settings `> Tamper Protection" `
                     -CrossReferences @{ CIS="18.10.43.11"; NIST="SI-7" }
             }
         } catch { <# Tamper Protection property may not exist on older builds #> }
@@ -441,19 +441,19 @@ try {
             $daysSinceUpdate = ((Get-Date) - $latestHotfix.InstalledOn).Days
             if ($daysSinceUpdate -le 30) {
                 Add-Result -Category "Core - Updates" -Status "Pass" `
-                    -Message "Last hotfix installed $daysSinceUpdate day(s) ago ($($latestHotfix.HotFixID))" `
+                    -Message "Last hotfix installed $daysSinceUpdate day(s) ago `($($latestHotfix.HotFixID))" `
                     -Details "Installed on: $($latestHotfix.InstalledOn.ToString('yyyy-MM-dd'))" `
                     -Severity "Medium" `
                     -CrossReferences @{ NIST="SI-2" }
             } elseif ($daysSinceUpdate -le 60) {
                 Add-Result -Category "Core - Updates" -Status "Warning" `
-                    -Message "Last hotfix installed $daysSinceUpdate day(s) ago ($($latestHotfix.HotFixID))" `
+                    -Message "Last hotfix installed $daysSinceUpdate day(s) ago `($($latestHotfix.HotFixID))" `
                     -Details "Installed on: $($latestHotfix.InstalledOn.ToString('yyyy-MM-dd')). Updates should be applied monthly." `
                     -Severity "Medium" `
                     -CrossReferences @{ NIST="SI-2" }
             } else {
                 Add-Result -Category "Core - Updates" -Status "Fail" `
-                    -Message "No hotfix installed in $daysSinceUpdate days ($($latestHotfix.HotFixID) on $($latestHotfix.InstalledOn.ToString('yyyy-MM-dd')))" `
+                    -Message "No hotfix installed in $daysSinceUpdate days `($($latestHotfix.HotFixID) on $($latestHotfix.InstalledOn.ToString('yyyy-MM-dd')))" `
                     -Details "System has not been patched in over 60 days" `
                     -Severity "High" `
                     -Remediation "Run Windows Update immediately to install pending patches" `
@@ -923,7 +923,7 @@ try {
         if ($encryptedVolumes) {
             foreach ($vol in $encryptedVolumes) {
                 Add-Result -Category "Core - Encryption" -Status "Pass" `
-                    -Message "Volume $($vol.MountPoint) is encrypted ($($vol.EncryptionMethod))" `
+                    -Message "Volume $($vol.MountPoint) is encrypted `($($vol.EncryptionMethod))" `
                     -Details "Protection status: $($vol.ProtectionStatus), Key protectors: $($vol.KeyProtector.KeyProtectorType -join ', ')" `
                     -Severity "High" `
                     -CrossReferences @{ CIS="18.10.9.1.1"; NIST="SC-28"; STIG="V-254465"; CISA="Data Protection" }
@@ -1115,7 +1115,7 @@ try {
             -Severity "Informational"
 
         Add-Result -Category "Core - System Info" -Status "Info" `
-            -Message "OS: $($os.Caption) ($($os.OSArchitecture))" `
+            -Message "OS: $($os.Caption) `($($os.OSArchitecture))" `
             -Details "Version: $($os.Version), Build: $($os.BuildNumber), Install Date: $($os.InstallDate.ToString('yyyy-MM-dd'))" `
             -Severity "Informational"
 
@@ -1163,19 +1163,19 @@ try {
 
         if ($freeSpacePercent -ge 20) {
             Add-Result -Category "Core - Disk Space" -Status "Pass" `
-                -Message "Drive $($drive.Name):\ has $freeSpacePercent% free space" `
+                -Message "Drive $($drive.Name):\ has $freeSpacePercent`% free space" `
                 -Details "Free: ${freeSpaceGB} GB, Used: ${usedSpaceGB} GB, Total: $([math]::Round($totalSize/1GB, 2)) GB" `
                 -Severity "Low"
         } elseif ($freeSpacePercent -ge 10) {
             Add-Result -Category "Core - Disk Space" -Status "Warning" `
-                -Message "Drive $($drive.Name):\ has only $freeSpacePercent% free space" `
+                -Message "Drive $($drive.Name):\ has only $freeSpacePercent`% free space" `
                 -Details "Free: ${freeSpaceGB} GB, Used: ${usedSpaceGB} GB. Low disk space may prevent updates and logging." `
                 -Severity "Medium" `
                 -Remediation "Free up disk space or expand volume" `
                 -CrossReferences @{ NIST="AU-4" }
         } else {
             Add-Result -Category "Core - Disk Space" -Status "Fail" `
-                -Message "Drive $($drive.Name):\ is critically low on space ($freeSpacePercent% free)" `
+                -Message "Drive $($drive.Name):\ is critically low on space ($freeSpacePercent`% free)" `
                 -Details "Free: ${freeSpaceGB} GB, Used: ${usedSpaceGB} GB. May prevent security updates and event logging." `
                 -Severity "High" `
                 -Remediation "Immediately free up disk space or expand volume" `
@@ -1244,7 +1244,7 @@ try {
                 -Message "Virtualization-Based Security (VBS) is not enabled" `
                 -Details "VBS provides hardware-backed isolation for credentials (LSASS) and hypervisor-protected code integrity" `
                 -Severity "High" `
-                -Remediation "Enable via Group Policy: Computer Configuration > Admin Templates > System > Device Guard > Turn On Virtualization Based Security" `
+                -Remediation "Enable via Group Policy: Computer Configuration `> Admin Templates `> System `> Device Guard `> Turn On Virtualization Based Security" `
                 -CrossReferences @{ CIS="18.9.5.1"; NIST="SC-39"; NSA="Credential Protection" }
         }
 
@@ -1592,7 +1592,7 @@ try {
                 -Message "NetBIOS over TCP/IP is enabled on one or more network adapters" `
                 -Details "NetBIOS is vulnerable to name spoofing and credential relay via NBNS poisoning" `
                 -Severity "Medium" `
-                -Remediation "Disable NetBIOS on each adapter: Network Properties > IPv4 > Advanced > WINS > Disable NetBIOS" `
+                -Remediation "Disable NetBIOS on each adapter: Network Properties `> IPv4 `> Advanced `> WINS `> Disable NetBIOS" `
                 -CrossReferences @{ CIS="18.6.4.2"; NIST="SC-7"; NSA="Network Hardening" }
         }
     } catch { <# WMI query failure is non-critical #> }
@@ -1625,7 +1625,7 @@ try {
                     -CrossReferences @{ CIS="5.37"; NIST="CM-7"; CISA="PrintNightmare" }
             } else {
                 Add-Result -Category "Core - Services" -Status "Info" `
-                    -Message "Print Spooler service is running ($($printers.Count) printer(s) installed)" `
+                    -Message "Print Spooler service is running `($($printers.Count) printer(s) installed)" `
                     -Details "Ensure PrintNightmare patches (KB5004945+) are installed" `
                     -Severity "Medium" `
                     -CrossReferences @{ CIS="5.37"; NIST="CM-7" }
@@ -1722,7 +1722,7 @@ try {
 
     if ($ssTimeout -and [int]$ssTimeout -gt 0 -and [int]$ssTimeout -le 900) {
         Add-Result -Category "Core - Screen Lock" -Status "Pass" `
-            -Message "Screen lock timeout is configured ($([int]$ssTimeout / 60) minutes)" `
+            -Message "Screen lock timeout is configured `($([int]$ssTimeout / 60) minutes)" `
             -Details "Idle sessions will be locked after $ssTimeout seconds" `
             -Severity "Medium" `
             -CrossReferences @{ CIS="18.10.15.1"; NIST="AC-11"; STIG="V-254470" }
@@ -1837,13 +1837,13 @@ foreach ($r in ($results | Where-Object { $_.Status -eq "Fail" })) {
 }
 
 Write-Host "`n[CORE] ======================================================================" -ForegroundColor Cyan
-Write-Host "[CORE] MODULE COMPLETED — v$moduleVersion" -ForegroundColor Cyan
+Write-Host "[CORE] MODULE COMPLETED -- v$moduleVersion" -ForegroundColor Cyan
 Write-Host "[CORE] ======================================================================" -ForegroundColor Cyan
 Write-Host "[CORE] Total Checks Executed: $totalChecks" -ForegroundColor White
 Write-Host "[CORE]" -ForegroundColor Cyan
 Write-Host "[CORE] Results Summary:" -ForegroundColor Cyan
 $pctPass = if ($totalChecks -gt 0) { [Math]::Round(($passCount / $totalChecks) * 100, 1) } else { 0 }
-Write-Host "[CORE]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass%)" -ForegroundColor Green
+Write-Host "[CORE]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass`%)" -ForegroundColor Green
 Write-Host "[CORE]   Failed:   $($failCount.ToString().PadLeft(3))" -ForegroundColor Red
 Write-Host "[CORE]   Warnings: $($warnCount.ToString().PadLeft(3))" -ForegroundColor Yellow
 Write-Host "[CORE]   Info:     $($infoCount.ToString().PadLeft(3))" -ForegroundColor Cyan
@@ -1876,7 +1876,7 @@ return $results
 # ============================================================================
 if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "=" * 80 -ForegroundColor White
-    Write-Host "  Core Security Baseline Module — Standalone Test Mode v$moduleVersion" -ForegroundColor Cyan
+    Write-Host "  Core Security Baseline Module -- Standalone Test Mode v$moduleVersion" -ForegroundColor Cyan
     Write-Host "=" * 80 -ForegroundColor White
     Write-Host ""
 
@@ -1917,7 +1917,7 @@ if ($MyInvocation.InvocationName -ne '.') {
             Invoke-CacheWarmUp -Cache $cache
             $standaloneData.Cache = $cache
             $summary = Get-CacheSummary -Cache $cache
-            Write-Host "  Cache: Enabled ($($summary.ServicesCount) services, $($summary.RegistryCacheCount) registry keys)" -ForegroundColor Green
+            Write-Host "  Cache: Enabled `($($summary.ServicesCount) services, $($summary.RegistryCacheCount) registry keys`)" -ForegroundColor Green
         } catch {
             Write-Host "  Cache: Not available ($_)" -ForegroundColor Yellow
         }
@@ -1948,12 +1948,12 @@ if ($MyInvocation.InvocationName -ne '.') {
     # Clear results from the initial pass (which used empty SharedData)
     $script:results = @()
 
-    # The actual check sections are above — they reference $SharedData and $useCache
+    # The actual check sections are above -- they reference $SharedData and $useCache
     # which are now set to the standalone values. We need to re-run the check body.
     # PowerShell approach: re-dot-source ourselves is circular. Instead, wrap checks
     # in a function during standalone mode.
     # NOTE: The module already ran its checks above with whatever SharedData was passed.
-    # In standalone mode (no parent script), SharedData defaults to @{} which is fine —
+    # In standalone mode (no parent script), SharedData defaults to @{} which is fine --
     # checks degrade gracefully. The results are already captured.
     # We just display the detailed analysis below.
 
@@ -1972,7 +1972,7 @@ if ($MyInvocation.InvocationName -ne '.') {
             $barLen = [Math]::Floor($pct / 2)
             $bar = "#" * $barLen
             $color = switch ($statusType) { "Pass" { "Green" }; "Fail" { "Red" }; "Warning" { "Yellow" }; "Info" { "Cyan" }; default { "Magenta" } }
-            Write-Host "    $($statusType.PadRight(8)): $($count.ToString().PadLeft(3)) ($($pct.ToString().PadLeft(5))%) $bar" -ForegroundColor $color
+            Write-Host "    $($statusType.PadRight(8)): $($count.ToString().PadLeft(3)) `($($pct.ToString().PadLeft(5))`%`) $bar" -ForegroundColor $color
         }
     }
 
@@ -1992,6 +1992,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
+
 # ============================================================================
 # End of Core Auditing Module (Module-Core.ps1)
 # ============================================================================
