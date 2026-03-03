@@ -1818,16 +1818,23 @@ Write-Host "[STIG] Check Categories:" -ForegroundColor Cyan
 foreach ($cat in ($categoryStats.Keys | Sort-Object)) {
     Write-Host "[STIG]   $($cat.PadRight(45)): $($categoryStats[$cat].ToString().PadLeft(3)) checks" -ForegroundColor Gray
 }
-if ($failCount -gt 0) {
-    Write-Host "[STIG]" -ForegroundColor Cyan
-    Write-Host "[STIG] Failed Check Severity:" -ForegroundColor Cyan
-    foreach ($sev in @('Critical', 'High', 'Medium', 'Low', 'Informational')) {
-        if ($severityStats[$sev] -gt 0) {
-            $sevColor = switch ($sev) { 'Critical' { 'Red' }; 'High' { 'DarkYellow' }; 'Medium' { 'Yellow' }; 'Low' { 'Cyan' }; default { 'Gray' } }
-            Write-Host "[STIG]   $($sev.PadRight(15)): $($severityStats[$sev])" -ForegroundColor $sevColor
-        }
-    }
+Write-Host "[STIG]" -ForegroundColor Cyan
+Write-Host "[STIG] Failed Check Severity:" -ForegroundColor Cyan
+foreach ($sev in @('Critical', 'High', 'Medium', 'Low', 'Informational')) {
+    $sevColor = switch ($sev) { 'Critical' { 'Red' }; 'High' { 'DarkYellow' }; 'Medium' { 'Yellow' }; 'Low' { 'Cyan' }; default { 'Gray' } }
+    Write-Host "[STIG]   $($sev.PadRight(15)): $($severityStats[$sev])" -ForegroundColor $sevColor
 }
+Write-Host "[STIG]" -ForegroundColor Cyan
+Write-Host "[STIG] STIG Severity Categories (all findings):" -ForegroundColor Cyan
+$catI   = @($results | Where-Object { $_.Category -match 'CAT I[^I]|CAT I$' }).Count
+$catII  = @($results | Where-Object { $_.Category -match 'CAT II[^I]|CAT II$' }).Count
+$catIII = @($results | Where-Object { $_.Category -match 'CAT III' }).Count
+$catI_fail   = @($results | Where-Object { $_.Category -match 'CAT I[^I]|CAT I$' -and $_.Status -eq 'Fail' }).Count
+$catII_fail  = @($results | Where-Object { $_.Category -match 'CAT II[^I]|CAT II$' -and $_.Status -eq 'Fail' }).Count
+$catIII_fail = @($results | Where-Object { $_.Category -match 'CAT III' -and $_.Status -eq 'Fail' }).Count
+Write-Host "[STIG]   CAT I   (Critical):    $($catI.ToString().PadLeft(3)) total, $($catI_fail.ToString().PadLeft(3)) failed" -ForegroundColor Red
+Write-Host "[STIG]   CAT II  (Significant):  $($catII.ToString().PadLeft(3)) total, $($catII_fail.ToString().PadLeft(3)) failed" -ForegroundColor Yellow
+Write-Host "[STIG]   CAT III (Minor):        $($catIII.ToString().PadLeft(3)) total, $($catIII_fail.ToString().PadLeft(3)) failed" -ForegroundColor Cyan
 Write-Host "[STIG] ======================================================================`n" -ForegroundColor Cyan
 
 return $results
