@@ -55,7 +55,7 @@ We are committed to providing a welcoming and inclusive experience for everyone.
 **Example Bug Report:**
 ```markdown
 ## Bug Description
-Module-STIG.ps1 fails on Windows Server 2016 when checking BitLocker
+module-stig.ps1 fails on Windows Server 2016 when checking BitLocker
 
 ## Steps to Reproduce
 1. Run script on Windows Server 2016 Standard
@@ -73,7 +73,7 @@ Get-BitLockerVolume : Access denied
 ## Environment
 - OS: Windows Server 2016 Standard (Build 14393)
 - PowerShell: 5.1.14393.5582
-- Script Version: 5.0
+- Script Version: 6.0
 ```
 
 ### Suggesting Enhancements
@@ -238,7 +238,7 @@ All modules must follow this structure:
 ```powershell
 # Module-Example.ps1
 # Brief description
-# Version: 5.0
+# Version: 6.0
 # Based on: Framework Name
 
 <#
@@ -253,7 +253,7 @@ All modules must follow this structure:
 
 .NOTES
     Author: Name
-    Version: 5.0
+    Version: 6.0
     Based on: Framework
 #>
 
@@ -267,15 +267,25 @@ $results = @()
 
 # Helper function
 function Add-Result {
-    param($Category, $Status, $Message, $Details = "", $Remediation = "")
+    param(
+        [string]$Category,
+        [string]$Status,
+        [string]$Message,
+        [string]$Details     = "",
+        [string]$Remediation = "",
+        [string]$Severity    = "Medium",
+        [hashtable]$CrossReferences = @{}
+    )
     $script:results += [PSCustomObject]@{
-        Module = $moduleName
-        Category = $Category
-        Status = $Status
-        Message = $Message
-        Details = $Details
-        Remediation = $Remediation
-        Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        Module          = $moduleName
+        Category        = $Category
+        Status          = $Status
+        Severity        = $Severity
+        Message         = $Message
+        Details         = $Details
+        Remediation     = $Remediation
+        CrossReferences = $CrossReferences
+        Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     }
 }
 
@@ -314,7 +324,9 @@ return $results
 Add-Result -Category "Module - Check ID" -Status "Pass|Fail|Warning|Info|Error" `
     -Message "Brief one-line description" `
     -Details "Detailed explanation including why it matters and framework reference" `
-    -Remediation "Exact PowerShell command or GPO path to fix the issue"
+    -Remediation "Exact PowerShell command or GPO path to fix the issue" `
+    -Severity "High" `
+    -CrossReferences @{ NIST='AC-2'; CIS='1.1'; STIG='V-220902' }
 ```
 
 **Status Values:**
@@ -362,13 +374,13 @@ Before submitting a PR, verify:
 Install-Module -Name PSScriptAnalyzer -Scope CurrentUser
 
 # Analyze your module
-Invoke-ScriptAnalyzer -Path ".\Modules\Module-YourModule.ps1"
+Invoke-ScriptAnalyzer -Path ".\modules\Module-YourModule.ps1"
 
 # Analyze entire project
 Invoke-ScriptAnalyzer -Path ".\" -Recurse
 
 # Fix common issues automatically
-Invoke-ScriptAnalyzer -Path ".\Modules\Module-YourModule.ps1" -Fix
+Invoke-ScriptAnalyzer -Path ".\modules\Module-YourModule.ps1" -Fix
 ```
 
 ### Test Script Template
@@ -385,7 +397,7 @@ Write-Host "Testing Module-$ModuleName.ps1..." -ForegroundColor Cyan
 
 try {
     # Import and run module
-    $results = & ".\Modules\Module-$ModuleName.ps1"
+    $results = & ".\modules\Module-$ModuleName.ps1"
     
     # Verify results structure
     $results | ForEach-Object {
@@ -460,9 +472,9 @@ Brief description of changes
 
 1. **Choose a framework/standard** to implement
 2. **Research** the official documentation
-3. **Create** module file in `Modules/` folder:
+3. **Create** module file in `modules/` folder:
    ```
-   Modules/Module-FrameworkName.ps1
+   modules/Module-FrameworkName.ps1
    ```
 4. **Follow** the module structure template
 5. **Document** each check with proper references
@@ -476,19 +488,21 @@ Brief description of changes
 Module-FrameworkName.ps1
 
 Examples:
-Module-STIG.ps1
-Module-NIST.ps1
+module-stig.ps1
+module-nist.ps1
 Module-ISO27001.ps1  (for future additions)
 ```
 
 ### Check Development Best Practices
 
 ```powershell
-# Good: Specific, actionable, properly categorized
-Add-Result -Category "STIG - V-220929 (CAT I)" -Status "Fail" `
-    -Message "Guest account is ENABLED" `
-    -Details "STIG CAT I: Guest account must be disabled to prevent anonymous access" `
-    -Remediation "Disable-LocalUser -Name Guest"
+# Good: Specific, actionable, with severity and cross-references
+Add-Result -Category "STIG - Credential Protection" -Status "Fail" `
+    -Message "V-220929: Guest account is ENABLED" `
+    -Details "CAT I: Guest account must be disabled to prevent anonymous access" `
+    -Remediation "Disable-LocalUser -Name Guest" `
+    -Severity "Critical" `
+    -CrossReferences @{ STIG='V-220929'; NIST='AC-2'; CIS='1.1.1' }
 
 # Bad: Vague, no context, no remediation
 Add-Result -Category "Check" -Status "Fail" `
