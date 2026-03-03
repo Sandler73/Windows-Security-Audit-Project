@@ -307,7 +307,7 @@ function New-AuditResult {
 <#
 .SYNOPSIS
     Centralized data cache that pre-reads commonly-accessed system data at
-    startup, then provides it to all modules — dramatically reducing redundant
+    startup, then provides it to all modules -- dramatically reducing redundant
     WMI queries, registry reads, and subprocess calls.
 .DESCRIPTION
     Usage:
@@ -1128,6 +1128,7 @@ function Get-AuditCommonInfo {
         )
     }
 }
+
 # ============================================================================
 # End of audit-common.ps1
 # ============================================================================
