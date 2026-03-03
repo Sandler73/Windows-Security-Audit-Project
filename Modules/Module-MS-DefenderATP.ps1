@@ -599,13 +599,13 @@ try {
         # Check scan parameters
         if ($mpPreference.ScanAvgCPULoadFactor -le 50) {
             Add-Result -Category "ATP - Scanning" -Status "Pass" `
-                -Message "Average CPU load factor during scans: $($mpPreference.ScanAvgCPULoadFactor)%" `
+                -Message "Average CPU load factor during scans: $($mpPreference.ScanAvgCPULoadFactor)`%" `
                 -Details "ATP/EDR: Balanced performance during scans" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } else {
             Add-Result -Category "ATP - Scanning" -Status "Info" `
-                -Message "Average CPU load factor during scans: $($mpPreference.ScanAvgCPULoadFactor)%" `
+                -Message "Average CPU load factor during scans: $($mpPreference.ScanAvgCPULoadFactor)`%" `
                 -Details "ATP/EDR: High CPU usage may impact system performance" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
@@ -999,13 +999,13 @@ foreach ($r in ($results | Where-Object { $_.Status -eq "Fail" })) {
 }
 
 Write-Host "`n[MS-DefenderATP] ======================================================================" -ForegroundColor Cyan
-Write-Host "[MS-DefenderATP] MODULE COMPLETED — v$moduleVersion" -ForegroundColor Cyan
+Write-Host "[MS-DefenderATP] MODULE COMPLETED -- v$moduleVersion" -ForegroundColor Cyan
 Write-Host "[MS-DefenderATP] ======================================================================" -ForegroundColor Cyan
 Write-Host "[MS-DefenderATP] Total Checks Executed: $totalChecks" -ForegroundColor White
 Write-Host "[MS-DefenderATP]" -ForegroundColor Cyan
 Write-Host "[MS-DefenderATP] Results Summary:" -ForegroundColor Cyan
 $pctPass = if ($totalChecks -gt 0) { [Math]::Round(($passCount / $totalChecks) * 100, 1) } else { 0 }
-Write-Host "[MS-DefenderATP]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass%)" -ForegroundColor Green
+Write-Host "[MS-DefenderATP]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass`%)" -ForegroundColor Green
 Write-Host "[MS-DefenderATP]   Failed:   $($failCount.ToString().PadLeft(3))" -ForegroundColor Red
 Write-Host "[MS-DefenderATP]   Warnings: $($warnCount.ToString().PadLeft(3))" -ForegroundColor Yellow
 Write-Host "[MS-DefenderATP]   Info:     $($infoCount.ToString().PadLeft(3))" -ForegroundColor Cyan
@@ -1034,7 +1034,7 @@ return $results
 # ============================================================================
 if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "=" * 80 -ForegroundColor White
-    Write-Host "  Microsoft Defender for Endpoint (ATP) — Standalone Test v$moduleVersion" -ForegroundColor Cyan
+    Write-Host "  Microsoft Defender for Endpoint (ATP) -- Standalone Test v$moduleVersion" -ForegroundColor Cyan
     Write-Host "=" * 80 -ForegroundColor White
 
     $standaloneData = @{
@@ -1057,7 +1057,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "`n  Status Distribution:" -ForegroundColor White
     foreach ($st in @("Pass","Fail","Warning","Info","Error")) {
         $c = @($results | Where-Object { $_.Status -eq $st }).Count
-        if ($c -gt 0) { $p = [Math]::Round(($c/$results.Count)*100,1); $b = "#"*[Math]::Floor($p/2); $cl = switch($st){"Pass"{"Green"};"Fail"{"Red"};"Warning"{"Yellow"};"Info"{"Cyan"};default{"Magenta"}}; Write-Host "    $($st.PadRight(8)): $($c.ToString().PadLeft(3)) ($($p.ToString().PadLeft(5))%) $b" -ForegroundColor $cl }
+        if ($c -gt 0) { $p = [Math]::Round(($c/$results.Count)*100,1); $b = "#"*[Math]::Floor($p/2); $cl = switch($st){"Pass"{"Green"};"Fail"{"Red"};"Warning"{"Yellow"};"Info"{"Cyan"};default{"Magenta"}}; Write-Host "    $($st.PadRight(8)): $($c.ToString().PadLeft(3)) `($($p.ToString().PadLeft(5))`%`) $b" -ForegroundColor $cl }
     }
 
     Write-Host "`n  Category Coverage:" -ForegroundColor White
@@ -1065,9 +1065,10 @@ if ($MyInvocation.InvocationName -ne '.') {
     foreach ($k in ($cc.Keys | Sort-Object)) { Write-Host "    $($k.PadRight(45)): $($cc[$k].ToString().PadLeft(3))" -ForegroundColor Gray }
 
     Write-Host "`n$("=" * 80)" -ForegroundColor White
-    Write-Host "  MS-DefenderATP module standalone test complete — $($results.Count) checks" -ForegroundColor Cyan
+    Write-Host "  MS-DefenderATP module standalone test complete -- $($results.Count) checks" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
+
 # ================================================================================
 # End of Microsoft Defender for Endpoint (ATP) module (Module-MS-DefenderATP.ps1)
 # ================================================================================
