@@ -86,6 +86,7 @@ param(
 
 $moduleName = "MS-DefenderATP"
 $results = @()
+$moduleVersion = "6.0"
 
 # Helper function to add results
 function Add-Result {
@@ -93,18 +94,40 @@ function Add-Result {
         [string]$Category,
         [string]$Status,
         [string]$Message,
-        [string]$Details = "",
-        [string]$Remediation = ""
+        [string]$Details     = "",
+        [string]$Remediation = "",
+        [string]$Severity    = "Medium",
+        [hashtable]$CrossReferences = @{}
     )
     $script:results += [PSCustomObject]@{
-        Module = $moduleName
-        Category = $Category
-        Status = $Status
-        Message = $Message
-        Details = $Details
-        Remediation = $Remediation
-        Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        Module          = $moduleName
+        Category        = $Category
+        Status          = $Status
+        Severity        = $Severity
+        Message         = $Message
+        Details         = $Details
+        Remediation     = $Remediation
+        CrossReferences = $CrossReferences
+        Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     }
+}
+
+
+# ---------------------------------------------------------------------------
+# Cache-aware registry helper
+# ---------------------------------------------------------------------------
+$useCache = ($null -ne $SharedData.Cache)
+function Get-RegValue {
+    param([string]$Path, [string]$Name, $Default = $null)
+    if ($useCache -and (Get-Command 'Get-CachedRegistryValue' -ErrorAction SilentlyContinue)) {
+        return Get-CachedRegistryValue -Cache $SharedData.Cache -Path $Path -Name $Name -Default $Default
+    }
+    try {
+        $regItem = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
+        if ($regItem) { return $regItem.$Name }
+    }
+    catch { }
+    return $Default
 }
 
 Write-Host "`n[MS-DefenderATP] Starting Microsoft Defender for Endpoint checks..." -ForegroundColor Cyan
@@ -122,24 +145,32 @@ try {
         if ($senseService.Status -eq "Running") {
             Add-Result -Category "ATP - Onboarding" -Status "Pass" `
                 -Message "Microsoft Defender for Endpoint service (Sense) is running" `
-                -Details "ATP/EDR: The Sense service provides EDR capabilities and telemetry to Microsoft 365 Defender"
+                -Details "ATP/EDR: The Sense service provides EDR capabilities and telemetry to Microsoft 365 Defender" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } else {
             Add-Result -Category "ATP - Onboarding" -Status "Fail" `
                 -Message "Sense service is installed but not running (Status: $($senseService.Status))" `
                 -Details "ATP/EDR: EDR capabilities are not active" `
-                -Remediation "Start-Service -Name Sense"
+                -Remediation "Start-Service -Name Sense" `
+                -Severity "High" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
         
         # Check service startup type
         if ($senseService.StartType -eq "Automatic") {
             Add-Result -Category "ATP - Onboarding" -Status "Pass" `
                 -Message "Sense service is set to start automatically" `
-                -Details "ATP/EDR: Service will start on boot"
+                -Details "ATP/EDR: Service will start on boot" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } else {
             Add-Result -Category "ATP - Onboarding" -Status "Warning" `
                 -Message "Sense service startup type is: $($senseService.StartType)" `
                 -Details "ATP/EDR: Should be set to Automatic" `
-                -Remediation "Set-Service -Name Sense -StartupType Automatic"
+                -Remediation "Set-Service -Name Sense -StartupType Automatic" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
         
         # Check onboarding registry key
@@ -148,11 +179,15 @@ try {
         if ($onboardingState -and $onboardingState.OnboardingState -eq 1) {
             Add-Result -Category "ATP - Onboarding" -Status "Pass" `
                 -Message "Device is onboarded to Microsoft Defender for Endpoint" `
-                -Details "ATP/EDR: OnboardingState = 1 (Onboarded)"
+                -Details "ATP/EDR: OnboardingState = 1 (Onboarded)" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } else {
             Add-Result -Category "ATP - Onboarding" -Status "Warning" `
                 -Message "Device onboarding state unclear or not fully onboarded" `
-                -Details "ATP/EDR: OnboardingState registry value not found or not set to 1"
+                -Details "ATP/EDR: OnboardingState registry value not found or not set to 1" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
         
         # Check organization ID
@@ -161,19 +196,24 @@ try {
         if ($orgId -and $orgId.OrgId) {
             Add-Result -Category "ATP - Onboarding" -Status "Pass" `
                 -Message "Device is registered to organization: $($orgId.OrgId)" `
-                -Details "ATP/EDR: Device is associated with a Defender for Endpoint tenant"
+                -Details "ATP/EDR: Device is associated with a Defender for Endpoint tenant" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
         
     } else {
         Add-Result -Category "ATP - Onboarding" -Status "Info" `
             -Message "Microsoft Defender for Endpoint (Sense service) is not installed" `
             -Details "ATP/EDR: Device is not onboarded to Defender for Endpoint. EDR capabilities not available" `
-            -Remediation "Download onboarding package from Microsoft 365 Defender portal and run: .\WindowsDefenderATPOnboardingScript.cmd"
+            -Remediation "Download onboarding package from Microsoft 365 Defender portal and run: .\WindowsDefenderATPOnboardingScript.cmd" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     }
     
 } catch {
     Add-Result -Category "ATP - Onboarding" -Status "Error" `
-        -Message "Failed to check Defender for Endpoint onboarding: $_"
+        -Message "Failed to check Defender for Endpoint onboarding: $_" `
+        -Severity "Medium"
 }
 
 # ============================================================================
@@ -193,11 +233,15 @@ try {
             Add-Result -Category "ATP - EDR Block Mode" -Status "Warning" `
                 -Message "Defender is forced into passive mode" `
                 -Details "ATP/EDR: EDR in block mode cannot function when Defender is in passive mode" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Advanced Threat Protection' -Name ForceDefenderPassiveMode -Value 0 -Type DWord"
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Advanced Threat Protection' -Name ForceDefenderPassiveMode -Value 0 -Type DWord" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } else {
             Add-Result -Category "ATP - EDR Block Mode" -Status "Pass" `
                 -Message "Defender is not forced into passive mode" `
-                -Details "ATP/EDR: EDR in block mode can be enabled"
+                -Details "ATP/EDR: EDR in block mode can be enabled" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
         
         # Check cloud-delivered protection (required for EDR in block mode)
@@ -205,18 +249,23 @@ try {
         if ($mpStatus -and $mpStatus.MAPSReporting -gt 0) {
             Add-Result -Category "ATP - EDR Block Mode" -Status "Pass" `
                 -Message "Cloud-delivered protection is enabled (required for EDR in block mode)" `
-                -Details "ATP/EDR: MAPS reporting level: $($mpStatus.MAPSReporting)"
+                -Details "ATP/EDR: MAPS reporting level: $($mpStatus.MAPSReporting)" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } else {
             Add-Result -Category "ATP - EDR Block Mode" -Status "Warning" `
                 -Message "Cloud-delivered protection is disabled" `
                 -Details "ATP/EDR: EDR in block mode requires cloud protection" `
-                -Remediation "Set-MpPreference -MAPSReporting Advanced"
+                -Remediation "Set-MpPreference -MAPSReporting Advanced" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
     }
     
 } catch {
     Add-Result -Category "ATP - EDR Block Mode" -Status "Error" `
-        -Message "Failed to check EDR in block mode configuration: $_"
+        -Message "Failed to check EDR in block mode configuration: $_" `
+        -Severity "Medium"
 }
 
 # ============================================================================
@@ -236,33 +285,44 @@ try {
                 Add-Result -Category "ATP - AIR" -Status "Warning" `
                     -Message "Automated Investigation & Response: Disabled" `
                     -Details "ATP/EDR: No automated investigations will run" `
-                    -Remediation "Configure AIR in Microsoft 365 Defender portal"
+                    -Remediation "Configure AIR in Microsoft 365 Defender portal" `
+                    -Severity "Medium" `
+                    -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
             }
             1 {
                 Add-Result -Category "ATP - AIR" -Status "Info" `
                     -Message "Automated Investigation & Response: Semi-automated" `
-                    -Details "ATP/EDR: Automated investigations run but require approval for remediation"
+                    -Details "ATP/EDR: Automated investigations run but require approval for remediation" `
+                    -Severity "Medium" `
+                    -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
             }
             2 {
                 Add-Result -Category "ATP - AIR" -Status "Pass" `
                     -Message "Automated Investigation & Response: Fully automated" `
-                    -Details "ATP/EDR: Investigations and remediation occur automatically"
+                    -Details "ATP/EDR: Investigations and remediation occur automatically" `
+                    -Severity "Medium" `
+                    -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
             }
             default {
                 Add-Result -Category "ATP - AIR" -Status "Info" `
                     -Message "Automated Investigation & Response level: $level" `
-                    -Details "ATP/EDR: Custom automation configuration"
+                    -Details "ATP/EDR: Custom automation configuration" `
+                    -Severity "Medium" `
+                    -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
             }
         }
     } else {
         Add-Result -Category "ATP - AIR" -Status "Info" `
             -Message "Automated Investigation & Response configuration not found" `
-            -Details "ATP/EDR: AIR may be configured at tenant level in Microsoft 365 Defender portal"
+            -Details "ATP/EDR: AIR may be configured at tenant level in Microsoft 365 Defender portal" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     }
     
 } catch {
     Add-Result -Category "ATP - AIR" -Status "Error" `
-        -Message "Failed to check AIR configuration: $_"
+        -Message "Failed to check AIR configuration: $_" `
+        -Severity "Medium"
 }
 
 # ============================================================================
@@ -277,16 +337,22 @@ try {
     if ($tvmEnabled -and $tvmEnabled.DisableTvmForEndpoint -eq 0) {
         Add-Result -Category "ATP - TVM" -Status "Pass" `
             -Message "Threat & Vulnerability Management is enabled" `
-            -Details "ATP/EDR: TVM provides vulnerability assessment and security recommendations"
+            -Details "ATP/EDR: TVM provides vulnerability assessment and security recommendations" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     } elseif ($tvmEnabled -and $tvmEnabled.DisableTvmForEndpoint -eq 1) {
         Add-Result -Category "ATP - TVM" -Status "Warning" `
             -Message "Threat & Vulnerability Management is disabled" `
             -Details "ATP/EDR: Device will not report vulnerabilities to TVM dashboard" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows Defender\Miscellaneous Configuration' -Name DisableTvmForEndpoint -Value 0 -Type DWord"
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows Defender\Miscellaneous Configuration' -Name DisableTvmForEndpoint -Value 0 -Type DWord" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     } else {
         Add-Result -Category "ATP - TVM" -Status "Info" `
             -Message "TVM configuration not explicitly set (using default)" `
-            -Details "ATP/EDR: TVM is typically enabled by default when onboarded to Defender for Endpoint"
+            -Details "ATP/EDR: TVM is typically enabled by default when onboarded to Defender for Endpoint" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     }
     
     # Check software inventory collection
@@ -296,16 +362,21 @@ try {
         Add-Result -Category "ATP - TVM" -Status "Warning" `
             -Message "Software inventory collection is disabled" `
             -Details "ATP/EDR: TVM requires software inventory for vulnerability assessment" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows Defender\Miscellaneous Configuration' -Name DisableSoftwareInventory -Value 0 -Type DWord"
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows Defender\Miscellaneous Configuration' -Name DisableSoftwareInventory -Value 0 -Type DWord" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     } else {
         Add-Result -Category "ATP - TVM" -Status "Pass" `
             -Message "Software inventory collection is enabled" `
-            -Details "ATP/EDR: Device reports installed software to TVM"
+            -Details "ATP/EDR: Device reports installed software to TVM" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     }
     
 } catch {
     Add-Result -Category "ATP - TVM" -Status "Error" `
-        -Message "Failed to check TVM configuration: $_"
+        -Message "Failed to check TVM configuration: $_" `
+        -Severity "Medium"
 }
 
 # ============================================================================
@@ -368,7 +439,9 @@ try {
             
             Add-Result -Category "ATP - ASR Details" -Status $status `
                 -Message "ASR Rule: $ruleName" `
-                -Details "ATP/EDR: Action = $actionText | Rule ID: $ruleId"
+                -Details "ATP/EDR: Action = $actionText | Rule ID: $ruleId" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='CM-7'; NSA='Attack Surface Reduction' }
         }
         
         # Check for ASR exclusions
@@ -377,22 +450,29 @@ try {
         if ($asrExclusions -and $asrExclusions.Count -gt 0) {
             Add-Result -Category "ATP - ASR Details" -Status "Info" `
                 -Message "ASR exclusions configured: $($asrExclusions.Count)" `
-                -Details "ATP/EDR: Exclusions = $($asrExclusions -join ', ')"
+                -Details "ATP/EDR: Exclusions = $($asrExclusions -join ', ')" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='CM-7'; NSA='Attack Surface Reduction' }
         } else {
             Add-Result -Category "ATP - ASR Details" -Status "Pass" `
                 -Message "No ASR exclusions configured" `
-                -Details "ATP/EDR: All ASR rules apply universally without exclusions"
+                -Details "ATP/EDR: All ASR rules apply universally without exclusions" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='CM-7'; NSA='Attack Surface Reduction' }
         }
         
     } else {
         Add-Result -Category "ATP - ASR Details" -Status "Info" `
             -Message "No Attack Surface Reduction rules configured" `
-            -Details "ATP/EDR: ASR rules are not currently protecting this device"
+            -Details "ATP/EDR: ASR rules are not currently protecting this device" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='CM-7'; NSA='Attack Surface Reduction' }
     }
     
 } catch {
     Add-Result -Category "ATP - ASR Details" -Status "Error" `
-        -Message "Failed to analyze ASR rules: $_"
+        -Message "Failed to analyze ASR rules: $_" `
+        -Severity "Medium"
 }
 
 # ============================================================================
@@ -408,21 +488,28 @@ try {
     if ($indicatorEnabled -and $indicatorEnabled.TpAutoUpdateIndicators -eq 1) {
         Add-Result -Category "ATP - Custom Indicators" -Status "Pass" `
             -Message "Custom threat indicators auto-update is enabled" `
-            -Details "ATP/EDR: Device can receive and enforce custom IoCs from Microsoft 365 Defender"
+            -Details "ATP/EDR: Device can receive and enforce custom IoCs from Microsoft 365 Defender" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     } elseif ($indicatorEnabled -and $indicatorEnabled.TpAutoUpdateIndicators -eq 0) {
         Add-Result -Category "ATP - Custom Indicators" -Status "Warning" `
             -Message "Custom threat indicators auto-update is disabled" `
             -Details "ATP/EDR: Device will not receive custom IoCs" `
-            -Remediation "Set-ItemProperty -Path '$indicatorPath' -Name TpAutoUpdateIndicators -Value 1 -Type DWord"
+            -Remediation "Set-ItemProperty -Path '$indicatorPath' -Name TpAutoUpdateIndicators -Value 1 -Type DWord" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     } else {
         Add-Result -Category "ATP - Custom Indicators" -Status "Info" `
             -Message "Custom indicator configuration not explicitly set" `
-            -Details "ATP/EDR: Using default configuration (typically enabled)"
+            -Details "ATP/EDR: Using default configuration (typically enabled)" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     }
     
 } catch {
     Add-Result -Category "ATP - Custom Indicators" -Status "Error" `
-        -Message "Failed to check custom indicator configuration: $_"
+        -Message "Failed to check custom indicator configuration: $_" `
+        -Severity "Medium"
 }
 
 # ============================================================================
@@ -440,22 +527,30 @@ try {
         if ($level -ge 2) {
             Add-Result -Category "ATP - Connectivity" -Status "Pass" `
                 -Message "Diagnostic data level is sufficient (Level: $level)" `
-                -Details "ATP/EDR: Level 2 (Enhanced) or 3 (Full) required for Defender for Endpoint"
+                -Details "ATP/EDR: Level 2 (Enhanced) or 3 (Full) required for Defender for Endpoint" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } elseif ($level -eq 1) {
             Add-Result -Category "ATP - Connectivity" -Status "Warning" `
                 -Message "Diagnostic data level is Basic (Level: 1)" `
                 -Details "ATP/EDR: Enhanced (2) or Full (3) recommended for optimal EDR functionality" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' -Name AllowTelemetry -Value 2 -Type DWord"
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' -Name AllowTelemetry -Value 2 -Type DWord" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } else {
             Add-Result -Category "ATP - Connectivity" -Status "Fail" `
                 -Message "Diagnostic data is disabled or security-only (Level: $level)" `
                 -Details "ATP/EDR: Defender for Endpoint requires at least Basic telemetry" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' -Name AllowTelemetry -Value 2 -Type DWord"
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' -Name AllowTelemetry -Value 2 -Type DWord" `
+                -Severity "High" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
     } else {
         Add-Result -Category "ATP - Connectivity" -Status "Info" `
             -Message "Diagnostic data level not configured via policy" `
-            -Details "ATP/EDR: Using default Windows telemetry settings"
+            -Details "ATP/EDR: Using default Windows telemetry settings" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     }
     
     # Check cloud-delivered protection service connectivity
@@ -464,25 +559,32 @@ try {
         if ($mpStatus.AMServiceEnabled) {
             Add-Result -Category "ATP - Connectivity" -Status "Pass" `
                 -Message "Antimalware service is enabled and running" `
-                -Details "ATP/EDR: Core protection service is operational"
+                -Details "ATP/EDR: Core protection service is operational" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
         
         if ($mpStatus.AntispywareEnabled) {
             Add-Result -Category "ATP - Connectivity" -Status "Pass" `
                 -Message "Antispyware protection is enabled" `
-                -Details "ATP/EDR: Spyware detection is active"
+                -Details "ATP/EDR: Spyware detection is active" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
         
         if ($mpStatus.AntivirusEnabled) {
             Add-Result -Category "ATP - Connectivity" -Status "Pass" `
                 -Message "Antivirus protection is enabled" `
-                -Details "ATP/EDR: Virus detection is active"
+                -Details "ATP/EDR: Virus detection is active" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
     }
     
 } catch {
     Add-Result -Category "ATP - Connectivity" -Status "Error" `
-        -Message "Failed to check cloud connectivity: $_"
+        -Message "Failed to check cloud connectivity: $_" `
+        -Severity "Medium"
 }
 
 # ============================================================================
@@ -498,77 +600,102 @@ try {
         if ($mpPreference.ScanAvgCPULoadFactor -le 50) {
             Add-Result -Category "ATP - Scanning" -Status "Pass" `
                 -Message "Average CPU load factor during scans: $($mpPreference.ScanAvgCPULoadFactor)%" `
-                -Details "ATP/EDR: Balanced performance during scans"
+                -Details "ATP/EDR: Balanced performance during scans" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } else {
             Add-Result -Category "ATP - Scanning" -Status "Info" `
                 -Message "Average CPU load factor during scans: $($mpPreference.ScanAvgCPULoadFactor)%" `
-                -Details "ATP/EDR: High CPU usage may impact system performance"
+                -Details "ATP/EDR: High CPU usage may impact system performance" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
         
         # Check archive scanning
         if ($mpPreference.DisableArchiveScanning -eq $false) {
             Add-Result -Category "ATP - Scanning" -Status "Pass" `
                 -Message "Archive scanning is enabled" `
-                -Details "ATP/EDR: ZIP, CAB, and other archives are scanned for threats"
+                -Details "ATP/EDR: ZIP, CAB, and other archives are scanned for threats" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } else {
             Add-Result -Category "ATP - Scanning" -Status "Warning" `
                 -Message "Archive scanning is disabled" `
                 -Details "ATP/EDR: Threats in compressed files may go undetected" `
-                -Remediation "Set-MpPreference -DisableArchiveScanning `$false"
+                -Remediation "Set-MpPreference -DisableArchiveScanning `$false" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
         
         # Check email scanning
         if ($mpPreference.DisableEmailScanning -eq $false) {
             Add-Result -Category "ATP - Scanning" -Status "Pass" `
                 -Message "Email scanning is enabled" `
-                -Details "ATP/EDR: Email files (PST, DBX) are scanned"
+                -Details "ATP/EDR: Email files (PST, DBX) are scanned" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } else {
             Add-Result -Category "ATP - Scanning" -Status "Warning" `
                 -Message "Email scanning is disabled" `
                 -Details "ATP/EDR: Threats in email archives may go undetected" `
-                -Remediation "Set-MpPreference -DisableEmailScanning `$false"
+                -Remediation "Set-MpPreference -DisableEmailScanning `$false" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
         
         # Check removable drive scanning
         if ($mpPreference.DisableRemovableDriveScanning -eq $false) {
             Add-Result -Category "ATP - Scanning" -Status "Pass" `
                 -Message "Removable drive scanning is enabled" `
-                -Details "ATP/EDR: USB and external drives are scanned"
+                -Details "ATP/EDR: USB and external drives are scanned" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } else {
             Add-Result -Category "ATP - Scanning" -Status "Warning" `
                 -Message "Removable drive scanning is disabled" `
                 -Details "ATP/EDR: Threats from removable media may not be detected" `
-                -Remediation "Set-MpPreference -DisableRemovableDriveScanning `$false"
+                -Remediation "Set-MpPreference -DisableRemovableDriveScanning `$false" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
         
         # Check script scanning
         if ($mpPreference.DisableScriptScanning -eq $false) {
             Add-Result -Category "ATP - Scanning" -Status "Pass" `
                 -Message "Script scanning is enabled" `
-                -Details "ATP/EDR: JavaScript, VBScript, and PowerShell scripts are scanned"
+                -Details "ATP/EDR: JavaScript, VBScript, and PowerShell scripts are scanned" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } else {
             Add-Result -Category "ATP - Scanning" -Status "Fail" `
                 -Message "Script scanning is DISABLED" `
                 -Details "ATP/EDR: Critical - script-based attacks will not be detected" `
-                -Remediation "Set-MpPreference -DisableScriptScanning `$false"
+                -Remediation "Set-MpPreference -DisableScriptScanning `$false" `
+                -Severity "High" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
         
         # Check intrusion prevention system
         if ($mpPreference.DisableIntrusionPreventionSystem -eq $false) {
             Add-Result -Category "ATP - Scanning" -Status "Pass" `
                 -Message "Network intrusion prevention system is enabled" `
-                -Details "ATP/EDR: Network traffic inspection for known exploits"
+                -Details "ATP/EDR: Network traffic inspection for known exploits" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } else {
             Add-Result -Category "ATP - Scanning" -Status "Warning" `
                 -Message "Network intrusion prevention system is disabled" `
                 -Details "ATP/EDR: Network-based exploit detection is disabled" `
-                -Remediation "Set-MpPreference -DisableIntrusionPreventionSystem `$false"
+                -Remediation "Set-MpPreference -DisableIntrusionPreventionSystem `$false" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
     }
     
 } catch {
     Add-Result -Category "ATP - Scanning" -Status "Error" `
-        -Message "Failed to check scanning capabilities: $_"
+        -Message "Failed to check scanning capabilities: $_" `
+        -Severity "Medium"
 }
 
 # ============================================================================
@@ -583,20 +710,27 @@ try {
     if ($deviceControlPolicy -and $deviceControlPolicy.DeviceControlEnabled -eq 1) {
         Add-Result -Category "ATP - Device Control" -Status "Pass" `
             -Message "Device Control policies are enabled" `
-            -Details "ATP/EDR: Removable media and devices are managed by policy"
+            -Details "ATP/EDR: Removable media and devices are managed by policy" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     } elseif ($deviceControlPolicy -and $deviceControlPolicy.DeviceControlEnabled -eq 0) {
         Add-Result -Category "ATP - Device Control" -Status "Info" `
             -Message "Device Control is disabled" `
-            -Details "ATP/EDR: No restrictions on removable media and peripheral devices"
+            -Details "ATP/EDR: No restrictions on removable media and peripheral devices" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     } else {
         Add-Result -Category "ATP - Device Control" -Status "Info" `
             -Message "Device Control policies not explicitly configured" `
-            -Details "ATP/EDR: Device Control can restrict USB, printers, and other peripherals"
+            -Details "ATP/EDR: Device Control can restrict USB, printers, and other peripherals" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     }
     
 } catch {
     Add-Result -Category "ATP - Device Control" -Status "Error" `
-        -Message "Failed to check Device Control: $_"
+        -Message "Failed to check Device Control: $_" `
+        -Severity "Medium"
 }
 
 # ============================================================================
@@ -611,20 +745,27 @@ try {
     if ($webFiltering -and $webFiltering.EnableWebContentFiltering -eq 1) {
         Add-Result -Category "ATP - Web Filtering" -Status "Pass" `
             -Message "Web content filtering is enabled" `
-            -Details "ATP/EDR: Blocks access to websites based on content categories"
+            -Details "ATP/EDR: Blocks access to websites based on content categories" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     } elseif ($webFiltering -and $webFiltering.EnableWebContentFiltering -eq 0) {
         Add-Result -Category "ATP - Web Filtering" -Status "Info" `
             -Message "Web content filtering is disabled" `
-            -Details "ATP/EDR: Web category-based blocking is not active"
+            -Details "ATP/EDR: Web category-based blocking is not active" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     } else {
         Add-Result -Category "ATP - Web Filtering" -Status "Info" `
             -Message "Web content filtering not configured" `
-            -Details "ATP/EDR: Can block adult content, legal liability, high bandwidth sites, etc."
+            -Details "ATP/EDR: Can block adult content, legal liability, high bandwidth sites, etc." `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     }
     
 } catch {
     Add-Result -Category "ATP - Web Filtering" -Status "Error" `
-        -Message "Failed to check web content filtering: $_"
+        -Message "Failed to check web content filtering: $_" `
+        -Severity "Medium"
 }
 
 # ============================================================================
@@ -640,11 +781,15 @@ try {
         Add-Result -Category "ATP - Advanced Features" -Status "Warning" `
             -Message "Live Response is disabled" `
             -Details "ATP/EDR: Security analysts cannot connect to device for investigation" `
-            -Remediation "Remove or set to 0: HKLM:\SOFTWARE\Policies\Microsoft\Windows Advanced Threat Protection\DisableLiveResponse"
+            -Remediation "Remove or set to 0: HKLM:\SOFTWARE\Policies\Microsoft\Windows Advanced Threat Protection\DisableLiveResponse" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     } else {
         Add-Result -Category "ATP - Advanced Features" -Status "Pass" `
             -Message "Live Response is enabled or not restricted" `
-            -Details "ATP/EDR: Allows remote investigation and remediation"
+            -Details "ATP/EDR: Allows remote investigation and remediation" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     }
     
     # Check sample collection
@@ -654,16 +799,21 @@ try {
         Add-Result -Category "ATP - Advanced Features" -Status "Warning" `
             -Message "Sample collection is disabled" `
             -Details "ATP/EDR: Cannot collect files for deep analysis" `
-            -Remediation "Remove or set to 0: HKLM:\SOFTWARE\Policies\Microsoft\Windows Advanced Threat Protection\DisableSampleCollection"
+            -Remediation "Remove or set to 0: HKLM:\SOFTWARE\Policies\Microsoft\Windows Advanced Threat Protection\DisableSampleCollection" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     } else {
         Add-Result -Category "ATP - Advanced Features" -Status "Pass" `
             -Message "Sample collection is enabled or not restricted" `
-            -Details "ATP/EDR: Suspicious files can be collected for analysis"
+            -Details "ATP/EDR: Suspicious files can be collected for analysis" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     }
     
 } catch {
     Add-Result -Category "ATP - Advanced Features" -Status "Error" `
-        -Message "Failed to check advanced features: $_"
+        -Message "Failed to check advanced features: $_" `
+        -Severity "Medium"
 }
 
 # ============================================================================
@@ -681,7 +831,9 @@ try {
         if ($dnsPolicy -and $dnsPolicy.EnableDnsProtection -eq 1) {
             Add-Result -Category "ATP - Network Protection" -Status "Pass" `
                 -Message "DNS protection is enabled" `
-                -Details "ATP/EDR: DNS queries are inspected for malicious domains"
+                -Details "ATP/EDR: DNS queries are inspected for malicious domains" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SC-7'; CIS='9.1' }
         }
         
         # Check custom block list
@@ -690,13 +842,16 @@ try {
         if ($customBlockList) {
             Add-Result -Category "ATP - Network Protection" -Status "Info" `
                 -Message "Custom network block list is configured" `
-                -Details "ATP/EDR: Additional domains/IPs are blocked beyond cloud intelligence"
+                -Details "ATP/EDR: Additional domains/IPs are blocked beyond cloud intelligence" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SC-7'; CIS='9.1' }
         }
     }
     
 } catch {
     Add-Result -Category "ATP - Network Protection" -Status "Error" `
-        -Message "Failed to check advanced network protection: $_"
+        -Message "Failed to check advanced network protection: $_" `
+        -Severity "Medium"
 }
 
 # ============================================================================
@@ -716,34 +871,45 @@ try {
                 Add-Result -Category "ATP - Tamper Protection" -Status "Fail" `
                     -Message "Tamper Protection is OFF" `
                     -Details "ATP/EDR: Defender settings can be modified by malware" `
-                    -Remediation "Enable via Microsoft 365 Defender portal or Windows Security"
+                    -Remediation "Enable via Microsoft 365 Defender portal or Windows Security" `
+                    -Severity "High" `
+                    -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
             }
             4 {
                 Add-Result -Category "ATP - Tamper Protection" -Status "Warning" `
                     -Message "Tamper Protection is DISABLED" `
                     -Details "ATP/EDR: Protection against tampering is not active" `
-                    -Remediation "Enable via Microsoft 365 Defender portal or Windows Security"
+                    -Remediation "Enable via Microsoft 365 Defender portal or Windows Security" `
+                    -Severity "Medium" `
+                    -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
             }
             5 {
                 Add-Result -Category "ATP - Tamper Protection" -Status "Pass" `
                     -Message "Tamper Protection is ON" `
-                    -Details "ATP/EDR: Defender settings are protected from unauthorized changes"
+                    -Details "ATP/EDR: Defender settings are protected from unauthorized changes" `
+                    -Severity "Medium" `
+                    -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
             }
             default {
                 Add-Result -Category "ATP - Tamper Protection" -Status "Info" `
                     -Message "Tamper Protection status: $tamperValue" `
-                    -Details "ATP/EDR: Unusual tamper protection value detected"
+                    -Details "ATP/EDR: Unusual tamper protection value detected" `
+                    -Severity "Medium" `
+                    -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
             }
         }
     } else {
         Add-Result -Category "ATP - Tamper Protection" -Status "Warning" `
             -Message "Tamper Protection status could not be determined" `
-            -Details "ATP/EDR: Check Windows Security settings"
+            -Details "ATP/EDR: Check Windows Security settings" `
+            -Severity "Medium" `
+            -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
     }
     
 } catch {
     Add-Result -Category "ATP - Tamper Protection" -Status "Error" `
-        -Message "Failed to check Tamper Protection: $_"
+        -Message "Failed to check Tamper Protection: $_" `
+        -Severity "Medium"
 }
 
 # ============================================================================
@@ -760,11 +926,15 @@ try {
         if ($pathExclusions -and $pathExclusions.Count -gt 0) {
             Add-Result -Category "ATP - Exclusions" -Status "Warning" `
                 -Message "Path exclusions configured: $($pathExclusions.Count)" `
-                -Details "ATP/EDR: Paths excluded from scanning = $($pathExclusions -join '; ')"
+                -Details "ATP/EDR: Paths excluded from scanning = $($pathExclusions -join '; ')" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } else {
             Add-Result -Category "ATP - Exclusions" -Status "Pass" `
                 -Message "No path exclusions configured" `
-                -Details "ATP/EDR: All paths are scanned"
+                -Details "ATP/EDR: All paths are scanned" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
         
         # Process exclusions
@@ -772,11 +942,15 @@ try {
         if ($processExclusions -and $processExclusions.Count -gt 0) {
             Add-Result -Category "ATP - Exclusions" -Status "Warning" `
                 -Message "Process exclusions configured: $($processExclusions.Count)" `
-                -Details "ATP/EDR: Processes excluded = $($processExclusions -join '; ')"
+                -Details "ATP/EDR: Processes excluded = $($processExclusions -join '; ')" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } else {
             Add-Result -Category "ATP - Exclusions" -Status "Pass" `
                 -Message "No process exclusions configured" `
-                -Details "ATP/EDR: All processes are monitored"
+                -Details "ATP/EDR: All processes are monitored" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
         
         # Extension exclusions
@@ -784,46 +958,116 @@ try {
         if ($extensionExclusions -and $extensionExclusions.Count -gt 0) {
             Add-Result -Category "ATP - Exclusions" -Status "Warning" `
                 -Message "Extension exclusions configured: $($extensionExclusions.Count)" `
-                -Details "ATP/EDR: File extensions excluded = $($extensionExclusions -join '; ')"
+                -Details "ATP/EDR: File extensions excluded = $($extensionExclusions -join '; ')" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         } else {
             Add-Result -Category "ATP - Exclusions" -Status "Pass" `
                 -Message "No extension exclusions configured" `
-                -Details "ATP/EDR: All file types are scanned"
+                -Details "ATP/EDR: All file types are scanned" `
+                -Severity "Medium" `
+                -CrossReferences @{ NIST='SI-4'; CIS='8.1' }
         }
     }
     
 } catch {
     Add-Result -Category "ATP - Exclusions" -Status "Error" `
-        -Message "Failed to audit exclusions: $_"
+        -Message "Failed to audit exclusions: $_" `
+        -Severity "Medium"
 }
 
 # ============================================================================
 # Summary Statistics
 # ============================================================================
-$passCount = @($results | Where-Object { $_.Status -eq "Pass" }).Count
-$failCount = @($results | Where-Object { $_.Status -eq "Fail" }).Count
-$warningCount = @($results | Where-Object { $_.Status -eq "Warning" }).Count
-$infoCount = @($results | Where-Object { $_.Status -eq "Info" }).Count
+$passCount  = @($results | Where-Object { $_.Status -eq "Pass" }).Count
+$failCount  = @($results | Where-Object { $_.Status -eq "Fail" }).Count
+$warnCount  = @($results | Where-Object { $_.Status -eq "Warning" }).Count
+$infoCount  = @($results | Where-Object { $_.Status -eq "Info" }).Count
 $errorCount = @($results | Where-Object { $_.Status -eq "Error" }).Count
 $totalChecks = $results.Count
 
-Write-Host "`n========================================================================================================" -ForegroundColor Cyan
-Write-Host "[MS-DefenderATP] Microsoft Defender for Endpoint Module Completed" -ForegroundColor Cyan
-Write-Host "========================================================================================================" -ForegroundColor Cyan
-Write-Host "  Total Checks:    $totalChecks" -ForegroundColor White
-Write-Host "  Passed:          $passCount" -ForegroundColor Green
-Write-Host "  Failed:          $failCount" -ForegroundColor Red
-Write-Host "  Warnings:        $warningCount" -ForegroundColor Yellow
-Write-Host "  Info:            $infoCount" -ForegroundColor Cyan
-Write-Host "  Errors:          $errorCount" -ForegroundColor Magenta
+$categoryStats = @{}
+foreach ($r in $results) {
+    if (-not $categoryStats.ContainsKey($r.Category)) { $categoryStats[$r.Category] = 0 }
+    $categoryStats[$r.Category]++
+}
 
+$severityStats = @{ Critical = 0; High = 0; Medium = 0; Low = 0; Informational = 0 }
+foreach ($r in ($results | Where-Object { $_.Status -eq "Fail" })) {
+    $sev = if ($r.PSObject.Properties['Severity']) { $r.Severity } else { 'Medium' }
+    if ($severityStats.ContainsKey($sev)) { $severityStats[$sev]++ }
+}
+
+Write-Host "`n[MS-DefenderATP] ======================================================================" -ForegroundColor Cyan
+Write-Host "[MS-DefenderATP] MODULE COMPLETED — v$moduleVersion" -ForegroundColor Cyan
+Write-Host "[MS-DefenderATP] ======================================================================" -ForegroundColor Cyan
+Write-Host "[MS-DefenderATP] Total Checks Executed: $totalChecks" -ForegroundColor White
+Write-Host "[MS-DefenderATP]" -ForegroundColor Cyan
+Write-Host "[MS-DefenderATP] Results Summary:" -ForegroundColor Cyan
+$pctPass = if ($totalChecks -gt 0) { [Math]::Round(($passCount / $totalChecks) * 100, 1) } else { 0 }
+Write-Host "[MS-DefenderATP]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass%)" -ForegroundColor Green
+Write-Host "[MS-DefenderATP]   Failed:   $($failCount.ToString().PadLeft(3))" -ForegroundColor Red
+Write-Host "[MS-DefenderATP]   Warnings: $($warnCount.ToString().PadLeft(3))" -ForegroundColor Yellow
+Write-Host "[MS-DefenderATP]   Info:     $($infoCount.ToString().PadLeft(3))" -ForegroundColor Cyan
+Write-Host "[MS-DefenderATP]   Errors:   $($errorCount.ToString().PadLeft(3))" -ForegroundColor Magenta
+Write-Host "[MS-DefenderATP]" -ForegroundColor Cyan
+Write-Host "[MS-DefenderATP] Check Categories:" -ForegroundColor Cyan
+foreach ($cat in ($categoryStats.Keys | Sort-Object)) {
+    Write-Host "[MS-DefenderATP]   $($cat.PadRight(45)): $($categoryStats[$cat].ToString().PadLeft(3)) checks" -ForegroundColor Gray
+}
 if ($failCount -gt 0) {
-    Write-Host "`n  Critical ATP/EDR issues detected - review failed checks immediately" -ForegroundColor Red
+    Write-Host "[MS-DefenderATP]" -ForegroundColor Cyan
+    Write-Host "[MS-DefenderATP] Failed Check Severity:" -ForegroundColor Cyan
+    foreach ($sev in @('Critical', 'High', 'Medium', 'Low', 'Informational')) {
+        if ($severityStats[$sev] -gt 0) {
+            $sevColor = switch ($sev) { 'Critical' { 'Red' }; 'High' { 'DarkYellow' }; 'Medium' { 'Yellow' }; 'Low' { 'Cyan' }; default { 'Gray' } }
+            Write-Host "[MS-DefenderATP]   $($sev.PadRight(15)): $($severityStats[$sev])" -ForegroundColor $sevColor
+        }
+    }
 }
-if ($warningCount -gt 0) {
-    Write-Host "  ATP/EDR warnings require attention for optimal threat protection" -ForegroundColor Yellow
-}
-
-Write-Host "========================================================================================================`n" -ForegroundColor Cyan
+Write-Host "[MS-DefenderATP] ======================================================================`n" -ForegroundColor Cyan
 
 return $results
+
+# ============================================================================
+# Standalone Execution Support
+# ============================================================================
+if ($MyInvocation.InvocationName -ne '.') {
+    Write-Host "=" * 80 -ForegroundColor White
+    Write-Host "  Microsoft Defender for Endpoint (ATP) — Standalone Test v$moduleVersion" -ForegroundColor Cyan
+    Write-Host "=" * 80 -ForegroundColor White
+
+    $standaloneData = @{
+        ComputerName = $env:COMPUTERNAME; OSVersion = ''; IPAddresses = @()
+        ScanDate = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+        IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        ScriptPath = $PSScriptRoot; Cache = $null
+    }
+    try { $osi = Get-CimInstance Win32_OperatingSystem -EA SilentlyContinue; $standaloneData.OSVersion = "$($osi.Caption) (Build $($osi.BuildNumber))" } catch { $standaloneData.OSVersion = "Windows" }
+    try { $standaloneData.IPAddresses = @((Get-NetIPAddress -AddressFamily IPv4 -EA SilentlyContinue | Where-Object { $_.IPAddress -ne '127.0.0.1' }).IPAddress) } catch { $standaloneData.IPAddresses = @("N/A") }
+
+    $commonLibPath = Join-Path (Split-Path $PSScriptRoot -Parent) "shared_components\audit-common.ps1"
+    if (Test-Path $commonLibPath) {
+        try { . $commonLibPath; $sc = New-SharedDataCache -OSInfo (Get-OSInfo); Invoke-CacheWarmUp -Cache $sc; $standaloneData.Cache = $sc; Write-Host "  Cache: Enabled" -ForegroundColor Green } catch { Write-Host "  Cache: Not available" -ForegroundColor Yellow }
+    }
+
+    Write-Host "  Hostname: $($standaloneData.ComputerName) | OS: $($standaloneData.OSVersion) | Admin: $($standaloneData.IsAdmin)" -ForegroundColor Gray
+    Write-Host "=" * 80 -ForegroundColor White
+
+    Write-Host "`n  Status Distribution:" -ForegroundColor White
+    foreach ($st in @("Pass","Fail","Warning","Info","Error")) {
+        $c = @($results | Where-Object { $_.Status -eq $st }).Count
+        if ($c -gt 0) { $p = [Math]::Round(($c/$results.Count)*100,1); $b = "#"*[Math]::Floor($p/2); $cl = switch($st){"Pass"{"Green"};"Fail"{"Red"};"Warning"{"Yellow"};"Info"{"Cyan"};default{"Magenta"}}; Write-Host "    $($st.PadRight(8)): $($c.ToString().PadLeft(3)) ($($p.ToString().PadLeft(5))%) $b" -ForegroundColor $cl }
+    }
+
+    Write-Host "`n  Category Coverage:" -ForegroundColor White
+    $cc = @{}; foreach ($r in $results) { if (-not $cc.ContainsKey($r.Category)) { $cc[$r.Category] = 0 }; $cc[$r.Category]++ }
+    foreach ($k in ($cc.Keys | Sort-Object)) { Write-Host "    $($k.PadRight(45)): $($cc[$k].ToString().PadLeft(3))" -ForegroundColor Gray }
+
+    Write-Host "`n$("=" * 80)" -ForegroundColor White
+    Write-Host "  MS-DefenderATP module standalone test complete — $($results.Count) checks" -ForegroundColor Cyan
+    Write-Host "$("=" * 80)`n" -ForegroundColor White
+}
+# ================================================================================
+# End of Microsoft Defender for Endpoint (ATP) module (Module-MS-DefenderATP.ps1)
+# ================================================================================
