@@ -242,7 +242,7 @@ try {
     # Note: This is typically enforced via secpol, not easily readable from registry
     Add-Result -Category "STIG - V-220717 (CAT II)" -Status "Info" `
         -Message "Password complexity policy" `
-        -Details "STIG: Verify password complexity is enabled via Local Security Policy > Account Policies > Password Policy" `
+        -Details "STIG: Verify password complexity is enabled via Local Security Policy `> Account Policies `> Password Policy" `
         -Remediation "Enable 'Password must meet complexity requirements' in Local Security Policy" `
         -Severity "High" `
         -CrossReferences @{ STIG='CAT-I'; NIST='CM-6' }
@@ -291,7 +291,7 @@ try {
         Add-Result -Category "STIG - V-220930 (CAT II)" -Status "Warning" `
             -Message "Built-in Administrator account has not been renamed" `
             -Details "STIG CAT II: Rename built-in Administrator account to reduce targeting" `
-            -Remediation "Rename-LocalUser -Name Administrator -NewName <unique_name>" `
+            -Remediation "Rename-LocalUser -Name Administrator -NewName <unique_name`>" `
             -Severity "Medium" `
             -CrossReferences @{ STIG='CAT-I'; NIST='CM-6' }
         
@@ -318,7 +318,7 @@ try {
         Add-Result -Category "STIG - V-220931 (CAT II)" -Status "Warning" `
             -Message "Built-in Guest account has not been renamed" `
             -Details "STIG CAT II: Rename Guest account even when disabled" `
-            -Remediation "Rename-LocalUser -Name Guest -NewName <unique_name>" `
+            -Remediation "Rename-LocalUser -Name Guest -NewName <unique_name`>" `
             -Severity "Medium" `
             -CrossReferences @{ STIG='CAT-I'; NIST='CM-6' }
     }
@@ -535,13 +535,13 @@ try {
     
     if ($signatureAge.Days -le 7) {
         Add-Result -Category "STIG - Defender Updates" -Status "Pass" `
-            -Message "Antivirus signatures are current ($($signatureAge.Days) days old)" `
+            -Message "Antivirus signatures are current `($($signatureAge.Days) days old)" `
             -Details "STIG: Malware definitions are up to date" `
             -Severity "Medium" `
             -CrossReferences @{ STIG='V-220916'; NIST='SI-3'; CIS='8.1' }
     } else {
         Add-Result -Category "STIG - Defender Updates" -Status "Fail" `
-            -Message "Antivirus signatures are outdated ($($signatureAge.Days) days old)" `
+            -Message "Antivirus signatures are outdated `($($signatureAge.Days) days old)" `
             -Details "STIG: Update antivirus signatures immediately" `
             -Remediation "Update-MpSignature" `
             -Severity "High" `
@@ -952,7 +952,7 @@ try {
                 -CrossReferences @{ STIG='CAT-I'; NIST='CM-6' }
         } elseif ($bitlocker.VolumeStatus -eq "EncryptionInProgress") {
             Add-Result -Category "STIG - V-220958 (CAT II)" -Status "Info" `
-                -Message "System drive encryption in progress: $($bitlocker.EncryptionPercentage)%" `
+                -Message "System drive encryption in progress: $($bitlocker.EncryptionPercentage)`%" `
                 -Details "STIG: Allow BitLocker encryption to complete" `
                 -Severity "High" `
                 -CrossReferences @{ STIG='CAT-I'; NIST='CM-6' }
@@ -1397,14 +1397,14 @@ try {
             -CrossReferences @{ STIG='V-220929'; NIST='IA-5(13)'; NSA='Credential Protection'; CIS='18.3.6' }
     } else {
         Add-Result -Category "STIG - Credential Protection" -Status "Fail" `
-            -Message "V-220929: WDigest authentication is ENABLED — plaintext credentials in memory" `
+            -Message "V-220929: WDigest authentication is ENABLED -- plaintext credentials in memory" `
             -Details "CAT I: Attackers can extract plaintext passwords from LSASS process memory" `
             -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' -Name UseLogonCredential -Value 0 -Type DWord" `
             -Severity "Critical" `
             -CrossReferences @{ STIG='V-220929'; NIST='IA-5(13)'; NSA='Credential Protection'; CIS='18.3.6' }
     }
 
-    # V-220930: Credential Guard must be enabled (CAT I — if hardware supports)
+    # V-220930: Credential Guard must be enabled (CAT I -- if hardware supports)
     $credGuard = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\LSA" -Name "LsaCfgFlags" -Default 0
     if ($credGuard -ge 1) {
         Add-Result -Category "STIG - Credential Protection" -Status "Pass" `
@@ -1416,7 +1416,7 @@ try {
         Add-Result -Category "STIG - Credential Protection" -Status "Fail" `
             -Message "V-220930: Credential Guard is NOT enabled" `
             -Details "CAT I: Domain credentials stored without hardware isolation" `
-            -Remediation "Enable via Group Policy: Computer Config > Admin Templates > System > Device Guard" `
+            -Remediation "Enable via Group Policy: Computer Config `> Admin Templates `> System `> Device Guard" `
             -Severity "Critical" `
             -CrossReferences @{ STIG='V-220930'; NIST='IA-5(13)'; NSA='Credential Protection' }
     }
@@ -1472,7 +1472,7 @@ try {
             -CrossReferences @{ STIG='V-220935'; NIST='IA-2(8)'; CIS='2.3.11.7' }
     } else {
         Add-Result -Category "STIG - Credential Protection" -Status "Fail" `
-            -Message "V-220935: LM authentication level is $lmLevel — weak authentication accepted" `
+            -Message "V-220935: LM authentication level is $lmLevel -- weak authentication accepted" `
             -Details "CAT I: LM and NTLM authentication are easily cracked" `
             -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\LSA' -Name LmCompatibilityLevel -Value 5 -Type DWord" `
             -Severity "Critical" `
@@ -1556,7 +1556,7 @@ try {
             -CrossReferences @{ STIG='V-220955'; NIST='SC-8'; NSA='Eliminating Obsolete TLS'; CIS='18.9.24' }
     } else {
         Add-Result -Category "STIG - TLS/SSL" -Status "Fail" `
-            -Message "V-220955: SSL 2.0 may be enabled — critical vulnerability" `
+            -Message "V-220955: SSL 2.0 may be enabled -- critical vulnerability" `
             -Details "CAT I: SSL 2.0 has fundamental design flaws allowing protocol downgrade attacks" `
             -Remediation "Disable via registry: HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 2.0\Server\Enabled = 0" `
             -Severity "Critical" `
@@ -1574,7 +1574,7 @@ try {
             -CrossReferences @{ STIG='V-220956'; NIST='SC-8'; NSA='Eliminating Obsolete TLS'; CIS='18.9.24' }
     } else {
         Add-Result -Category "STIG - TLS/SSL" -Status "Fail" `
-            -Message "V-220956: SSL 3.0 is ENABLED — vulnerable to POODLE attack" `
+            -Message "V-220956: SSL 3.0 is ENABLED -- vulnerable to POODLE attack" `
             -Details "CAT I: CVE-2014-3566 allows extraction of encrypted data" `
             -Remediation "New-Item -Path 'HKLM:\SYSTEM\...\SSL 3.0\Server' -Force; Set-ItemProperty ... -Name Enabled -Value 0 -Type DWord; Set-ItemProperty ... -Name DisabledByDefault -Value 1" `
             -Severity "Critical" `
@@ -1609,7 +1609,7 @@ try {
     } else {
         Add-Result -Category "STIG - TLS/SSL" -Status "Warning" `
             -Message "V-220958: TLS 1.1 is not explicitly disabled" `
-            -Details "CAT II: TLS 1.1 deprecated — disable in favor of TLS 1.2+" `
+            -Details "CAT II: TLS 1.1 deprecated -- disable in favor of TLS 1.2+" `
             -Severity "Medium" `
             -CrossReferences @{ STIG='V-220958'; NIST='SC-8'; NSA='Eliminating Obsolete TLS' }
     }
@@ -1642,7 +1642,7 @@ try {
             -CrossReferences @{ NIST='SC-13'; NSA='TLS Inspection' }
     } else {
         Add-Result -Category "STIG - TLS/SSL" -Status "Fail" `
-            -Message "NULL cipher suites are ENABLED — TLS without encryption is possible" `
+            -Message "NULL cipher suites are ENABLED -- TLS without encryption is possible" `
             -Details "CAT I: Connections may negotiate no encryption at all" `
             -Remediation "Disable NULL ciphers via registry or IIS Crypto tool" `
             -Severity "Critical" `
@@ -1705,7 +1705,7 @@ try {
             Add-Result -Category "STIG - Hardware Security" -Status "Fail" `
                 -Message "Virtualization-Based Security (VBS) is NOT enabled" `
                 -Details "CAT I: No hardware-enforced isolation for kernel or credential storage" `
-                -Remediation "Enable via Group Policy: Computer Config > Admin Templates > System > Device Guard" `
+                -Remediation "Enable via Group Policy: Computer Config `> Admin Templates `> System `> Device Guard" `
                 -Severity "High" `
                 -CrossReferences @{ NIST='SC-3'; NSA='Hardware Security'; CIS='18.9.5.1' }
         }
@@ -1740,7 +1740,7 @@ try {
             -CrossReferences @{ NIST='SI-16'; NSA='Exploit Mitigation' }
     } else {
         Add-Result -Category "STIG - Hardware Security" -Status "Fail" `
-            -Message "SEHOP is DISABLED — SEH overwrite attacks possible" `
+            -Message "SEHOP is DISABLED -- SEH overwrite attacks possible" `
             -Details "CAT II: Exception chain validation is not active" `
             -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel' -Name DisableExceptionChainValidation -Value 0 -Type DWord" `
             -Severity "High" `
@@ -1802,13 +1802,13 @@ foreach ($r in ($results | Where-Object { $_.Status -eq "Fail" })) {
 }
 
 Write-Host "`n[STIG] ======================================================================" -ForegroundColor Cyan
-Write-Host "[STIG] MODULE COMPLETED — v$moduleVersion" -ForegroundColor Cyan
+Write-Host "[STIG] MODULE COMPLETED -- v$moduleVersion" -ForegroundColor Cyan
 Write-Host "[STIG] ======================================================================" -ForegroundColor Cyan
 Write-Host "[STIG] Total Checks Executed: $totalChecks" -ForegroundColor White
 Write-Host "[STIG]" -ForegroundColor Cyan
 Write-Host "[STIG] Results Summary:" -ForegroundColor Cyan
 $pctPass = if ($totalChecks -gt 0) { [Math]::Round(($passCount / $totalChecks) * 100, 1) } else { 0 }
-Write-Host "[STIG]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass%)" -ForegroundColor Green
+Write-Host "[STIG]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass`%)" -ForegroundColor Green
 Write-Host "[STIG]   Failed:   $($failCount.ToString().PadLeft(3))" -ForegroundColor Red
 Write-Host "[STIG]   Warnings: $($warnCount.ToString().PadLeft(3))" -ForegroundColor Yellow
 Write-Host "[STIG]   Info:     $($infoCount.ToString().PadLeft(3))" -ForegroundColor Cyan
@@ -1837,7 +1837,7 @@ return $results
 # ============================================================================
 if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "=" * 80 -ForegroundColor White
-    Write-Host "  DISA STIG Compliance Module — Standalone Test Mode v$moduleVersion" -ForegroundColor Cyan
+    Write-Host "  DISA STIG Compliance Module -- Standalone Test Mode v$moduleVersion" -ForegroundColor Cyan
     Write-Host "=" * 80 -ForegroundColor White
     Write-Host ""
 
@@ -1874,7 +1874,7 @@ if ($MyInvocation.InvocationName -ne '.') {
             Invoke-CacheWarmUp -Cache $standaloneCache
             $standaloneData.Cache = $standaloneCache
             $summary = Get-CacheSummary -Cache $standaloneCache
-            Write-Host "  Cache: Enabled ($($summary.ServicesCount) services, $($summary.RegistryCacheCount) registry keys)" -ForegroundColor Green
+            Write-Host "  Cache: Enabled `($($summary.ServicesCount) services, $($summary.RegistryCacheCount) registry keys`)" -ForegroundColor Green
         } catch {
             Write-Host "  Cache: Not available ($_)" -ForegroundColor Yellow
         }
@@ -1905,7 +1905,7 @@ if ($MyInvocation.InvocationName -ne '.') {
             $barLen = [Math]::Floor($pct / 2)
             $bar = "#" * $barLen
             $color = switch ($statusType) { "Pass" { "Green" }; "Fail" { "Red" }; "Warning" { "Yellow" }; "Info" { "Cyan" }; default { "Magenta" } }
-            Write-Host "    $($statusType.PadRight(8)): $($count.ToString().PadLeft(3)) ($($pct.ToString().PadLeft(5))%) $bar" -ForegroundColor $color
+            Write-Host "    $($statusType.PadRight(8)): $($count.ToString().PadLeft(3)) `($($pct.ToString().PadLeft(5))`%`) $bar" -ForegroundColor $color
         }
     }
 
@@ -1924,6 +1924,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
+
 # ============================================================================
 # End of DISA STIG Compliance Module (Module-STIG.ps1)
 # ============================================================================
