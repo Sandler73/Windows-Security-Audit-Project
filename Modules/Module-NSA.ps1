@@ -134,7 +134,7 @@ try {
         if ($blStatus.VolumeStatus -eq "FullyEncrypted") {
             $protectors = ($blStatus.KeyProtector.KeyProtectorType -join ", ")
             Add-Result -Category "NSA - Boot Security" -Status "Pass" `
-                -Message "System drive ($systemDrive) is encrypted with BitLocker ($($blStatus.EncryptionMethod))" `
+                -Message "System drive ($systemDrive) is encrypted with BitLocker `($($blStatus.EncryptionMethod))" `
                 -Details "Key protectors: $protectors. Full disk encryption protects data at rest." `
                 -Severity "High" `
                 -CrossReferences @{ CIS="18.10.9.1.1"; NIST="SC-28"; STIG="V-254465"; NSA="FDE CSI" }
@@ -299,7 +299,7 @@ try {
                 -Message "Virtualization-Based Security is not running" `
                 -Details "VBS and Credential Guard protect against Pass-the-Hash, Pass-the-Ticket, and credential dumping" `
                 -Severity "High" `
-                -Remediation "Enable VBS and Credential Guard via Group Policy: Device Guard > Turn On Virtualization Based Security" `
+                -Remediation "Enable VBS and Credential Guard via Group Policy: Device Guard `> Turn On Virtualization Based Security" `
                 -CrossReferences @{ CIS="18.9.5.1"; NIST="SC-39"; NSA="Credential Theft Mitigation CSI" }
         }
     }
@@ -675,7 +675,7 @@ try {
             $asrRules = (Get-MpPreference).AttackSurfaceReductionRules_Ids
             if ($asrRules -and $asrRules.Count -gt 0) {
                 Add-Result -Category "NSA - Endpoint Protection" -Status "Pass" `
-                    -Message "Attack Surface Reduction (ASR) rules are configured ($($asrRules.Count) rules)" `
+                    -Message "Attack Surface Reduction (ASR) rules are configured `($($asrRules.Count) rules)" `
                     -Details "ASR rules block common malware techniques (Office macros, script injection, credential stealing)" `
                     -Severity "High" `
                     -CrossReferences @{ CIS="18.10.43.1"; NIST="SI-3"; NSA="Endpoint Protection" }
@@ -684,7 +684,7 @@ try {
                     -Message "No Attack Surface Reduction (ASR) rules are configured" `
                     -Details "ASR rules provide significant protection against common attack vectors" `
                     -Severity "High" `
-                    -Remediation "Configure ASR rules via: Set-MpPreference -AttackSurfaceReductionRules_Ids <rule-guids> -AttackSurfaceReductionRules_Actions Enabled" `
+                    -Remediation "Configure ASR rules via: Set-MpPreference -AttackSurfaceReductionRules_Ids <rule-guids`> -AttackSurfaceReductionRules_Actions Enabled" `
                     -CrossReferences @{ CIS="18.10.43.1"; NIST="SI-3"; NSA="Endpoint Protection" }
             }
         } catch { <# ASR may not be available on all editions #> }
@@ -1261,14 +1261,14 @@ try {
                 -CrossReferences @{ NIST="SI-2(2)"; NSA="Patch Management CSI"; CISA="BOD-22-01" }
         } elseif ($daysSinceUpdate -le 60) {
             Add-Result -Category "NSA - Patch Management" -Status "Warning" `
-                -Message "Last hotfix installed $daysSinceUpdate days ago ($hotfixId) — approaching staleness" `
+                -Message "Last hotfix installed $daysSinceUpdate days ago ($hotfixId) -- approaching staleness" `
                 -Details "Installed on: $($lastHotfix.InstalledOn.ToString('yyyy-MM-dd')). Recommend patching within 30 days" `
                 -Severity "High" `
                 -Remediation "Run Windows Update or apply pending patches immediately" `
                 -CrossReferences @{ NIST="SI-2(2)"; NSA="Patch Management CSI"; CISA="BOD-22-01" }
         } else {
             Add-Result -Category "NSA - Patch Management" -Status "Fail" `
-                -Message "System is $daysSinceUpdate days since last update ($hotfixId) — CRITICALLY OUTDATED" `
+                -Message "System is $daysSinceUpdate days since last update ($hotfixId) -- CRITICALLY OUTDATED" `
                 -Details "Installed on: $($lastHotfix.InstalledOn.ToString('yyyy-MM-dd')). Known exploits may be unpatched" `
                 -Severity "Critical" `
                 -Remediation "Immediately apply all pending Windows Updates and reboot" `
@@ -1295,12 +1295,12 @@ try {
     if ($wsusServer -and $useWsus -eq 1) {
         Add-Result -Category "NSA - Patch Management" -Status "Pass" `
             -Message "System is configured to use WSUS server for updates" `
-            -Details "WSUS URL: $wsusServer — centralized patch management in use" `
+            -Details "WSUS URL: $wsusServer -- centralized patch management in use" `
             -Severity "Medium" `
             -CrossReferences @{ NIST="SI-2"; NSA="Patch Management CSI" }
     } else {
         Add-Result -Category "NSA - Patch Management" -Status "Info" `
-            -Message "No WSUS server configured — system uses Windows Update directly" `
+            -Message "No WSUS server configured -- system uses Windows Update directly" `
             -Details "Enterprise environments should use WSUS, SCCM, or Intune for centralized management" `
             -Severity "Low" `
             -CrossReferences @{ NIST="SI-2"; NSA="Patch Management CSI" }
@@ -1399,7 +1399,7 @@ try {
     } else {
         Add-Result -Category "NSA - Certificate Trust" -Status "Warning" `
             -Message "Automatic Root Certificates Update is DISABLED" `
-            -Details "Root CA store will not receive updates — new CAs or revocations won't be reflected" `
+            -Details "Root CA store will not receive updates -- new CAs or revocations won't be reflected" `
             -Severity "Medium" `
             -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\SystemCertificates\AuthRoot' -Name DisableRootAutoUpdate -Value 0 -Type DWord" `
             -CrossReferences @{ NIST="SC-17"; NSA="PKI Guidance" }
@@ -1419,7 +1419,7 @@ try {
             -Message "Certificate revocation checking may be disabled" `
             -Details "Without CRL/OCSP validation, revoked certificates may be accepted as trusted" `
             -Severity "High" `
-            -Remediation "Enable certificate revocation checking via Internet Options > Advanced > Security" `
+            -Remediation "Enable certificate revocation checking via Internet Options `> Advanced `> Security" `
             -CrossReferences @{ NIST="SC-17"; NSA="TLS Inspection CSI"; STIG="V-220916" }
     }
 
@@ -1442,7 +1442,7 @@ try {
             -CrossReferences @{ NIST="SC-13"; NSA="Cryptographic Standards" }
     }
 
-    # TLS configuration — minimum protocol version
+    # TLS configuration -- minimum protocol version
     $tls10Enabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server" -Name "Enabled" -Default 1
     $tls11Enabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server" -Name "Enabled" -Default 1
     $tls12Enabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server" -Name "Enabled" -Default 1
@@ -1511,11 +1511,11 @@ try {
     if ($wifiAdapters.Count -eq 0) {
         Add-Result -Category "NSA - Wireless Security" -Status "Pass" `
             -Message "No wireless network adapters detected" `
-            -Details "System has no Wi-Fi interfaces — no wireless attack surface" `
+            -Details "System has no Wi-Fi interfaces -- no wireless attack surface" `
             -Severity "Informational" `
             -CrossReferences @{ NIST="AC-18"; NSA="Wireless Security Guidance" }
     } else {
-        # Wireless adapters found — check each
+        # Wireless adapters found -- check each
         foreach ($adapter in $wifiAdapters) {
             $adapterStatus = if ($adapter.Status -eq "Up") { "connected" } else { "present but $($adapter.Status)" }
             Add-Result -Category "NSA - Wireless Security" -Status "Info" `
@@ -1667,13 +1667,13 @@ foreach ($r in ($results | Where-Object { $_.Status -eq "Fail" })) {
 }
 
 Write-Host "`n[NSA] ======================================================================" -ForegroundColor Cyan
-Write-Host "[NSA] MODULE COMPLETED — v$moduleVersion" -ForegroundColor Cyan
+Write-Host "[NSA] MODULE COMPLETED -- v$moduleVersion" -ForegroundColor Cyan
 Write-Host "[NSA] ======================================================================" -ForegroundColor Cyan
 Write-Host "[NSA] Total Checks Executed: $totalChecks" -ForegroundColor White
 Write-Host "[NSA]" -ForegroundColor Cyan
 Write-Host "[NSA] Results Summary:" -ForegroundColor Cyan
 $pctPass = if ($totalChecks -gt 0) { [Math]::Round(($passCount / $totalChecks) * 100, 1) } else { 0 }
-Write-Host "[NSA]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass%)" -ForegroundColor Green
+Write-Host "[NSA]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass`%)" -ForegroundColor Green
 Write-Host "[NSA]   Failed:   $($failCount.ToString().PadLeft(3))" -ForegroundColor Red
 Write-Host "[NSA]   Warnings: $($warnCount.ToString().PadLeft(3))" -ForegroundColor Yellow
 Write-Host "[NSA]   Info:     $($infoCount.ToString().PadLeft(3))" -ForegroundColor Cyan
@@ -1706,7 +1706,7 @@ return $results
 # ============================================================================
 if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "=" * 80 -ForegroundColor White
-    Write-Host "  NSA Cybersecurity Guidance Module — Standalone Test Mode v$moduleVersion" -ForegroundColor Cyan
+    Write-Host "  NSA Cybersecurity Guidance Module -- Standalone Test Mode v$moduleVersion" -ForegroundColor Cyan
     Write-Host "=" * 80 -ForegroundColor White
     Write-Host ""
 
@@ -1747,7 +1747,7 @@ if ($MyInvocation.InvocationName -ne '.') {
             Invoke-CacheWarmUp -Cache $cache
             $standaloneData.Cache = $cache
             $summary = Get-CacheSummary -Cache $cache
-            Write-Host "  Cache: Enabled ($($summary.ServicesCount) services, $($summary.RegistryCacheCount) registry keys)" -ForegroundColor Green
+            Write-Host "  Cache: Enabled `($($summary.ServicesCount) services, $($summary.RegistryCacheCount) registry keys`)" -ForegroundColor Green
         } catch {
             Write-Host "  Cache: Not available ($_)" -ForegroundColor Yellow
         }
@@ -1778,12 +1778,12 @@ if ($MyInvocation.InvocationName -ne '.') {
     # Clear results from the initial pass (which used empty SharedData)
     $script:results = @()
 
-    # The actual check sections are above — they reference $SharedData and $useCache
+    # The actual check sections are above -- they reference $SharedData and $useCache
     # which are now set to the standalone values. We need to re-run the check body.
     # PowerShell approach: re-dot-source ourselves is circular. Instead, wrap checks
     # in a function during standalone mode.
     # NOTE: The module already ran its checks above with whatever SharedData was passed.
-    # In standalone mode (no parent script), SharedData defaults to @{} which is fine —
+    # In standalone mode (no parent script), SharedData defaults to @{} which is fine --
     # checks degrade gracefully. The results are already captured.
     # We just display the detailed analysis below.
 
@@ -1802,7 +1802,7 @@ if ($MyInvocation.InvocationName -ne '.') {
             $barLen = [Math]::Floor($pct / 2)
             $bar = "#" * $barLen
             $color = switch ($statusType) { "Pass" { "Green" }; "Fail" { "Red" }; "Warning" { "Yellow" }; "Info" { "Cyan" }; default { "Magenta" } }
-            Write-Host "    $($statusType.PadRight(8)): $($count.ToString().PadLeft(3)) ($($pct.ToString().PadLeft(5))%) $bar" -ForegroundColor $color
+            Write-Host "    $($statusType.PadRight(8)): $($count.ToString().PadLeft(3)) `($($pct.ToString().PadLeft(5))`%`) $bar" -ForegroundColor $color
         }
     }
 
@@ -1822,6 +1822,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
+
 # ============================================================================
 # End of NSA Windows Security Baseline Module (Module-NSA.ps1)
 # ============================================================================
