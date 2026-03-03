@@ -314,7 +314,7 @@ try {
         Add-Result -Category "NIST - AC-2(2)" -Status "Warning" `
             -Message "Potential temporary accounts detected: $($tempAccounts.Count)" `
             -Details "NIST 800-53 AC-2(2): Temporary accounts found: $($tempAccounts.Name -join ', '). Verify expiration dates." `
-            -Remediation "Remove temporary accounts or set expiration: Set-LocalUser -Name <account> -AccountExpires (Get-Date).AddDays(30)" `
+            -Remediation "Remove temporary accounts or set expiration: Set-LocalUser -Name <account`> -AccountExpires (Get-Date).AddDays(30)" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AC-2'; CIS='1.1'; STIG='V-220902' }
     }
@@ -327,14 +327,14 @@ try {
     
     if ($inactiveAccounts) {
         Add-Result -Category "NIST - AC-2(3)" -Status "Fail" `
-            -Message "Found $($inactiveAccounts.Count) inactive account(s) (>90 days)" `
+            -Message "Found $($inactiveAccounts.Count) inactive account(s) (`>90 days)" `
             -Details "NIST 800-53 AC-2(3): Accounts inactive: $($inactiveAccounts.Name -join ', '). Last logon dates: $($inactiveAccounts | ForEach-Object { "$($_.Name): $($_.LastLogon)" } | Out-String)" `
-            -Remediation "Disable-LocalUser -Name <account> # For each inactive account" `
+            -Remediation "Disable-LocalUser -Name <account`> # For each inactive account" `
             -Severity "High" `
             -CrossReferences @{ NIST='AC-2'; CIS='1.1'; STIG='V-220902' }
     } else {
         Add-Result -Category "NIST - AC-2(3)" -Status "Pass" `
-            -Message "No inactive accounts detected (>90 days)" `
+            -Message "No inactive accounts detected (`>90 days)" `
             -Details "NIST 800-53 AC-2(3): All enabled accounts have logged in within 90 days." `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AC-2'; CIS='1.1'; STIG='V-220902' }
@@ -813,7 +813,7 @@ try {
             Add-Result -Category "NIST - AC-11" -Status "Fail" `
                 -Message "Device lock not properly configured" `
                 -Details "NIST 800-53 AC-11: Configure automatic screen lock after 15 minutes (900 seconds) or less of inactivity." `
-                -Remediation "Configure via Group Policy: Computer Configuration > Policies > Administrative Templates > Control Panel > Personalization" `
+                -Remediation "Configure via Group Policy: Computer Configuration `> Policies `> Administrative Templates `> Control Panel `> Personalization" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='AC-11'; CIS='2.3.7'; STIG='V-220936' }
         }
@@ -1204,22 +1204,22 @@ try {
     
     if ($percentConfigured -ge 90) {
         Add-Result -Category "NIST - AU-2" -Status "Pass" `
-            -Message "Comprehensive audit event configuration: $percentConfigured% ($configuredCount of $totalSubcategories)" `
+            -Message "Comprehensive audit event configuration: $percentConfigured`% ($configuredCount of $totalSubcategories)" `
             -Details "NIST 800-53 AU-2: Security-relevant events are being audited across critical categories." `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AU-2'; CIS='17.1'; STIG='V-220748' }
     } elseif ($percentConfigured -ge 70) {
         Add-Result -Category "NIST - AU-2" -Status "Warning" `
-            -Message "Audit event configuration: $percentConfigured% ($configuredCount of $totalSubcategories)" `
+            -Message "Audit event configuration: $percentConfigured`% ($configuredCount of $totalSubcategories)" `
             -Details "NIST 800-53 AU-2: Missing subcategories: $($missingSubcategories -join ', ')" `
             -Remediation "Configure comprehensive audit policy via Group Policy or auditpol commands" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AU-2'; CIS='17.1'; STIG='V-220748' }
     } else {
         Add-Result -Category "NIST - AU-2" -Status "Fail" `
-            -Message "Insufficient audit event configuration: $percentConfigured% ($configuredCount of $totalSubcategories)" `
+            -Message "Insufficient audit event configuration: $percentConfigured`% ($configuredCount of $totalSubcategories)" `
             -Details "NIST 800-53 AU-2: Enable comprehensive audit logging. Missing: $($missingSubcategories -join ', ')" `
-            -Remediation "Enable audit policies for all critical categories using Group Policy: Computer Configuration > Policies > Windows Settings > Security Settings > Advanced Audit Policy Configuration" `
+            -Remediation "Enable audit policies for all critical categories using Group Policy: Computer Configuration `> Policies `> Windows Settings `> Security Settings `> Advanced Audit Policy Configuration" `
             -Severity "High" `
             -CrossReferences @{ NIST='AU-2'; CIS='17.1'; STIG='V-220748' }
     }
@@ -1410,14 +1410,14 @@ try {
     
     if ($currentCapacityPercent -ge 90) {
         Add-Result -Category "NIST - AU-5(1)" -Status "Warning" `
-            -Message "Security log near capacity: $([math]::Round($currentCapacityPercent, 1))% full" `
+            -Message "Security log near capacity: $([math]::Round($currentCapacityPercent, 1))`% full" `
             -Details "NIST 800-53 AU-5(1): Generate warning when audit storage capacity threshold reached." `
             -Remediation "Implement automated monitoring and alerting for audit log capacity" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AU-5' }
     } else {
         Add-Result -Category "NIST - AU-5(1)" -Status "Pass" `
-            -Message "Security log capacity: $([math]::Round($currentCapacityPercent, 1))% used" `
+            -Message "Security log capacity: $([math]::Round($currentCapacityPercent, 1))`% used" `
             -Details "NIST 800-53 AU-5(1): Adequate audit storage space available." `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AU-5' }
@@ -2067,7 +2067,7 @@ try {
             Add-Result -Category "NIST - IA-5(1)" -Status "Warning" `
                 -Message "Password complexity not enforced" `
                 -Details "NIST 800-53 IA-5(1): Enable password complexity or implement length-based policy (14+ chars)." `
-                -Remediation "Enable via Local Security Policy: Account Policies > Password Policy > Password must meet complexity requirements" `
+                -Remediation "Enable via Local Security Policy: Account Policies `> Password Policy `> Password must meet complexity requirements" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='IA-5'; CIS='1.1.1'; STIG='V-220903' }
         }
@@ -2085,7 +2085,7 @@ try {
             Add-Result -Category "NIST - IA-5(1)" -Status "Warning" `
                 -Message "Password complexity not enforced" `
                 -Details "NIST 800-53 IA-5(1): Enable password complexity or implement length-based policy (14+ chars)." `
-                -Remediation "Enable via Local Security Policy: Account Policies > Password Policy > Password must meet complexity requirements" `
+                -Remediation "Enable via Local Security Policy: Account Policies `> Password Policy `> Password must meet complexity requirements" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='IA-5'; CIS='1.1.1'; STIG='V-220903' }
         }
@@ -2921,7 +2921,7 @@ try {
         } elseif ($bitlocker.VolumeStatus -eq "EncryptionInProgress") {
             Add-Result -Category "NIST - SC-13" -Status "Info" `
                 -Message "System drive encryption in progress" `
-                -Details "NIST 800-53 SC-13: BitLocker encryption ongoing. Progress: $($bitlocker.EncryptionPercentage)%" `
+                -Details "NIST 800-53 SC-13: BitLocker encryption ongoing. Progress: $($bitlocker.EncryptionPercentage)`%" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='SC-13' }
         } else {
@@ -3211,7 +3211,7 @@ try {
         
         if ($bitlocker) {
             if ($bitlocker.VolumeStatus -eq "FullyEncrypted") {
-                $encryptedVolumes += "$($volume.DriveLetter): ($($bitlocker.EncryptionMethod))"
+                $encryptedVolumes += "$($volume.DriveLetter): `($($bitlocker.EncryptionMethod))"
             } elseif ($bitlocker.VolumeStatus -eq "FullyDecrypted") {
                 $unencryptedVolumes += "$($volume.DriveLetter):"
             }
@@ -3436,7 +3436,7 @@ try {
                 Add-Result -Category "NIST - SI-2" -Status "Fail" `
                     -Message "No updates installed in the last 30 days" `
                     -Details "NIST 800-53 SI-2: Install security updates regularly (monthly minimum)." `
-                    -Remediation "Install pending Windows updates via Settings > Update & Security" `
+                    -Remediation "Install pending Windows updates via Settings `> Update & Security" `
                     -Severity "High" `
                     -CrossReferences @{ NIST='SI-2'; CISA='BOD 22-01' }
             }
@@ -3499,7 +3499,7 @@ try {
             Add-Result -Category "NIST - SI-2(5)" -Status "Warning" `
                 -Message "Automatic updates may not be configured" `
                 -Details "NIST 800-53 SI-2(5): Enable automatic updates for critical security patches." `
-                -Remediation "Configure via Group Policy or Settings > Update & Security > Windows Update > Advanced options" `
+                -Remediation "Configure via Group Policy or Settings `> Update & Security `> Windows Update `> Advanced options" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='SI-2'; CISA='BOD 22-01' }
         }
@@ -3653,20 +3653,20 @@ try {
         
         if ($signatureAge.Days -le 2) {
             Add-Result -Category "NIST - SI-3(2)" -Status "Pass" `
-                -Message "Malware definitions current ($($signatureAge.Days) day(s) old)" `
+                -Message "Malware definitions current `($($signatureAge.Days) day(s) old)" `
                 -Details "NIST 800-53 SI-3(2): Automatic signature updates functioning. Last update: $($defenderStatus.AntivirusSignatureLastUpdated)" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='SI-3'; CIS='8.1'; STIG='V-220916' }
         } elseif ($signatureAge.Days -le 7) {
             Add-Result -Category "NIST - SI-3(2)" -Status "Warning" `
-                -Message "Malware definitions aging ($($signatureAge.Days) days old)" `
+                -Message "Malware definitions aging `($($signatureAge.Days) days old)" `
                 -Details "NIST 800-53 SI-3(2): Signatures should update daily. Last update: $($defenderStatus.AntivirusSignatureLastUpdated)" `
                 -Remediation "Update-MpSignature" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='SI-3'; CIS='8.1'; STIG='V-220916' }
         } else {
             Add-Result -Category "NIST - SI-3(2)" -Status "Fail" `
-                -Message "Malware definitions OUTDATED ($($signatureAge.Days) days old)" `
+                -Message "Malware definitions OUTDATED `($($signatureAge.Days) days old)" `
                 -Details "NIST 800-53 SI-3(2): Update definitions immediately. Last update: $($defenderStatus.AntivirusSignatureLastUpdated)" `
                 -Remediation "Update-MpSignature; Verify network connectivity and Windows Update service" `
                 -Severity "High" `
@@ -4477,7 +4477,7 @@ try {
         Add-Result -Category "NIST - CM-7" -Status "Warning" `
             -Message "Potentially unnecessary services running: $($runningUnnecessary -join ', ')" `
             -Details "NIST 800-53 CM-7: Review and disable services not required for mission/business functions." `
-            -Remediation "Stop-Service <ServiceName>; Set-Service <ServiceName> -StartupType Disabled" `
+            -Remediation "Stop-Service <ServiceName`>; Set-Service <ServiceName`> -StartupType Disabled" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='CM-7'; CIS='5.1'; STIG='V-220829' }
     }
@@ -4782,13 +4782,13 @@ foreach ($r in ($results | Where-Object { $_.Status -eq "Fail" })) {
 }
 
 Write-Host "`n[NIST] ======================================================================" -ForegroundColor Cyan
-Write-Host "[NIST] MODULE COMPLETED — v$moduleVersion" -ForegroundColor Cyan
+Write-Host "[NIST] MODULE COMPLETED -- v$moduleVersion" -ForegroundColor Cyan
 Write-Host "[NIST] ======================================================================" -ForegroundColor Cyan
 Write-Host "[NIST] Total Checks Executed: $totalChecks" -ForegroundColor White
 Write-Host "[NIST]" -ForegroundColor Cyan
 Write-Host "[NIST] Results Summary:" -ForegroundColor Cyan
 $pctPass = if ($totalChecks -gt 0) { [Math]::Round(($passCount / $totalChecks) * 100, 1) } else { 0 }
-Write-Host "[NIST]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass%)" -ForegroundColor Green
+Write-Host "[NIST]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass`%)" -ForegroundColor Green
 Write-Host "[NIST]   Failed:   $($failCount.ToString().PadLeft(3))" -ForegroundColor Red
 Write-Host "[NIST]   Warnings: $($warnCount.ToString().PadLeft(3))" -ForegroundColor Yellow
 Write-Host "[NIST]   Info:     $($infoCount.ToString().PadLeft(3))" -ForegroundColor Cyan
@@ -4817,7 +4817,7 @@ return $results
 # ============================================================================
 if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "=" * 80 -ForegroundColor White
-    Write-Host "  NIST SP 800-53 / CSF 2.0 Compliance — Standalone Test v$moduleVersion" -ForegroundColor Cyan
+    Write-Host "  NIST SP 800-53 / CSF 2.0 Compliance -- Standalone Test v$moduleVersion" -ForegroundColor Cyan
     Write-Host "=" * 80 -ForegroundColor White
 
     $standaloneData = @{
@@ -4840,7 +4840,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "`n  Status Distribution:" -ForegroundColor White
     foreach ($st in @("Pass","Fail","Warning","Info","Error")) {
         $c = @($results | Where-Object { $_.Status -eq $st }).Count
-        if ($c -gt 0) { $p = [Math]::Round(($c/$results.Count)*100,1); $b = "#"*[Math]::Floor($p/2); $cl = switch($st){"Pass"{"Green"};"Fail"{"Red"};"Warning"{"Yellow"};"Info"{"Cyan"};default{"Magenta"}}; Write-Host "    $($st.PadRight(8)): $($c.ToString().PadLeft(3)) ($($p.ToString().PadLeft(5))%) $b" -ForegroundColor $cl }
+        if ($c -gt 0) { $p = [Math]::Round(($c/$results.Count)*100,1); $b = "#"*[Math]::Floor($p/2); $cl = switch($st){"Pass"{"Green"};"Fail"{"Red"};"Warning"{"Yellow"};"Info"{"Cyan"};default{"Magenta"}}; Write-Host "    $($st.PadRight(8)): $($c.ToString().PadLeft(3)) `($($p.ToString().PadLeft(5))`%`) $b" -ForegroundColor $cl }
     }
 
     Write-Host "`n  Control Family Coverage:" -ForegroundColor White
@@ -4848,9 +4848,10 @@ if ($MyInvocation.InvocationName -ne '.') {
     foreach ($k in ($cc.Keys | Sort-Object)) { Write-Host "    $($k.PadRight(45)): $($cc[$k].ToString().PadLeft(3))" -ForegroundColor Gray }
 
     Write-Host "`n$("=" * 80)" -ForegroundColor White
-    Write-Host "  NIST module standalone test complete — $($results.Count) checks" -ForegroundColor Cyan
+    Write-Host "  NIST module standalone test complete -- $($results.Count) checks" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
+
 # ============================================================================
 # End of NIST SP 800-53 / CSF 2.0 Compliance Module (Module-NIST.ps1)
 # ============================================================================
