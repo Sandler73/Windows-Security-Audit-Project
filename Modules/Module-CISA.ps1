@@ -783,7 +783,7 @@ try {
             -CrossReferences @{ CISA='CPG 4.2'; NIST='SI-4' }
     } else {
         Add-Result -Category "CISA - EDR" -Status "Fail" `
-            -Message "Antivirus signatures are severely outdated ($($signatureAge.Days) days old)" `
+            -Message "Antivirus signatures are severely outdated `($($signatureAge.Days) days old)" `
             -Details "CISA CPG: Update signatures immediately - system is vulnerable" `
             -Remediation "Update-MpSignature -UpdateSource Microsoft" `
             -Severity "High" `
@@ -878,7 +878,7 @@ try {
     $asrRules = Get-MpPreference | Select-Object -ExpandProperty AttackSurfaceReductionRules_Ids -ErrorAction SilentlyContinue
     if ($asrRules -and $asrRules.Count -gt 0) {
         Add-Result -Category "CISA - EDR" -Status "Pass" `
-            -Message "Attack Surface Reduction rules are configured ($($asrRules.Count) rules)" `
+            -Message "Attack Surface Reduction rules are configured `($($asrRules.Count) rules)" `
             -Details "CISA CPG: ASR rules reduce attack vectors" `
             -Severity "Medium" `
             -CrossReferences @{ CISA='CPG 4.2'; NIST='SI-4' }
@@ -960,7 +960,7 @@ try {
                 -CrossReferences @{ CISA='CPG 5.1'; NIST='SC-28'; CIS='3.11' }
         } elseif ($volume.VolumeStatus -eq "EncryptionInProgress") {
             Add-Result -Category "CISA - Data Encryption" -Status "Info" `
-                -Message "Drive $($volume.MountPoint) encryption in progress ($($volume.EncryptionPercentage)%)" `
+                -Message "Drive $($volume.MountPoint) encryption in progress `($($volume.EncryptionPercentage)`%)" `
                 -Details "CISA CPG: Allow encryption to complete" `
                 -Severity "Medium" `
                 -CrossReferences @{ CISA='CPG 5.1'; NIST='SC-28'; CIS='3.11' }
@@ -1548,7 +1548,7 @@ try {
     
     if ($admins.Count -gt 5) {
         Add-Result -Category "CISA - Access Control" -Status "Warning" `
-            -Message "Large number of administrators detected ($($admins.Count) members)" `
+            -Message "Large number of administrators detected `($($admins.Count) members)" `
             -Details "CISA CPG: Limit administrative access to essential personnel only" `
             -Remediation "Review and remove unnecessary administrative accounts" `
             -Severity "Medium" `
@@ -1584,7 +1584,7 @@ try {
         
         if ($rdpUsers.Count -gt 10) {
             Add-Result -Category "CISA - Access Control" -Status "Warning" `
-                -Message "Large number of RDP users ($($rdpUsers.Count))" `
+                -Message "Large number of RDP users `($($rdpUsers.Count))" `
                 -Details "CISA CPG: Limit remote access to necessary users only" `
                 -Severity "Medium" `
                 -CrossReferences @{ CISA='CPG 8.1'; NIST='AC-6'; CIS='1.1' }
@@ -1692,7 +1692,7 @@ try {
         
         if ($age.Days -le 7) {
             Add-Result -Category "CISA - Incident Response" -Status "Pass" `
-                -Message "Recent restore point available ($($age.Days) days old)" `
+                -Message "Recent restore point available `($($age.Days) days old)" `
                 -Details "CISA CPG: Recent restore points support rapid recovery" `
                 -Severity "Medium" `
                 -CrossReferences @{ CISA='CPG 9.1'; NIST='IR-4' }
@@ -1826,7 +1826,7 @@ try {
                     -CrossReferences @{ CISA='Supply Chain'; NIST='SA-12'; NSA='Supply Chain Guidance' }
             } else {
                 Add-Result -Category "CISA - Supply Chain" -Status "Warning" `
-                    -Message "PSGallery repository is Trusted — modules install without manual approval" `
+                    -Message "PSGallery repository is Trusted -- modules install without manual approval" `
                     -Details "CISA: Trusted repositories allow automatic installation of potentially malicious code" `
                     -Remediation "Set-PSRepository -Name PSGallery -InstallationPolicy Untrusted" `
                     -Severity "Medium" `
@@ -1847,7 +1847,7 @@ try {
         Add-Result -Category "CISA - Supply Chain" -Status "Warning" `
             -Message "Driver signing enforcement is not set to block unsigned drivers (Policy=$driverSigning)" `
             -Details "CISA: Unsigned drivers may contain malicious code or vulnerable components" `
-            -Remediation "Configure driver signing policy via Group Policy: Computer Config > Windows Settings > Security > Local Policies > Security Options" `
+            -Remediation "Configure driver signing policy via Group Policy: Computer Config `> Windows Settings `> Security `> Local Policies `> Security Options" `
             -Severity "High" `
             -CrossReferences @{ CISA='Supply Chain'; NIST='SI-7'; STIG='V-220957' }
     }
@@ -1910,7 +1910,7 @@ try {
         Add-Result -Category "CISA - Zero Trust" -Status "Fail" `
             -Message "Credential Guard is not enabled" `
             -Details "CISA ZT Identity: Credentials stored in memory without hardware isolation (Pass-the-Hash risk)" `
-            -Remediation "Enable Credential Guard via Group Policy: Computer Config > Admin Templates > System > Device Guard" `
+            -Remediation "Enable Credential Guard via Group Policy: Computer Config `> Admin Templates `> System `> Device Guard" `
             -Severity "High" `
             -CrossReferences @{ CISA='Zero Trust'; NIST='IA-5(13)'; NSA='Credential Protection' }
     }
@@ -2017,7 +2017,7 @@ try {
             -CrossReferences @{ CISA='Zero Trust'; NIST='AU-3'; NSA='PowerShell Security' }
     } else {
         Add-Result -Category "CISA - Zero Trust" -Status "Warning" `
-            -Message "PowerShell Script Block Logging not enabled — limits SOAR capabilities" `
+            -Message "PowerShell Script Block Logging not enabled -- limits SOAR capabilities" `
             -Details "CISA ZT Automation: Enable to feed script execution data to security orchestration" `
             -Remediation "New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Force; Set-ItemProperty ... -Name EnableScriptBlockLogging -Value 1" `
             -Severity "Medium" `
@@ -2036,7 +2036,7 @@ try {
 Write-Host "[CISA] Checking BOD 22-01/23-01 compliance..." -ForegroundColor Yellow
 
 try {
-    # BOD 22-01: Known Exploited Vulnerabilities — patch currency
+    # BOD 22-01: Known Exploited Vulnerabilities -- patch currency
     $lastHotfix = Get-HotFix -ErrorAction SilentlyContinue | Sort-Object InstalledOn -Descending -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($lastHotfix -and $lastHotfix.InstalledOn) {
         $daysSinceUpdate = ((Get-Date) - $lastHotfix.InstalledOn).Days
@@ -2048,14 +2048,14 @@ try {
                 -CrossReferences @{ CISA='BOD 22-01'; NIST='SI-2(2)'; NSA='Patch Management' }
         } elseif ($daysSinceUpdate -le 25) {
             Add-Result -Category "CISA - BOD 22-01" -Status "Warning" `
-                -Message "BOD 22-01: Last update $daysSinceUpdate days ago — within 25-day internal deadline" `
+                -Message "BOD 22-01: Last update $daysSinceUpdate days ago -- within 25-day internal deadline" `
                 -Details "Verify no KEV entries remain unpatched beyond their specific due dates" `
                 -Severity "High" `
                 -Remediation "Run Windows Update immediately and verify KEV catalog compliance" `
                 -CrossReferences @{ CISA='BOD 22-01'; NIST='SI-2(2)'; NSA='Patch Management' }
         } else {
             Add-Result -Category "CISA - BOD 22-01" -Status "Fail" `
-                -Message "BOD 22-01: System is $daysSinceUpdate days since last update — exceeds KEV deadline" `
+                -Message "BOD 22-01: System is $daysSinceUpdate days since last update -- exceeds KEV deadline" `
                 -Details "BOD 22-01 mandates timely remediation of Known Exploited Vulnerabilities" `
                 -Remediation "Immediately apply all pending updates and audit against CISA KEV catalog" `
                 -Severity "Critical" `
@@ -2087,7 +2087,7 @@ try {
             -CrossReferences @{ CISA='BOD 22-01'; NIST='SI-2' }
     }
 
-    # BOD 23-01: Asset Visibility — system identification
+    # BOD 23-01: Asset Visibility -- system identification
     $computerInfo = @{
         Name = $env:COMPUTERNAME
         Domain = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).Domain
@@ -2095,13 +2095,13 @@ try {
     }
     if ($computerInfo.Domain -and $computerInfo.Domain -ne "WORKGROUP") {
         Add-Result -Category "CISA - BOD 23-01" -Status "Pass" `
-            -Message "BOD 23-01: System is domain-joined ($($computerInfo.Domain)) — centrally managed asset" `
+            -Message "BOD 23-01: System is domain-joined `($($computerInfo.Domain)) -- centrally managed asset" `
             -Details "Domain-joined systems support centralized inventory, policy enforcement, and vulnerability scanning" `
             -Severity "Medium" `
             -CrossReferences @{ CISA='BOD 23-01'; NIST='CM-8' }
     } else {
         Add-Result -Category "CISA - BOD 23-01" -Status "Warning" `
-            -Message "BOD 23-01: System is in WORKGROUP — may lack centralized management" `
+            -Message "BOD 23-01: System is in WORKGROUP -- may lack centralized management" `
             -Details "BOD 23-01 requires full asset inventory and vulnerability enumeration" `
             -Remediation "Join system to domain or enroll in cloud management (Azure AD/Intune)" `
             -Severity "Medium" `
@@ -2137,7 +2137,7 @@ try {
             -CrossReferences @{ CISA='BOD 23-01'; NIST='RA-5'; CIS='8.1' }
     } else {
         Add-Result -Category "CISA - BOD 23-01" -Status "Warning" `
-            -Message "BOD 23-01: Windows Defender is not running — limited vulnerability visibility" `
+            -Message "BOD 23-01: Windows Defender is not running -- limited vulnerability visibility" `
             -Details "BOD 23-01 requires automated vulnerability enumeration within 14 days of discovery" `
             -Severity "High" `
             -CrossReferences @{ CISA='BOD 23-01'; NIST='RA-5' }
@@ -2174,13 +2174,13 @@ foreach ($r in ($results | Where-Object { $_.Status -eq "Fail" })) {
 }
 
 Write-Host "`n[CISA] ======================================================================" -ForegroundColor Cyan
-Write-Host "[CISA] MODULE COMPLETED — v$moduleVersion" -ForegroundColor Cyan
+Write-Host "[CISA] MODULE COMPLETED -- v$moduleVersion" -ForegroundColor Cyan
 Write-Host "[CISA] ======================================================================" -ForegroundColor Cyan
 Write-Host "[CISA] Total Checks Executed: $totalChecks" -ForegroundColor White
 Write-Host "[CISA]" -ForegroundColor Cyan
 Write-Host "[CISA] Results Summary:" -ForegroundColor Cyan
 $pctPass = if ($totalChecks -gt 0) { [Math]::Round(($passCount / $totalChecks) * 100, 1) } else { 0 }
-Write-Host "[CISA]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass%)" -ForegroundColor Green
+Write-Host "[CISA]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass`%)" -ForegroundColor Green
 Write-Host "[CISA]   Failed:   $($failCount.ToString().PadLeft(3))" -ForegroundColor Red
 Write-Host "[CISA]   Warnings: $($warnCount.ToString().PadLeft(3))" -ForegroundColor Yellow
 Write-Host "[CISA]   Info:     $($infoCount.ToString().PadLeft(3))" -ForegroundColor Cyan
@@ -2213,7 +2213,7 @@ return $results
 # ============================================================================
 if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "=" * 80 -ForegroundColor White
-    Write-Host "  CISA Cybersecurity Performance Goals — Standalone Test Mode v$moduleVersion" -ForegroundColor Cyan
+    Write-Host "  CISA Cybersecurity Performance Goals -- Standalone Test Mode v$moduleVersion" -ForegroundColor Cyan
     Write-Host "=" * 80 -ForegroundColor White
     Write-Host ""
 
@@ -2252,7 +2252,7 @@ if ($MyInvocation.InvocationName -ne '.') {
             Invoke-CacheWarmUp -Cache $standaloneCache
             $standaloneData.Cache = $standaloneCache
             $summary = Get-CacheSummary -Cache $standaloneCache
-            Write-Host "  Cache: Enabled ($($summary.ServicesCount) services, $($summary.RegistryCacheCount) registry keys)" -ForegroundColor Green
+            Write-Host "  Cache: Enabled `($($summary.ServicesCount) services, $($summary.RegistryCacheCount) registry keys`)" -ForegroundColor Green
         } catch {
             Write-Host "  Cache: Not available ($_)" -ForegroundColor Yellow
         }
@@ -2285,7 +2285,7 @@ if ($MyInvocation.InvocationName -ne '.') {
             $barLen = [Math]::Floor($pct / 2)
             $bar = "#" * $barLen
             $color = switch ($statusType) { "Pass" { "Green" }; "Fail" { "Red" }; "Warning" { "Yellow" }; "Info" { "Cyan" }; default { "Magenta" } }
-            Write-Host "    $($statusType.PadRight(8)): $($count.ToString().PadLeft(3)) ($($pct.ToString().PadLeft(5))%) $bar" -ForegroundColor $color
+            Write-Host "    $($statusType.PadRight(8)): $($count.ToString().PadLeft(3)) `($($pct.ToString().PadLeft(5))`%`) $bar" -ForegroundColor $color
         }
     }
 
@@ -2305,6 +2305,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
+
 # ============================================================================
 # End of CISA Cybersecurity Performance Goals Module (Module-CISA.ps1)
 # ============================================================================
