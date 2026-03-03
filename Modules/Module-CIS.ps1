@@ -244,7 +244,7 @@ try {
         Add-Result -Category "CIS - Account Policy" -Status "Fail" `
             -Message "Store passwords using reversible encryption is ENABLED" `
             -Details "CIS Benchmark: Disable reversible encryption - it's equivalent to plaintext" `
-            -Remediation "Disable via Local Security Policy: Computer Configuration > Windows Settings > Security Settings > Account Policies > Password Policy" `
+            -Remediation "Disable via Local Security Policy: Computer Configuration `> Windows Settings `> Security Settings `> Account Policies `> Password Policy" `
             -Severity "High" `
             -CrossReferences @{ NIST='IA-5'; STIG='V-220903' }
     } else {
@@ -562,7 +562,7 @@ try {
         Add-Result -Category "CIS - Security Options" -Status "Warning" `
             -Message "Interactive logon message is not configured" `
             -Details "CIS Benchmark: Configure a logon message for legal protection" `
-            -Remediation "Set legal notice via Local Security Policy: Local Policies > Security Options" `
+            -Remediation "Set legal notice via Local Security Policy: Local Policies `> Security Options" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AC-3'; STIG='V-220930' }
     }
@@ -1101,14 +1101,14 @@ try {
             if ($service) {
                 if ($service.StartType -eq "Disabled") {
                     Add-Result -Category "CIS - Services" -Status "Pass" `
-                        -Message "$($svc.DisplayName) ($($svc.Name)): Service is disabled" `
+                        -Message "$($svc.DisplayName) `($($svc.Name)): Service is disabled" `
                         -Details "CIS $($svc.CIS): Unnecessary service is properly disabled" `
                         -Severity "Medium" `
                         -CrossReferences @{ CIS=$svc.CIS; NIST='CM-7'; STIG=$svc.STIG }
                 } else {
                     $svcSeverity = if ($svc.Name -in @('RemoteRegistry','SharedAccess','Spooler','MSiSCSI')) { "High" } else { "Medium" }
                     Add-Result -Category "CIS - Services" -Status "Warning" `
-                        -Message "$($svc.DisplayName) ($($svc.Name)): Service is not disabled (StartType: $($service.StartType))" `
+                        -Message "$($svc.DisplayName) `($($svc.Name)): Service is not disabled (StartType: $($service.StartType))" `
                         -Details "CIS $($svc.CIS): Disable if not required in this environment" `
                         -Remediation "Set-Service -Name '$($svc.Name)' -StartupType Disabled; Stop-Service -Name '$($svc.Name)' -Force" `
                         -Severity $svcSeverity `
@@ -1437,7 +1437,7 @@ try {
                     -CrossReferences @{ NIST='SC-28'; STIG='V-220923' }
             } elseif ($volume.VolumeStatus -eq "EncryptionInProgress") {
                 Add-Result -Category "CIS - BitLocker" -Status "Info" `
-                    -Message "System drive ($systemDrive) encryption in progress: $($volume.EncryptionPercentage)%" `
+                    -Message "System drive ($systemDrive) encryption in progress: $($volume.EncryptionPercentage)`%" `
                     -Details "CIS Benchmark: Allow encryption to complete" `
                     -Severity "Medium" `
                     -CrossReferences @{ NIST='SC-28'; STIG='V-220923' }
@@ -1612,7 +1612,7 @@ try {
         Add-Result -Category "CIS - Additional Security" -Status "Warning" `
             -Message "Remote SAM access restrictions may not be configured" `
             -Details "CIS Benchmark: Restrict remote SAM calls to administrators" `
-            -Remediation "Configure via Group Policy: Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > Security Options" `
+            -Remediation "Configure via Group Policy: Computer Configuration `> Policies `> Windows Settings `> Security Settings `> Local Policies `> Security Options" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='SI-16'; NSA='Exploit Mitigation' }
     }
@@ -1676,7 +1676,7 @@ try {
         $signatureAge = (Get-Date) - $defenderStatus.AntivirusSignatureLastUpdated
         if ($signatureAge.Days -le 7) {
             Add-Result -Category "CIS - Additional Security" -Status "Pass" `
-                -Message "Windows Defender signatures are current ($($signatureAge.Days) days old)" `
+                -Message "Windows Defender signatures are current `($($signatureAge.Days) days old)" `
                 -Details "CIS Benchmark: Antivirus definitions are up to date" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='SI-16'; NSA='Exploit Mitigation' }
@@ -1773,13 +1773,13 @@ try {
     $keepAlive = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" -Name "KeepAliveTime" -Default 7200000
     if ($keepAlive -le 300000) {
         Add-Result -Category "CIS - MSS Registry" -Status "Pass" `
-            -Message "TCP KeepAliveTime is configured to $keepAlive ms ($([Math]::Round($keepAlive/60000,1)) min)" `
+            -Message "TCP KeepAliveTime is configured to $keepAlive ms `($([Math]::Round($keepAlive/60000,1)) min)" `
             -Details "CIS 18.4.5: Short keep-alive reduces stale connection resource consumption" `
             -Severity "Low" `
             -CrossReferences @{ CIS='18.4.5'; NIST='SC-10'; STIG='V-220866' }
     } else {
         Add-Result -Category "CIS - MSS Registry" -Status "Info" `
-            -Message "TCP KeepAliveTime is $keepAlive ms ($([Math]::Round($keepAlive/60000,1)) min)" `
+            -Message "TCP KeepAliveTime is $keepAlive ms `($([Math]::Round($keepAlive/60000,1)) min)" `
             -Details "CIS 18.4.5: Recommended 300000 (5 minutes) for connection cleanup" `
             -Severity "Low" `
             -CrossReferences @{ CIS='18.4.5'; NIST='SC-10' }
@@ -1856,13 +1856,13 @@ try {
     $warnLevel = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Eventlog\Security" -Name "WarningLevel" -Default 0
     if ($warnLevel -ge 90) {
         Add-Result -Category "CIS - MSS Registry" -Status "Pass" `
-            -Message "Security event log warning threshold is set to $warnLevel%" `
+            -Message "Security event log warning threshold is set to $warnLevel`%" `
             -Details "CIS 18.4.12: Alert generated when log reaches capacity threshold" `
             -Severity "Low" `
             -CrossReferences @{ CIS='18.4.12'; NIST='AU-5'; STIG='V-220871' }
     } else {
         Add-Result -Category "CIS - MSS Registry" -Status "Info" `
-            -Message "Security event log warning threshold: $warnLevel% (recommended: 90%)" `
+            -Message "Security event log warning threshold: $warnLevel`% (recommended: 90%)" `
             -Severity "Low" `
             -CrossReferences @{ CIS='18.4.12'; NIST='AU-5' }
     }
@@ -2080,7 +2080,7 @@ try {
         } elseif ($execPolicy -eq 'Restricted') {
             Add-Result -Category "CIS - PowerShell Security" -Status "Pass" `
                 -Message "PowerShell execution policy is 'Restricted' (most secure)" `
-                -Details "No scripts can be run — interactive commands only" `
+                -Details "No scripts can be run -- interactive commands only" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='SI-7'; NSA='PowerShell Security' }
         } else {
@@ -2103,7 +2103,7 @@ try {
             -CrossReferences @{ NIST='SI-3'; NSA='PowerShell Security' }
     } else {
         Add-Result -Category "CIS - PowerShell Security" -Status "Fail" `
-            -Message "AMSI is DISABLED — script-based malware will bypass antivirus" `
+            -Message "AMSI is DISABLED -- script-based malware will bypass antivirus" `
             -Details "AMSI provides script content inspection for PowerShell, VBScript, and JavaScript" `
             -Remediation "Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\AMSI' -Name AmsiEnable -ErrorAction SilentlyContinue" `
             -Severity "Critical" `
@@ -2201,7 +2201,7 @@ try {
             -CrossReferences @{ NIST='SC-20'; NSA='Network Hardening'; CISA='Network Security' }
     } else {
         Add-Result -Category "CIS - DNS Client" -Status "Warning" `
-            -Message "WPAD may be active — proxy auto-discovery poisoning risk" `
+            -Message "WPAD may be active -- proxy auto-discovery poisoning risk" `
             -Details "WPAD can be exploited via LLMNR/NetBIOS to redirect traffic through malicious proxies" `
             -Remediation "Set-Service -Name WinHttpAutoProxySvc -StartupType Disabled" `
             -Severity "High" `
@@ -2239,13 +2239,13 @@ foreach ($r in ($results | Where-Object { $_.Status -eq "Fail" })) {
 }
 
 Write-Host "`n[CIS] ======================================================================" -ForegroundColor Cyan
-Write-Host "[CIS] MODULE COMPLETED — v$moduleVersion" -ForegroundColor Cyan
+Write-Host "[CIS] MODULE COMPLETED -- v$moduleVersion" -ForegroundColor Cyan
 Write-Host "[CIS] ======================================================================" -ForegroundColor Cyan
 Write-Host "[CIS] Total Checks Executed: $totalChecks" -ForegroundColor White
 Write-Host "[CIS]" -ForegroundColor Cyan
 Write-Host "[CIS] Results Summary:" -ForegroundColor Cyan
 $pctPass = if ($totalChecks -gt 0) { [Math]::Round(($passCount / $totalChecks) * 100, 1) } else { 0 }
-Write-Host "[CIS]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass%)" -ForegroundColor Green
+Write-Host "[CIS]   Passed:   $($passCount.ToString().PadLeft(3)) ($pctPass`%)" -ForegroundColor Green
 Write-Host "[CIS]   Failed:   $($failCount.ToString().PadLeft(3))" -ForegroundColor Red
 Write-Host "[CIS]   Warnings: $($warnCount.ToString().PadLeft(3))" -ForegroundColor Yellow
 Write-Host "[CIS]   Info:     $($infoCount.ToString().PadLeft(3))" -ForegroundColor Cyan
@@ -2278,7 +2278,7 @@ return $results
 # ============================================================================
 if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "=" * 80 -ForegroundColor White
-    Write-Host "  CIS Benchmarks Compliance Module — Standalone Test Mode v$moduleVersion" -ForegroundColor Cyan
+    Write-Host "  CIS Benchmarks Compliance Module -- Standalone Test Mode v$moduleVersion" -ForegroundColor Cyan
     Write-Host "=" * 80 -ForegroundColor White
     Write-Host ""
 
@@ -2319,7 +2319,7 @@ if ($MyInvocation.InvocationName -ne '.') {
             Invoke-CacheWarmUp -Cache $cache
             $standaloneData.Cache = $cache
             $summary = Get-CacheSummary -Cache $cache
-            Write-Host "  Cache: Enabled ($($summary.ServicesCount) services, $($summary.RegistryCacheCount) registry keys)" -ForegroundColor Green
+            Write-Host "  Cache: Enabled `($($summary.ServicesCount) services, $($summary.RegistryCacheCount) registry keys`)" -ForegroundColor Green
         } catch {
             Write-Host "  Cache: Not available ($_)" -ForegroundColor Yellow
         }
@@ -2350,12 +2350,12 @@ if ($MyInvocation.InvocationName -ne '.') {
     # Clear results from the initial pass (which used empty SharedData)
     $script:results = @()
 
-    # The actual check sections are above — they reference $SharedData and $useCache
+    # The actual check sections are above -- they reference $SharedData and $useCache
     # which are now set to the standalone values. We need to re-run the check body.
     # PowerShell approach: re-dot-source ourselves is circular. Instead, wrap checks
     # in a function during standalone mode.
     # NOTE: The module already ran its checks above with whatever SharedData was passed.
-    # In standalone mode (no parent script), SharedData defaults to @{} which is fine —
+    # In standalone mode (no parent script), SharedData defaults to @{} which is fine --
     # checks degrade gracefully. The results are already captured.
     # We just display the detailed analysis below.
 
@@ -2374,7 +2374,7 @@ if ($MyInvocation.InvocationName -ne '.') {
             $barLen = [Math]::Floor($pct / 2)
             $bar = "#" * $barLen
             $color = switch ($statusType) { "Pass" { "Green" }; "Fail" { "Red" }; "Warning" { "Yellow" }; "Info" { "Cyan" }; default { "Magenta" } }
-            Write-Host "    $($statusType.PadRight(8)): $($count.ToString().PadLeft(3)) ($($pct.ToString().PadLeft(5))%) $bar" -ForegroundColor $color
+            Write-Host "    $($statusType.PadRight(8)): $($count.ToString().PadLeft(3)) `($($pct.ToString().PadLeft(5))`%`) $bar" -ForegroundColor $color
         }
     }
 
@@ -2394,6 +2394,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
+
 # ============================================================================
 # End of CIS Compliance Benchmarking Module (Module-CIS.ps1)
 # ============================================================================
