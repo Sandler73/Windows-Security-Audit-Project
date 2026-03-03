@@ -1040,7 +1040,6 @@ Write-Host "[ENISA] Checking GP.8 -- System Hardening..." -ForegroundColor Yello
     }
     # GP.8.2: DEP (Data Execution Prevention) enabled
     try {
-        $dep = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -Name "ProductName" -Default ""
         $depPolicy = & bcdedit /enum 2>&1 | Select-String "nx"
         $depEnabled = $null -ne $depPolicy -and $depPolicy.ToString() -match '(AlwaysOn|OptOut)'
         if ($depEnabled) {
@@ -1378,15 +1377,11 @@ foreach ($cat in ($catGroups.Keys | Sort-Object)) {
 
 # Severity distribution for failures
 $failResults = @($results | Where-Object { $_.Status -eq "Fail" })
-if ($failResults.Count -gt 0) {
-    Write-Host "`n  Failed Check Severity Distribution:" -ForegroundColor Yellow
-    foreach ($sev in @("Critical","High","Medium","Low")) {
-        $sevCount = @($failResults | Where-Object { $_.Severity -eq $sev }).Count
-        if ($sevCount -gt 0) {
-            $color = switch ($sev) { "Critical" { "Red" }; "High" { "Red" }; "Medium" { "Yellow" }; default { "White" } }
-            Write-Host "    $($sev.PadRight(12)): $sevCount" -ForegroundColor $color
-        }
-    }
+Write-Host "`n  Failed Check Severity Distribution:" -ForegroundColor Yellow
+foreach ($sev in @("Critical","High","Medium","Low")) {
+    $sevCount = @($failResults | Where-Object { $_.Severity -eq $sev }).Count
+    $color = switch ($sev) { "Critical" { "Red" }; "High" { "Red" }; "Medium" { "Yellow" }; default { "White" } }
+    Write-Host "    $($sev.PadRight(12)): $sevCount" -ForegroundColor $color
 }
 Write-Host "$("=" * 80)`n" -ForegroundColor White
 
