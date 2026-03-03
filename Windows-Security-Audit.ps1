@@ -11,11 +11,14 @@
 
 .DESCRIPTION
     This script audits Windows systems against multiple security frameworks:
-    - Core Security Baseline        - ENISA Cybersecurity Recommendations
-    - CIS Benchmarks                - ISO 27001 Annex A Technology Controls
-    - CISA Best Practices           - Microsoft Security Baseline
-    - DISA STIGs                    - Microsoft Defender for Endpoint/EDR
-    - NIST Cybersecurity Framework  - NSA Cybersecurity Guidance
+    - ACSC Essential Eight           - HIPAA Security Rule
+    - CIS Benchmarks                 - ISO 27001 Annex A Technology Controls
+    - CISA Best Practices            - Microsoft Security Baseline
+    - CMMC 2.0 (DoD)                 - Microsoft Defender for Endpoint/EDR
+    - Core Security Baseline         - NIST Cybersecurity Framework
+    - DISA STIGs                     - NSA Cybersecurity Guidance
+    - ENISA Cybersecurity Guidelines - PCI DSS v4.0
+    - GDPR Technical Controls        - SOC 2 Type II
 
     v6.0 Features:
     - SharedDataCache (reads registry/WMI/policies once, shares across modules)
@@ -28,7 +31,8 @@
     - Performance profiling and cache statistics
 
 .PARAMETER Modules
-    Comma-separated list of modules. Available: Core,CIS,MS,NIST,STIG,NSA,CISA,MS-DefenderATP,ENISA,ISO27001,All
+    Comma-separated list of modules. Available: ACSC, CIS, CISA, CMMC, Core, ENISA, GDPR,
+    HIPAA, ISO27001, MS, MS-DefenderATP, NIST, NSA, PCI-DSS, SOC2, STIG, All
 .PARAMETER OutputFormat
     Output format: HTML, CSV, JSON, XML, or Console. Default: HTML
 .PARAMETER OutputPath
@@ -63,6 +67,9 @@
     List all available modules and exit
 .PARAMETER Quiet
     Suppress non-essential output including auto-open of HTML report
+.PARAMETER Verbose
+    Enable verbose output for detailed diagnostic information during execution.
+    Inherited from [CmdletBinding()] -- use -Verbose switch.
 
 .EXAMPLE
     .\Windows-Security-Audit.ps1
@@ -73,15 +80,23 @@
 .EXAMPLE
     .\Windows-Security-Audit.ps1 -Modules Core,NIST -OutputFormat CSV -LogLevel DEBUG
     Run specific modules with CSV output and debug logging
+.EXAMPLE
+    .\Windows-Security-Audit.ps1 -Modules CMMC,HIPAA -LogFile .\audit.log -Verbose
+    Run CMMC and HIPAA modules with verbose output and explicit log file
+.EXAMPLE
+    .\Windows-Security-Audit.ps1 -Modules GDPR,SOC2,PCI-DSS -LogLevel DEBUG -JsonLog
+    Run privacy/compliance modules with JSON-formatted debug logging
 
 .NOTES
     Requires: Windows 10/11 or Windows Server 2016+, PowerShell 5.1+
     Run as Administrator for complete results
     Version: 6.0
+    Logging: Always enabled. Use -LogFile to specify path, -LogLevel to filter.
 #>
 
+[CmdletBinding()]
 param(
-    [ValidateSet("Core","CIS","MS","NIST","STIG","NSA","CISA","MS-DefenderATP","ENISA","ISO27001","All")]
+    [ValidateSet("ACSC","CIS","CISA","CMMC","Core","ENISA","GDPR","HIPAA","ISO27001","MS","MS-DefenderATP","NIST","NSA","PCI-DSS","SOC2","STIG","All")]
     [string[]]$Modules = @("All"),
     [ValidateSet("HTML","CSV","JSON","XML","All","Console")]
     [string]$OutputFormat = "HTML",
@@ -133,6 +148,130 @@ if (Test-Path $script:CommonLibPath) {
     catch { Write-Warning "Failed to load shared library: $_" }
 }
 
+
+# ============================================================================
+# Built-in Logging Infrastructure (fallback when shared library unavailable)
+# ============================================================================
+# Log level numeric values for comparison
+$script:BuiltInLogLevels = @{ 'DEBUG'=0; 'INFO'=1; 'WARNING'=2; 'ERROR'=3; 'CRITICAL'=4 }
+$script:CurrentLogLevelNumeric = $script:BuiltInLogLevels[$LogLevel]
+$script:ActiveLogFile = $LogFile
+$script:UseJsonLog = $JsonLog.IsPresent
+
+function Initialize-BuiltInLogging {
+    # Create log file and directory if -LogFile was specified
+    if ($script:ActiveLogFile) {
+        $logDir = Split-Path -Parent $script:ActiveLogFile
+        if ($logDir -and -not (Test-Path $logDir)) {
+            try {
+                New-Item -Path $logDir -ItemType Directory -Force | Out-Null
+                Write-Verbose "Created log directory: $logDir"
+            } catch {
+                Write-Warning "Could not create log directory ${logDir}: $_"
+                return
+            }
+        }
+        # Create the log file if it does not exist
+        if (-not (Test-Path $script:ActiveLogFile)) {
+            try {
+                $header = "# Windows Security Audit Log - Started $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+                Set-Content -Path $script:ActiveLogFile -Value $header -Encoding UTF8
+                Write-Verbose "Created log file: $($script:ActiveLogFile)"
+            } catch {
+                Write-Warning "Could not create log file: $_"
+            }
+        }
+    } else {
+        # Auto-generate log file path in logs/ directory
+        if (-not (Test-Path $script:LogDir)) {
+            try { New-Item -Path $script:LogDir -ItemType Directory -Force | Out-Null } catch { }
+        }
+        $script:ActiveLogFile = Join-Path $script:LogDir "audit-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+        try {
+            $header = "# Windows Security Audit Log - Started $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+            Set-Content -Path $script:ActiveLogFile -Value $header -Encoding UTF8
+            Write-Verbose "Auto-created log file: $($script:ActiveLogFile)"
+        } catch {
+            Write-Warning "Could not create auto log file: $_"
+            $script:ActiveLogFile = ""
+        }
+    }
+}
+
+# Only define built-in Write-AuditLog if shared library did NOT provide one
+if (-not (Get-Command 'Write-AuditLog' -ErrorAction SilentlyContinue)) {
+    function Write-AuditLog {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory=$true)]
+            [string]$Message,
+            [ValidateSet('DEBUG','INFO','WARNING','ERROR','CRITICAL')]
+            [string]$Level = 'INFO',
+            [string]$Module = 'MAIN'
+        )
+        $numericLevel = $script:BuiltInLogLevels[$Level]
+        if ($numericLevel -lt $script:CurrentLogLevelNumeric) { return }
+
+        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss.fff"
+
+        # Console output with color coding
+        $color = switch ($Level) {
+            'DEBUG'    { 'Gray' }
+            'INFO'     { 'White' }
+            'WARNING'  { 'Yellow' }
+            'ERROR'    { 'Red' }
+            'CRITICAL' { 'Red' }
+            default    { 'White' }
+        }
+        if (-not $Quiet) {
+            $prefix = switch ($Level) {
+                'DEBUG'    { '[DBG]' }
+                'INFO'     { '[+]' }
+                'WARNING'  { '[!]' }
+                'ERROR'    { '[-]' }
+                'CRITICAL' { '[!!!]' }
+                default    { '[*]' }
+            }
+            Write-Host "$prefix [$Module] $Message" -ForegroundColor $color
+        }
+
+        # Write-Verbose passthrough for -Verbose support
+        Write-Verbose "[$Level] [$Module] $Message"
+
+        # File output
+        if ($script:ActiveLogFile) {
+            try {
+                if ($script:UseJsonLog) {
+                    $logEntry = @{
+                        timestamp = $timestamp
+                        level     = $Level
+                        module    = $Module
+                        message   = $Message
+                    } | ConvertTo-Json -Compress
+                } else {
+                    $logEntry = "[$timestamp] [$Level] [$Module] $Message"
+                }
+                Add-Content -Path $script:ActiveLogFile -Value $logEntry -Encoding UTF8 -ErrorAction SilentlyContinue
+            } catch { }
+        }
+    }
+}
+
+# Also define Initialize-AuditLogging fallback if shared lib didn't provide it
+if (-not (Get-Command 'Initialize-AuditLogging' -ErrorAction SilentlyContinue)) {
+    function Initialize-AuditLogging {
+        param(
+            [string]$LogLevel = 'INFO',
+            [string]$LogFile = '',
+            [switch]$JsonFormat
+        )
+        if ($LogLevel) { $script:CurrentLogLevelNumeric = $script:BuiltInLogLevels[$LogLevel] }
+        if ($LogFile) { $script:ActiveLogFile = $LogFile }
+        if ($JsonFormat) { $script:UseJsonLog = $true }
+        Initialize-BuiltInLogging
+    }
+}
+
 # ============================================================================
 # Banner
 # ============================================================================
@@ -142,11 +281,14 @@ function Show-Banner {
     Write-Host "                   Comprehensive Multi-Framework Security Assessment" -ForegroundColor Cyan
     Write-Host "========================================================================================================" -ForegroundColor Cyan
     Write-Host "`nSupported Frameworks:" -ForegroundColor White
-    Write-Host "  - Core Security Baseline          - ENISA Cybersecurity Recommendations" -ForegroundColor Gray
-    Write-Host "  - CIS Benchmarks                  - ISO 27001 Annex A Controls" -ForegroundColor Gray
-    Write-Host "  - CISA Best Practices             - Microsoft Security Baseline" -ForegroundColor Gray
-    Write-Host "  - DISA STIGs                      - Microsoft Defender for Endpoint/EDR" -ForegroundColor Gray
-    Write-Host "  - NIST Cybersecurity Framework     - NSA Cybersecurity Guidance" -ForegroundColor Gray
+    Write-Host "  - ACSC Essential Eight              - HIPAA Security Rule" -ForegroundColor Gray
+    Write-Host "  - CIS Benchmarks                    - ISO 27001 Annex A Controls" -ForegroundColor Gray
+    Write-Host "  - CISA Best Practices               - Microsoft Security Baseline" -ForegroundColor Gray
+    Write-Host "  - CMMC 2.0 (DoD)                    - Microsoft Defender for Endpoint/EDR" -ForegroundColor Gray
+    Write-Host "  - Core Security Baseline             - NIST Cybersecurity Framework" -ForegroundColor Gray
+    Write-Host "  - DISA STIGs                         - NSA Cybersecurity Guidance" -ForegroundColor Gray
+    Write-Host "  - ENISA Cybersecurity Guidelines     - PCI DSS v4.0" -ForegroundColor Gray
+    Write-Host "  - GDPR Technical Controls            - SOC 2 Type II" -ForegroundColor Gray
     if ($script:HAS_COMMON_LIB) {
         Write-Host "`n  Shared Library: v$($script:COMMON_LIB_VERSION) (caching, parallel execution enabled)" -ForegroundColor Green
     } else {
@@ -159,30 +301,35 @@ function Show-Banner {
 # Prerequisites
 # ============================================================================
 function Test-Prerequisites {
-    Write-Host "[*] Checking prerequisites..." -ForegroundColor Yellow
+    # Validates PowerShell version, admin privileges, and OS compatibility
+    # Returns: PSCustomObject with .Success (bool) and .Messages (string[])
+    $messages = @()
+    $success = $true
     $psVersion = $PSVersionTable.PSVersion
     if ($psVersion.Major -lt 5) {
-        Write-Host "[!] PowerShell 5.1 or higher required. Current: $psVersion" -ForegroundColor Red
-        return $false
+        $messages += "PowerShell 5.1+ required (current: $psVersion)"
+        $success = $false
+    } else {
+        $messages += "PowerShell version: $psVersion"
     }
-    Write-Host "[+] PowerShell version: $psVersion" -ForegroundColor Green
     $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     if (-not $isAdmin) {
-        Write-Host "[!] WARNING: Not running as Administrator" -ForegroundColor Yellow
+        $messages += "WARNING: Not running as Administrator (some checks may be limited)"
         if ($RemediateIssues -or $AutoRemediate) {
-            Write-Host "[!] ERROR: Remediation requires Administrator privileges" -ForegroundColor Red
-            return $false
+            $messages += "ERROR: Remediation requires Administrator privileges"
+            $success = $false
         }
     } else {
-        Write-Host "[+] Running with Administrator privileges" -ForegroundColor Green
+        $messages += "Running with Administrator privileges"
     }
     try {
         $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue
-        Write-Host "[+] Operating System: $($os.Caption) (Build $($os.BuildNumber))" -ForegroundColor Green
-    } catch { Write-Host "[!] Could not detect OS version" -ForegroundColor Yellow }
-    return $true
+        $messages += "Operating System: $($os.Caption) (Build $($os.BuildNumber))"
+    } catch {
+        $messages += "Could not detect OS version"
+    }
+    return [PSCustomObject]@{ Success = $success; Messages = $messages }
 }
-
 # ============================================================================
 # Result Validation & Normalization
 # ============================================================================
@@ -291,7 +438,12 @@ function Get-AvailableModules {
     $modules = @{}
     if (-not (Test-Path $modulesDir)) { $modulesDir = $script:ScriptPath }
     $moduleFiles = Get-ChildItem -Path $modulesDir -Filter "module-*.ps1" -ErrorAction SilentlyContinue
-    $nameMap = @{ 'core'='Core'; 'cis'='CIS'; 'cisa'='CISA'; 'ms'='MS'; 'ms-defenderatp'='MS-DefenderATP'; 'nist'='NIST'; 'nsa'='NSA'; 'stig'='STIG'; 'enisa'='ENISA'; 'iso27001'='ISO27001' }
+    $nameMap = @{
+        'acsc'='ACSC'; 'cis'='CIS'; 'cisa'='CISA'; 'cmmc'='CMMC'; 'core'='Core';
+        'enisa'='ENISA'; 'gdpr'='GDPR'; 'hipaa'='HIPAA'; 'iso27001'='ISO27001';
+        'ms'='MS'; 'ms-defenderatp'='MS-DefenderATP'; 'nist'='NIST'; 'nsa'='NSA';
+        'pcidss'='PCI-DSS'; 'soc2'='SOC2'; 'stig'='STIG'
+    }
     foreach ($file in $moduleFiles) {
         $rawName = ($file.BaseName -replace '^module-', '').ToLower()
         $displayName = if ($nameMap[$rawName]) { $nameMap[$rawName] } else { $rawName }
@@ -306,7 +458,7 @@ function Show-AvailableModules {
     Write-Host "  $('=' * 50)" -ForegroundColor Gray
     foreach ($name in ($available.Keys | Sort-Object)) {
         Write-Host "    $name" -ForegroundColor White -NoNewline
-        Write-Host " -> $($available[$name])" -ForegroundColor Gray
+        Write-Host " -`> $($available[$name])" -ForegroundColor Gray
     }
     Write-Host "`n  Usage: .\Windows-Security-Audit.ps1 -Modules Core,NIST,CIS`n" -ForegroundColor Cyan
 }
@@ -327,7 +479,7 @@ function Invoke-SecurityModule {
             $moduleResults = Get-ValidatedResults -Results $moduleResults -ModuleName $ModuleName
             $moduleStats = Get-ModuleStatistics -Results $moduleResults
             $script:StatisticsLog.ModuleStats[$ModuleName] = $moduleStats
-            Write-Host "[+] Module $ModuleName completed: $($moduleStats.Total) checks ($($moduleStats.Pass) pass, $($moduleStats.Fail) fail, $($moduleStats.Warning) warning, $($moduleStats.Info) info, $($moduleStats.Error) error)" -ForegroundColor Green
+            Write-Host "[+] Module $ModuleName completed: $($moduleStats.Total) checks `($($moduleStats.Pass) pass, $($moduleStats.Fail) fail, $($moduleStats.Warning) warning, $($moduleStats.Info) info, $($moduleStats.Error) error`)" -ForegroundColor Green
             return $moduleResults
         } else {
             Write-Host "[!] Module $ModuleName returned no results" -ForegroundColor Yellow
@@ -541,7 +693,7 @@ function ConvertTo-HTMLReport {
     foreach ($seg in $donutSegments) {
         if ($seg.Count -gt 0) {
             $segLen = ($seg.Count / $total) * $circumference
-            $donutParts += "<circle cx='60' cy='60' r='45' fill='none' stroke='$($seg.Color)' stroke-width='20' stroke-dasharray='$([Math]::Round($segLen,2)) $([Math]::Round($circumference,2))' stroke-dashoffset='$([Math]::Round(-$offset,2))' style='cursor:pointer' onclick=""dashboardFilter('status','$($seg.Label)')""><title>$($seg.Label): $($seg.Count)</title></circle>"
+            $donutParts += "<circle cx='60' cy='60' r='45' fill='none' stroke='$($seg.Color)' stroke-width='20' stroke-dasharray='$([Math]::Round($segLen,2)) $([Math]::Round($circumference,2))' stroke-dashoffset='$([Math]::Round(-$offset,2))' style='cursor:pointer' onclick=""dashboardFilter('status','$($seg.Label)')""`><title`>$($seg.Label): $($seg.Count)</title`></circle`>"
             $offset += $segLen
         }
     }
@@ -552,14 +704,14 @@ function ConvertTo-HTMLReport {
     foreach ($modName in ($moduleScores.Keys | Sort-Object)) {
         $sc = $moduleScores[$modName]
         $barColor = if ($sc.Score -ge 80) { '#28a745' } elseif ($sc.Score -ge 60) { '#fd7e14' } else { '#dc3545' }
-        $moduleBarHtml += "<div class='module-bar' onclick=""scrollToModule('$modName')"" style='cursor:pointer'><span class='module-bar-label'>$modName</span><div class='module-bar-track'><div class='module-bar-fill' style='width:$($sc.Score)%;background:$barColor'></div></div><span class='module-bar-pct'>$($sc.Score)%</span></div>`n"
+        $moduleBarHtml += "<div class='module-bar' onclick=""scrollToModule('$modName')"" style='cursor:pointer'`><span class='module-bar-label'`>$modName</span`><div class='module-bar-track'`><div class='module-bar-fill' style='width:$($sc.Score)`%;background:$barColor'`></div`></div`><span class='module-bar-pct'`>$($sc.Score)`%</span`></div`>`n"
     }
 
     # Severity badges
     $sevBadgeHtml = ""
     foreach ($sev in @('Critical','High','Medium','Low','Informational')) {
         $sevColor = switch ($sev) { 'Critical' { '#dc3545' }; 'High' { '#fd7e14' }; 'Medium' { '#ffc107' }; 'Low' { '#17a2b8' }; 'Informational' { '#6c757d' } }
-        $sevBadgeHtml += "<span class='severity-badge' style='background:$sevColor;cursor:pointer' onclick=""dashboardFilter('severity','$sev')"">$sev`: $($sevCounts[$sev])</span> "
+        $sevBadgeHtml += "<span class='severity-badge' style='background:$sevColor;cursor:pointer' onclick=""dashboardFilter('severity','$sev')""`>$sev`: $($sevCounts[$sev])</span`> "
     }
 
     # Compliance score section
@@ -567,36 +719,36 @@ function ConvertTo-HTMLReport {
     if ($ComplianceScores.Count -gt 0 -and $ComplianceScores.ContainsKey('overall')) {
         $oc = $ComplianceScores['overall']
         $ocColor = if ($oc.WeightedPct -ge 80) { '#28a745' } elseif ($oc.WeightedPct -ge 60) { '#fd7e14' } else { '#dc3545' }
-        $complianceHtml = "<div class='compliance-summary'><h3>Compliance Scores</h3><div class='compliance-overall'><span style='color:$ocColor;font-size:2em;font-weight:bold'>$($oc.WeightedPct)%</span><br><small>Overall Weighted [$($oc.ThresholdResult)]</small></div><div class='compliance-details'><div>Simple: $($oc.SimplePct)%</div><div>Severity-Adjusted: $($oc.SeverityWeightedPct)%</div></div></div>"
+        $complianceHtml = "<div class='compliance-summary'`><h3`>Compliance Scores</h3`><div class='compliance-overall'`><span style='color:$ocColor;font-size:2em;font-weight:bold'`>$($oc.WeightedPct)`%</span`><br`><small`>Overall Weighted [$($oc.ThresholdResult)]</small`></div`><div class='compliance-details'`><div`>Simple: $($oc.SimplePct)`%</div`><div`>Severity-Adjusted: $($oc.SeverityWeightedPct)`%</div`></div`></div`>"
     }
 
     # Top remediation priorities table
     $remPriorityHtml = ""
     $remCount = [Math]::Min($remediationItems.Count, 25)
     if ($remCount -gt 0) {
-        $remPriorityHtml = "<div class='remediation-priority'><h3>Top Remediation Priorities</h3><table class='rem-table'><tr><th>#</th><th>Severity</th><th>Module</th><th>Category</th><th>Issue</th></tr>"
+        $remPriorityHtml = "<div class='remediation-priority'`><h3`>Top Remediation Priorities</h3`><table class='rem-table'`><tr`><th`>#</th`><th`>Severity</th`><th`>Module</th`><th`>Category</th`><th`>Issue</th`></tr`>"
         for ($i = 0; $i -lt $remCount; $i++) {
             $item = $remediationItems[$i]
             $sc = switch ($item.Severity) { 'Critical' { '#dc3545' }; 'High' { '#fd7e14' }; 'Medium' { '#ffc107' }; 'Low' { '#17a2b8' }; default { '#6c757d' } }
-            $remPriorityHtml += "<tr><td>$($i+1)</td><td><span class='severity-badge' style='background:$sc'>$($item.Severity)</span></td><td>$($item.Module)</td><td>$([System.Security.SecurityElement]::Escape($item.Category))</td><td>$([System.Security.SecurityElement]::Escape($item.Message))</td></tr>"
+            $remPriorityHtml += "<tr`><td`>$($i+1)</td`><td`><span class='severity-badge' style='background:$sc'`>$($item.Severity)</span`></td`><td`>$($item.Module)</td`><td`>$([System.Security.SecurityElement]::Escape($item.Category))</td`><td`>$([System.Security.SecurityElement]::Escape($item.Message))</td`></tr`>"
         }
-        $remPriorityHtml += "</table></div>"
+        $remPriorityHtml += "</table`></div`>"
     }
 
     # Table of Contents
-    $tocHtml = "<div class='toc'><h3>Table of Contents</h3><ul><li><a href='#dashboard'>Executive Dashboard</a></li>"
+    $tocHtml = "<div class='toc'`><h3`>Table of Contents</h3`><ul`><li`><a href='#dashboard'`>Executive Dashboard</a`></li`>"
     foreach ($modName in ($modulesData.Keys | Sort-Object)) {
-        $tocHtml += "<li><a href='#module-$modName'>$modName ($($modulesData[$modName].Count) checks)</a></li>"
+        $tocHtml += "<li`><a href='#module-$modName'`>$modName `($($modulesData[$modName].Count) checks`)</a`></li`>"
     }
-    $tocHtml += "</ul></div>"
+    $tocHtml += "</ul`></div`>"
 
     # Cross-framework summary table
-    $crossFrameworkHtml = "<table class='rem-table' style='font-size:0.85em'><tr><th>Framework</th><th>Checks</th><th>Pass</th><th>Fail</th><th>Score</th></tr>"
+    $crossFrameworkHtml = "<table class='rem-table' style='font-size:0.85em'`><tr`><th`>Framework</th`><th`>Checks</th`><th`>Pass</th`><th`>Fail</th`><th`>Score</th`></tr`>"
     foreach ($modName in ($moduleScores.Keys | Sort-Object)) {
         $ms = $moduleScores[$modName]
-        $crossFrameworkHtml += "<tr><td>$modName</td><td>$($ms.Total)</td><td>$($ms.Stats.Pass)</td><td>$($ms.Stats.Fail)</td><td>$($ms.Score)%</td></tr>"
+        $crossFrameworkHtml += "<tr`><td`>$modName</td`><td`>$($ms.Total)</td`><td`>$($ms.Stats.Pass)</td`><td`>$($ms.Stats.Fail)</td`><td`>$($ms.Score)`%</td`></tr`>"
     }
-    $crossFrameworkHtml += "</table>"
+    $crossFrameworkHtml += "</table`>"
 
     # Build module result tables
     $moduleTablesHtml = ""
@@ -609,13 +761,13 @@ function ConvertTo-HTMLReport {
         if ($categoryStats.ContainsKey($modName)) {
             foreach ($catName in ($categoryStats[$modName].Keys | Sort-Object)) {
                 $cs = $categoryStats[$modName][$catName]
-                $catBadges += "<span class='cat-badge'>$([System.Security.SecurityElement]::Escape($catName)) ($($cs.pass)/$($cs.total))</span>"
+                $catBadges += "<span class='cat-badge'`>$([System.Security.SecurityElement]::Escape($catName)) `($($cs.pass)/$($cs.total)`)</span`>"
             }
         }
 
         $moduleTablesHtml += @"
 <div class='module-section' id='module-$modName'>
-<div class='module-header' onclick='toggleModule("$modName")'><h2><span class='collapse-icon' id='icon-$modName'>&#9660;</span> $modName <span class='module-score'>$($modScore.Score)% ($($modScore.Stats.Total) checks)</span></h2></div>
+<div class='module-header' onclick='toggleModule("$modName")'><h2><span class='collapse-icon' id='icon-$modName'>&#9660;</span> $modName <span class='module-score'>$($modScore.Score)% `($($modScore.Stats.Total) checks`)</span></h2></div>
 <div class='module-content' id='content-$modName'>
 <div class='category-stats'>$catBadges</div>
 <div class='table-controls'>
@@ -645,10 +797,10 @@ function ConvertTo-HTMLReport {
             $em = [System.Security.SecurityElement]::Escape($r.Message)
             $ed = [System.Security.SecurityElement]::Escape($r.Details)
             $er = [System.Security.SecurityElement]::Escape($r.Remediation)
-            $moduleTablesHtml += "<tr data-status='$($r.Status)' data-severity='$($r.Severity)' data-module='$modName'><td><input type='checkbox' class='row-select'></td><td data-col='category'>$ec</td><td data-col='status' class='$statusClass'>$($r.Status)</td><td data-col='severity' class='$sevClass'>$($r.Severity)</td><td data-col='message'>$em</td><td data-col='details'>$ed</td><td data-col='remediation'>$er</td></tr>`n"
+            $moduleTablesHtml += "<tr data-status='$($r.Status)' data-severity='$($r.Severity)' data-module='$modName'`><td`><input type='checkbox' class='row-select'`></td`><td data-col='category'`>$ec</td`><td data-col='status' class='$statusClass'`>$($r.Status)</td`><td data-col='severity' class='$sevClass'`>$($r.Severity)</td`><td data-col='message'`>$em</td`><td data-col='details'`>$ed</td`><td data-col='remediation'`>$er</td`></tr`>`n"
         }
 
-        $moduleTablesHtml += "</tbody></table></div></div>`n"
+        $moduleTablesHtml += "</tbody`></table`></div`></div`>`n"
     }
 
     # ================================================================
@@ -764,11 +916,11 @@ body{font-family:Garamond,'Times New Roman',serif;background:var(--bg-primary);c
 <div class='dashboard-panel'><h3>Status Distribution</h3><div class='donut-container'>
 <svg viewBox='0 0 120 120' width='200' height='200'>$donutSvg</svg>
 <div class='donut-legend'>
-<span onclick="dashboardFilter('status','Pass')"><span class='dot' style='background:#28a745'></span>Pass ($($ExecutionInfo.PassCount))</span>
-<span onclick="dashboardFilter('status','Fail')"><span class='dot' style='background:#dc3545'></span>Fail ($($ExecutionInfo.FailCount))</span>
-<span onclick="dashboardFilter('status','Warning')"><span class='dot' style='background:#fd7e14'></span>Warning ($($ExecutionInfo.WarningCount))</span>
-<span onclick="dashboardFilter('status','Info')"><span class='dot' style='background:#17a2b8'></span>Info ($($ExecutionInfo.InfoCount))</span>
-<span onclick="dashboardFilter('status','Error')"><span class='dot' style='background:#6f42c1'></span>Error ($($ExecutionInfo.ErrorCount))</span>
+<span onclick="dashboardFilter('status','Pass')"><span class='dot' style='background:#28a745'></span>Pass `($($ExecutionInfo.PassCount)`)</span>
+<span onclick="dashboardFilter('status','Fail')"><span class='dot' style='background:#dc3545'></span>Fail `($($ExecutionInfo.FailCount)`)</span>
+<span onclick="dashboardFilter('status','Warning')"><span class='dot' style='background:#fd7e14'></span>Warning `($($ExecutionInfo.WarningCount)`)</span>
+<span onclick="dashboardFilter('status','Info')"><span class='dot' style='background:#17a2b8'></span>Info `($($ExecutionInfo.InfoCount)`)</span>
+<span onclick="dashboardFilter('status','Error')"><span class='dot' style='background:#6f42c1'></span>Error `($($ExecutionInfo.ErrorCount)`)</span>
 </div></div></div>
 <div class='dashboard-panel'><h3>Module Compliance</h3>$moduleBarHtml</div>
 <div class='dashboard-panel'><h3>Severity Distribution</h3><div class='severity-section'>$sevBadgeHtml</div>$complianceHtml</div>
@@ -1196,19 +1348,18 @@ function Start-SecurityAudit {
     $auditStartTime = Get-Date
     $script:StatisticsLog = @{ ModuleStats = @{}; ModuleTimings = @{}; TotalStartTime = $auditStartTime }
 
-    # Initialize logging if shared library is available
-    if ($script:HAS_COMMON_LIB) {
-        $logParams = @{
-            LogLevel = $LogLevel
-        }
-        if ($LogFile) { $logParams['LogFile'] = $LogFile }
-        if ($JsonLog) { $logParams['JsonFormat'] = $true }
-        try {
-            Initialize-AuditLogging @logParams
-            Write-AuditLog -Message "Windows Security Audit v$($script:ScriptVersion) starting" -Level 'INFO'
-        } catch {
-            Write-Host "[!] Warning: Could not initialize structured logging: $_" -ForegroundColor Yellow
-        }
+    # Initialize logging (uses shared library if available, built-in fallback otherwise)
+    $logParams = @{
+        LogLevel = $LogLevel
+    }
+    if ($LogFile) { $logParams['LogFile'] = $LogFile }
+    if ($JsonLog) { $logParams['JsonFormat'] = $true }
+    try {
+        Initialize-AuditLogging @logParams
+        Write-AuditLog -Message "Windows Security Audit v$($script:ScriptVersion) starting" -Level 'INFO'
+        Write-AuditLog -Message "Log level: $LogLevel, Log file: $($script:ActiveLogFile)" -Level 'DEBUG'
+    } catch {
+        Write-Host "[!] Warning: Could not initialize logging: $_" -ForegroundColor Yellow
     }
 
     # Show banner
@@ -1261,7 +1412,7 @@ function Start-SecurityAudit {
             }
         }
     } else {
-        # "All" or no modules specified — run all available modules
+        # "All" or no modules specified -- run all available modules
         $modulesToRun = @($availableModules.Keys | Sort-Object)
     }
 
@@ -1329,7 +1480,7 @@ function Start-SecurityAudit {
             Write-Host "    Continuing without cache (modules will query system directly)" -ForegroundColor Yellow
         }
     } else {
-        # No shared library or cache disabled — basic system info
+        # No shared library or cache disabled -- basic system info
         try {
             $sharedData.OSVersion = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
         } catch {
@@ -1355,7 +1506,7 @@ function Start-SecurityAudit {
         # Parallel Execution via RunspacePool
         # ============================================================
         $workerCount = [Math]::Min($Workers, $modulesToRun.Count)
-        Write-Host "`n[*] Executing $($modulesToRun.Count) modules in PARALLEL ($workerCount workers)..." -ForegroundColor Cyan
+        Write-Host "`n[*] Executing $($modulesToRun.Count) modules in PARALLEL `($workerCount workers`)..." -ForegroundColor Cyan
 
         try {
             $sessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
@@ -1397,7 +1548,7 @@ function Start-SecurityAudit {
                     StartTime  = Get-Date
                 }
 
-                Write-Host "  [>] Queued: $modName" -ForegroundColor Gray
+                Write-Host "  [`>] Queued: $modName" -ForegroundColor Gray
             }
 
             # Collect results
@@ -1416,7 +1567,7 @@ function Start-SecurityAudit {
                             $moduleStats = Get-ModuleStatistics -Results $validatedResults
                             $script:StatisticsLog.ModuleStats[$job.ModuleName] = $moduleStats
                             $allResults += $validatedResults
-                            Write-Host "  [+] $($job.ModuleName): $($moduleStats.Total) checks ($($moduleStats.Pass) pass, $($moduleStats.Fail) fail) [$([Math]::Round($jobElapsed,1))s]" -ForegroundColor Green
+                            Write-Host "  [+] $($job.ModuleName): $($moduleStats.Total) checks `($($moduleStats.Pass) pass, $($moduleStats.Fail) fail`) [$([Math]::Round($jobElapsed,1))s]" -ForegroundColor Green
                         } else {
                             Write-Host "  [!] $($job.ModuleName): No results returned [$([Math]::Round($jobElapsed,1))s]" -ForegroundColor Yellow
                         }
@@ -1511,18 +1662,18 @@ function Start-SecurityAudit {
     Write-Host "  Duration:    $($executionInfo.Duration)" -ForegroundColor Cyan
     Write-Host "  Modules:     $($modulesToRun -join ', ')" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "  ┌──────────────────────────────────────────────────────────────┐" -ForegroundColor White
-    Write-Host "  │  TOTAL: $($overallStats.Total)   │  PASS: $($overallStats.Pass)   │  FAIL: $($overallStats.Fail)   │  WARN: $($overallStats.Warning)   │  INFO: $($overallStats.Info)   │  ERR: $($overallStats.Error)  │" -ForegroundColor White
-    Write-Host "  └──────────────────────────────────────────────────────────────┘" -ForegroundColor White
+    Write-Host "  +--------------------------------------------------------------+" -ForegroundColor White
+    Write-Host "  |  TOTAL: $($overallStats.Total)   |  PASS: $($overallStats.Pass)   |  FAIL: $($overallStats.Fail)   |  WARN: $($overallStats.Warning)   |  INFO: $($overallStats.Info)   |  ERR: $($overallStats.Error)  |" -ForegroundColor White
+    Write-Host "  +--------------------------------------------------------------+" -ForegroundColor White
 
     # Display compliance scores
     $oc = $complianceScores['overall']
     $ocColor = if ($oc.WeightedPct -ge 80) { 'Green' } elseif ($oc.WeightedPct -ge 60) { 'Yellow' } else { 'Red' }
     Write-Host ""
     Write-Host "  Overall Compliance Score:" -ForegroundColor White
-    Write-Host "    Simple:            $($oc.SimplePct)%" -ForegroundColor $ocColor
-    Write-Host "    Weighted:          $($oc.WeightedPct)% [$($oc.ThresholdResult)]" -ForegroundColor $ocColor
-    Write-Host "    Severity-Adjusted: $($oc.SeverityWeightedPct)%" -ForegroundColor $ocColor
+    Write-Host "    Simple:            $($oc.SimplePct)`%" -ForegroundColor $ocColor
+    Write-Host "    Weighted:          $($oc.WeightedPct)`% [$($oc.ThresholdResult)]" -ForegroundColor $ocColor
+    Write-Host "    Severity-Adjusted: $($oc.SeverityWeightedPct)`%" -ForegroundColor $ocColor
     Write-Host ""
 
     # Per-module breakdown
@@ -1531,13 +1682,13 @@ function Start-SecurityAudit {
         $mc = $complianceScores[$modName]
         $mcColor = if ($mc.WeightedPct -ge 80) { 'Green' } elseif ($mc.WeightedPct -ge 60) { 'Yellow' } else { 'Red' }
         $ms = $script:StatisticsLog.ModuleStats[$modName]
-        $bar = "[" + ("█" * [Math]::Floor($mc.WeightedPct / 5)) + ("░" * (20 - [Math]::Floor($mc.WeightedPct / 5))) + "]"
-        Write-Host "    $($modName.PadRight(20)) $bar $($mc.WeightedPct)%  ($($ms.Total) checks, $($ms.Pass) pass, $($ms.Fail) fail)" -ForegroundColor $mcColor
+        $bar = "[" + ("#" * [Math]::Floor($mc.WeightedPct / 5)) + ("." * (20 - [Math]::Floor($mc.WeightedPct / 5))) + "]"
+        Write-Host "    $($modName.PadRight(20)) $bar $($mc.WeightedPct)`%  `($($ms.Total) checks, $($ms.Pass) pass, $($ms.Fail) fail`)" -ForegroundColor $mcColor
     }
 
     # ---- Performance Profile ----
     if ($ShowProfile) {
-        Write-Host "`n  ──────────────────────────────────────────────────" -ForegroundColor Gray
+        Write-Host "`n  --------------------------------------------------" -ForegroundColor Gray
         Write-Host "  Performance Profile:" -ForegroundColor White
         if ($script:StatisticsLog.ModuleTimings.ContainsKey('CacheWarmUp')) {
             Write-Host "    Cache Warm-Up:         $([Math]::Round($script:StatisticsLog.ModuleTimings['CacheWarmUp'], 2))s" -ForegroundColor Gray
@@ -1551,7 +1702,7 @@ function Start-SecurityAudit {
         Write-Host "    Module Execution:      $([Math]::Round($moduleExecutionElapsed, 2))s" -ForegroundColor Gray
         Write-Host "    Total Audit Duration:  $([Math]::Round($totalElapsed, 2))s" -ForegroundColor Gray
         if ($Parallel) {
-            Write-Host "    Execution Mode:        Parallel ($Workers workers)" -ForegroundColor Gray
+            Write-Host "    Execution Mode:        Parallel `($Workers workers`)" -ForegroundColor Gray
         } else {
             Write-Host "    Execution Mode:        Sequential" -ForegroundColor Gray
         }
@@ -1593,7 +1744,7 @@ function Start-SecurityAudit {
     # ---- Final Logging ----
     if ($script:HAS_COMMON_LIB) {
         try {
-            Write-AuditLog -Message "Audit complete: $($overallStats.Total) checks, $($overallStats.Pass) pass, $($overallStats.Fail) fail, compliance=$($oc.WeightedPct)%" -Level 'INFO'
+            Write-AuditLog -Message "Audit complete: $($overallStats.Total) checks, $($overallStats.Pass) pass, $($overallStats.Fail) fail, compliance=$($oc.WeightedPct)`%" -Level 'INFO'
             Write-AuditLog -Message "Duration: $([Math]::Round($totalElapsed, 2))s, Files exported: $($exportedFiles.Count)" -Level 'INFO'
         } catch { }
     }
@@ -1637,6 +1788,7 @@ try {
 
     exit 1
 }
+
 # ============================================================================
 # End of Main Script (Windows-Security-Audit.ps1)
 # ============================================================================
