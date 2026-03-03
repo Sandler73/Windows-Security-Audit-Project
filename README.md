@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-5.3-blue.svg)
+![Version](https://img.shields.io/badge/version-6.0-blue.svg)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20Server%202016%2B-lightgrey.svg)
@@ -17,20 +17,23 @@
 
 ## 📋 Overview
 
-The **Windows Security Audit Script** is an advanced PowerShell-based security compliance auditing tool that evaluates Windows systems against multiple industry-standard security frameworks. Version 5.3 introduces **intelligent remediation capabilities**, **enhanced reporting**, and **SIEM integration**, making it a complete security assessment and hardening solution.
+The **Windows Security Audit Script** is an advanced PowerShell-based security compliance auditing tool that evaluates Windows systems against multiple industry-standard security frameworks. Version 6.0 introduces **severity classification**, **cross-framework correlation**, **cache-aware architecture**, and **standalone module execution**, building on the intelligent remediation, enhanced reporting, and SIEM integration introduced in v5.3.
 
-The tool performs **550+ automated security checks** across seven compliance modules, generating comprehensive reports in multiple formats with actionable remediation guidance. Whether you're conducting compliance audits, hardening systems, or maintaining security baselines, this tool provides the insights and automation you need.
+The tool performs **1,855 automated security checks** across eight compliance modules, generating comprehensive reports in multiple formats with actionable remediation guidance. Every check now includes a severity rating and cross-references to equivalent controls across other frameworks, enabling multi-framework compliance scoring from a single audit run. Whether you're conducting compliance audits, hardening systems, or maintaining security baselines, this tool provides the insights and automation you need.
 
 ## 🎯 Key Features
 
 ### 🔍 **Comprehensive Security Assessment**
-- ✅ **550+ Security Checks** across 7 major security frameworks
-- ✅ **Multi-Framework Coverage** - CIS, NIST, STIG, NSA, CISA, Microsoft, Core Baseline
-- ✅ **Modular Architecture** - Run all frameworks or select specific modules
-- ✅ **Result Validation** - Automated data integrity checks and normalization
-- ✅ **No External Dependencies** - Pure PowerShell implementation
+- ✅ **1,855 Security Checks** across 8 major security frameworks
+- ✅ **Multi-Framework Coverage** — CIS, NIST, STIG, NSA, CISA, Microsoft, Microsoft Defender ATP, Core Baseline
+- ✅ **Modular Architecture** — run all frameworks or select specific modules
+- ✅ **Severity Classification** — every check rated Critical/High/Medium/Low/Informational
+- ✅ **Cross-Framework Correlation** — 1,568 cross-reference mappings linking checks to equivalent controls
+- ✅ **Standalone Module Execution** — run any module independently for targeted testing
+- ✅ **Result Validation** — automated data integrity checks and normalization
+- ✅ **No External Dependencies** — pure PowerShell implementation using stdlib only
 
-### 📊 **Advanced Reporting** _(New in 5.3)_
+### 📊 **Advanced Reporting** _(Enhanced in 6.0)_
 - ✅ **Interactive HTML Reports** with:
   - 🌓 Dark/Light theme toggle
   - 🔍 Advanced filtering and sorting per column
@@ -40,9 +43,10 @@ The tool performs **550+ automated security checks** across seven compliance mod
   - 📊 Executive dashboard with statistics
 - ✅ **SIEM-Compatible XML** output for security monitoring platforms
 - ✅ **Multiple Output Formats** - HTML, JSON, CSV, XML, Console
-- ✅ **Structured Data** - API and automation-friendly formats
+- ✅ **9-Field Result Objects** — Module, Category, Status, Severity, Message, Details, Remediation, CrossReferences, Timestamp
+- ✅ **Structured Data** — API and automation-friendly formats
 
-### 🔧 **Intelligent Remediation** _(New in 5.3)_
+### 🔧 **Intelligent Remediation**
 - ✅ **Interactive Remediation** - Review and apply fixes individually
 - ✅ **Automated Remediation** - Batch fix with safety confirmations
 - ✅ **Selective Remediation** - Target specific status types (Fail, Warning, Info)
@@ -58,25 +62,36 @@ The tool performs **550+ automated security checks** across seven compliance mod
 - ✅ **Execution Metadata** - Complete audit trail preservation
 - ✅ **Error Handling** - Graceful degradation on check failures
 
+### 🆕 **New in Version 6.0**
+- ✅ **Severity Classification** — every check classified by risk impact (Critical/High/Medium/Low/Informational)
+- ✅ **Cross-Framework Mapping** — correlate findings across NIST, CIS, STIG, NSA, CISA
+- ✅ **Cache-Aware Architecture** — registry query caching for performance optimization
+- ✅ **Standalone Execution** — any module can run independently without the orchestrator
+- ✅ **Microsoft Defender ATP Module** — 85 new EDR/ATP-specific checks
+- ✅ **3.4× more checks** — expanded from 550+ to 1,855 total checks
+- ✅ **9-Field Result Objects** — added Severity and CrossReferences to every check output
+
+
 ## 🏢 Supported Frameworks
 
 | Module | Framework | Checks | Focus Areas |
 |--------|-----------|--------|------------|
-| **Core** | Foundational Windows Security Baseline | 45+ | Essential system security, baseline configuration |
-| **CIS** | CIS Microsoft Windows Benchmarks v3.0+ | 127+ | Industry best practices, scored recommendations |
-| **MS** | Microsoft Security Baselines (SCT) | 80+ | Defender, AppLocker, ASR rules, exploit protection |
-| **NIST** | NIST 800-53 Rev 5, CSF, 800-171 | 60+ | Federal compliance, control families (AC, AU, IA, SC, SI) |
-| **STIG** | DISA Security Technical Implementation Guide | 90+ | DoD requirements, CAT I/II/III severity ratings |
-| **NSA** | NSA Cybersecurity Information Sheets | 60+ | Nation-state threat mitigation, hardening guidance |
-| **CISA** | CISA Cybersecurity Performance Goals | 80+ | Critical infrastructure protection, KEV mitigation |
+| **Core** | Foundational Windows Security Baseline | 176 | Essential system security, hardware, TLS, PowerShell |
+| **CIS** | CIS Microsoft Windows Benchmarks v3.0+ | 222 | Industry best practices, credential protection, MSS registry |
+| **MS** | Microsoft Security Baselines (SCT) | 313 | Defender, AppLocker, ASR, exploit protection, 33 categories |
+| **MS-DefenderATP** | Microsoft Defender for Endpoint | 85 | EDR, onboarding, TVM, AIR, tamper protection |
+| **NIST** | NIST 800-53 Rev 5, CSF 2.0, 800-171 | 473 | Federal compliance, 18 control families (AC, AU, IA, SC, SI, CM) |
+| **STIG** | DISA Security Technical Implementation Guide | 184 | DoD requirements, CAT I/II/III, credential/TLS/hardware hardening |
+| **NSA** | NSA Cybersecurity Information Sheets | 172 | Nation-state threat mitigation, certificate trust, wireless, exploit mitigation |
+| **CISA** | CISA Cybersecurity Performance Goals | 230 | Critical infrastructure, Zero Trust, supply chain, BOD 22-01/23-01 |
 
-**Total Coverage**: 550+ security checks across access control, authentication, auditing, network security, data protection, malware defense, and system hardening.
+**Total Coverage**: 1,855 security checks with severity classification and cross-framework correlation across access control, authentication, auditing, network security, data protection, malware defense, system hardening, EDR, and Zero Trust architecture.
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- **Operating System**: Windows 10/11 or Windows Server 2016/2019/2022
+- **Operating System**: Windows 10/11 or Windows Server 2016/2019/2022/2025
 - **PowerShell**: Version 5.1 or later (included in modern Windows)
 - **Privileges**: Administrator rights required for complete results
 - **Privileges for Remediation**: Administrator rights **mandatory** for applying fixes
@@ -107,22 +122,32 @@ The tool performs **550+ automated security checks** across seven compliance mod
 
 **Run full audit with default HTML report:**
 ```powershell
-.\Windows-Security-Audit-Script.ps1
+.\Windows-Security-Audit.ps1
 ```
 
 **Run specific frameworks:**
 ```powershell
-.\Windows-Security-Audit-Script.ps1 -Modules Core,NIST,CISA
+.\Windows-Security-Audit.ps1 -Modules Core,NIST,CISA
+```
+
+**Run with Defender ATP assessment:**
+```powershell
+.\Windows-Security-Audit.ps1 -Modules Core,MS,MS-DefenderATP
 ```
 
 **Generate CSV output:**
 ```powershell
-.\Windows-Security-Audit-Script.ps1 -OutputFormat CSV
+.\Windows-Security-Audit.ps1 -OutputFormat CSV
 ```
 
 **SIEM integration with XML:**
 ```powershell
-.\Windows-Security-Audit-Script.ps1 -OutputFormat XML -OutputPath "\\SIEM\imports\audit.xml"
+.\Windows-Security-Audit.ps1 -OutputFormat XML -OutputPath "\\SIEM\imports\audit.xml"
+```
+
+**Run a single module standalone (no orchestrator needed):**
+```powershell
+.\modules\module-cis.ps1
 ```
 
 ## 🔧 Remediation Capabilities
@@ -134,7 +159,7 @@ Version 5.3 introduces comprehensive remediation features with multiple workflow
 #### 1. **Interactive Remediation** (Safest)
 Review and approve each fix individually:
 ```powershell
-.\Windows-Security-Audit-Script.ps1 -RemediateIssues
+.\Windows-Security-Audit.ps1 -RemediateIssues
 ```
 - Prompts for each remediation
 - Full visibility into changes
@@ -145,22 +170,22 @@ Review and approve each fix individually:
 Target specific severity levels:
 ```powershell
 # Fix only critical failures
-.\Windows-Security-Audit-Script.ps1 -RemediateIssues_Fail
+.\Windows-Security-Audit.ps1 -RemediateIssues_Fail
 
 # Fix warnings interactively
-.\Windows-Security-Audit-Script.ps1 -RemediateIssues_Warning
+.\Windows-Security-Audit.ps1 -RemediateIssues_Warning
 
 # Address informational items
-.\Windows-Security-Audit-Script.ps1 -RemediateIssues_Info
+.\Windows-Security-Audit.ps1 -RemediateIssues_Info
 
 # Fix everything (all status types)
-.\Windows-Security-Audit-Script.ps1 -RemediateIssues
+.\Windows-Security-Audit.ps1 -RemediateIssues
 ```
 
 #### 3. **Automated Remediation** (Advanced)
 Batch remediation with safety confirmations:
 ```powershell
-.\Windows-Security-Audit-Script.ps1 -RemediateIssues_Fail -AutoRemediate
+.\Windows-Security-Audit.ps1 -RemediateIssues_Fail -AutoRemediate
 ```
 
 **Safety Features:**
@@ -176,13 +201,13 @@ Fix only specific issues selected from HTML report:
 **Workflow:**
 ```powershell
 # Step 1: Run audit and review findings
-.\Windows-Security-Audit-Script.ps1
+.\Windows-Security-Audit.ps1
 
 # Step 2: In HTML report, select specific issues and click "Export Selected"
 # This generates a JSON file (e.g., Selected-Report.json)
 
 # Step 3: Run targeted auto-remediation
-.\Windows-Security-Audit-Script.ps1 -AutoRemediate -RemediationFile "Selected-Report.json"
+.\Windows-Security-Audit.ps1 -AutoRemediate -RemediationFile "Selected-Report.json"
 ```
 
 **Benefits:**
@@ -274,7 +299,7 @@ Would you like to restart now? (Y/N):
   <metadata>
     <export_date>2025-01-01T12:00:00Z</export_date>
     <computer_name>HOSTNAME</computer_name>
-    <total_checks>542</total_checks>
+    <total_checks>1855</total_checks>
     <pass_count>456</pass_count>
     <fail_count>42</fail_count>
   </metadata>
@@ -305,19 +330,21 @@ Would you like to restart now? (Y/N):
     "OSVersion": "Windows 11 Pro",
     "ScanDate": "2025-01-01 12:00:00",
     "Duration": "00:02:34",
-    "TotalChecks": 542,
+    "TotalChecks": 1855,
     "PassCount": 456,
     "FailCount": 42
   },
   "Results": [
     {
       "Module": "STIG",
-      "Category": "V-220968 (CAT II)",
+      "Category": "STIG - TLS/SSL",
       "Status": "Fail",
-      "Message": "SMBv1 protocol is ENABLED",
-      "Details": "STIG: Disable SMBv1 immediately",
-      "Remediation": "Disable-WindowsOptionalFeature...",
-      "Timestamp": "2025-01-01 12:00:00"
+      "Severity": "High",
+      "Message": "V-220968: SMBv1 protocol is ENABLED",
+      "Details": "CAT II: Disable SMBv1 immediately — lateral movement vector",
+      "Remediation": "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart",
+      "CrossReferences": { "STIG": "V-220968", "NIST": "SC-8", "CIS": "18.3.3" },
+      "Timestamp": "2025-03-03 12:00:00"
     }
   ]
 }
@@ -334,26 +361,26 @@ Excel-compatible format for:
 ### 5. Console Output (Real-Time)
 ```
 ========================================================================
-                    Windows Security Audit Script v5.3
+                    Windows Security Audit Script v6.0
                 Comprehensive Multi-Framework Security Assessment
 ========================================================================
 
-[*] Modules to execute: Core, CIS, MS, NIST, STIG, NSA, CISA
+[*] Modules to execute: Core, CIS, MS, MS-DefenderATP, NIST, STIG, NSA, CISA
 
 [Core] Starting core security baseline checks...
-[+] Module Core completed: 45 checks (38 pass, 3 fail, 4 warning)
+[+] Module Core completed: 176 checks (152 pass, 12 fail, 12 warning)
 
 [STIG] Checking DISA STIG compliance...
-[+] Module STIG completed: 92 checks (71 pass, 15 fail, 6 warning)
+[+] Module STIG completed: 184 checks (148 pass, 22 fail, 14 warning)
 
 ========================================================================
                             AUDIT SUMMARY
 ========================================================================
-Total Checks:    542
-Passed:          456 (84.1%)
-Failed:          42 (7.7%)
-Warnings:        38 (7.0%)
-Info:            6 (1.1%)
+Total Checks:    1855
+Passed:          1542 (83.1%)
+Failed:          156 (8.4%)
+Warnings:        118 (6.4%)
+Info:            28 (1.5%)
 Errors:          0 (0.0%)
 Duration:        00:02:34
 ========================================================================
@@ -383,8 +410,8 @@ Comprehensive documentation is available in the [Project Wiki](https://github.co
 
 ## 🛠️ Command-Line Parameters
 ```powershell
-.\Windows-Security-Audit-Script.ps1 
-    [-Modules <String[]>]              # Frameworks to run (default: All)
+.\Windows-Security-Audit.ps1 
+    [-Modules <String[]>]              # Frameworks to run (default: All — includes MS-DefenderATP)
     [-OutputFormat <String>]           # Output format: HTML, CSV, JSON, XML, Console
     [-OutputPath <String>]             # Custom output path
     [-RemediateIssues]                 # Interactive remediation (all statuses)
@@ -400,46 +427,46 @@ Comprehensive documentation is available in the [Project Wiki](https://github.co
 **Framework Selection:**
 ```powershell
 # Run all frameworks (default)
-.\Windows-Security-Audit-Script.ps1
+.\Windows-Security-Audit.ps1
 
 # Run specific frameworks
-.\Windows-Security-Audit-Script.ps1 -Modules Core,NIST,CISA
+.\Windows-Security-Audit.ps1 -Modules Core,NIST,CISA
 
 # Run single framework
-.\Windows-Security-Audit-Script.ps1 -Modules STIG
+.\Windows-Security-Audit.ps1 -Modules STIG
 ```
 
 **Output Control:**
 ```powershell
 # Generate HTML report (default)
-.\Windows-Security-Audit-Script.ps1 -OutputFormat HTML
+.\Windows-Security-Audit.ps1 -OutputFormat HTML
 
 # Generate CSV for Excel analysis
-.\Windows-Security-Audit-Script.ps1 -OutputFormat CSV
+.\Windows-Security-Audit.ps1 -OutputFormat CSV
 
 # Generate XML for SIEM
-.\Windows-Security-Audit-Script.ps1 -OutputFormat XML
+.\Windows-Security-Audit.ps1 -OutputFormat XML
 
 # Console output only
-.\Windows-Security-Audit-Script.ps1 -OutputFormat Console
+.\Windows-Security-Audit.ps1 -OutputFormat Console
 
 # Custom output location
-.\Windows-Security-Audit-Script.ps1 -OutputPath "C:\SecurityAudits\Report.html"
+.\Windows-Security-Audit.ps1 -OutputPath "C:\SecurityAudits\Report.html"
 ```
 
 **Remediation Workflows:**
 ```powershell
 # Interactive remediation (review each)
-.\Windows-Security-Audit-Script.ps1 -RemediateIssues
+.\Windows-Security-Audit.ps1 -RemediateIssues
 
 # Auto-fix critical failures only
-.\Windows-Security-Audit-Script.ps1 -RemediateIssues_Fail -AutoRemediate
+.\Windows-Security-Audit.ps1 -RemediateIssues_Fail -AutoRemediate
 
 # Interactive fix warnings
-.\Windows-Security-Audit-Script.ps1 -RemediateIssues_Warning
+.\Windows-Security-Audit.ps1 -RemediateIssues_Warning
 
 # Targeted remediation from JSON
-.\Windows-Security-Audit-Script.ps1 -AutoRemediate -RemediationFile "Selected-Report.json"
+.\Windows-Security-Audit.ps1 -AutoRemediate -RemediationFile "Selected-Report.json"
 ```
 
 ## 🎯 Use Cases
@@ -448,7 +475,7 @@ Comprehensive documentation is available in the [Project Wiki](https://github.co
 **Scenario**: Annual SOC 2, FISMA, or CMMC compliance audit
 ```powershell
 # Generate comprehensive compliance report
-.\Windows-Security-Audit-Script.ps1 -Modules NIST,STIG,CIS -OutputFormat HTML
+.\Windows-Security-Audit.ps1 -Modules NIST,STIG,CIS -OutputFormat HTML
 
 # Export findings to CSV for compliance tracking
 # Use HTML report's "Export All" → CSV feature
@@ -458,23 +485,23 @@ Comprehensive documentation is available in the [Project Wiki](https://github.co
 **Scenario**: Harden new Windows servers before production deployment
 ```powershell
 # Step 1: Baseline audit
-.\Windows-Security-Audit-Script.ps1 -Modules Core,CIS,MS
+.\Windows-Security-Audit.ps1 -Modules Core,CIS,MS
 
 # Step 2: Review and auto-fix critical issues
-.\Windows-Security-Audit-Script.ps1 -RemediateIssues_Fail -AutoRemediate
+.\Windows-Security-Audit.ps1 -RemediateIssues_Fail -AutoRemediate
 
 # Step 3: Verify remediation
-.\Windows-Security-Audit-Script.ps1 -Modules Core,CIS,MS
+.\Windows-Security-Audit.ps1 -Modules Core,CIS,MS
 ```
 
 ### 3. Configuration Drift Detection
 **Scenario**: Monthly security posture checks
 ```powershell
 # Generate baseline
-.\Windows-Security-Audit-Script.ps1 -OutputPath "C:\Baselines\2025-01-baseline.html"
+.\Windows-Security-Audit.ps1 -OutputPath "C:\Baselines\2025-01-baseline.html"
 
 # Compare later
-.\Windows-Security-Audit-Script.ps1 -OutputPath "C:\Baselines\2025-02-check.html"
+.\Windows-Security-Audit.ps1 -OutputPath "C:\Baselines\2025-02-check.html"
 
 # Use CSV exports to track changes in Excel
 ```
@@ -483,48 +510,48 @@ Comprehensive documentation is available in the [Project Wiki](https://github.co
 **Scenario**: Validate system security after suspected compromise
 ```powershell
 # Quick security validation (core checks)
-.\Windows-Security-Audit-Script.ps1 -Modules Core -OutputFormat JSON
+.\Windows-Security-Audit.ps1 -Modules Core -OutputFormat JSON
 
 # Comprehensive validation (all frameworks)
-.\Windows-Security-Audit-Script.ps1 -OutputFormat HTML
+.\Windows-Security-Audit.ps1 -OutputFormat HTML
 ```
 
 ### 5. SIEM Integration
 **Scenario**: Automated compliance monitoring pipeline
 ```powershell
 # Scheduled task to generate XML for SIEM
-.\Windows-Security-Audit-Script.ps1 -OutputFormat XML -OutputPath "\\SIEM\drops\%COMPUTERNAME%-audit.xml"
+.\Windows-Security-Audit.ps1 -OutputFormat XML -OutputPath "\\SIEM\drops\%COMPUTERNAME%-audit.xml"
 ```
 
 ### 6. Change Control Validation
 **Scenario**: Pre/post-change security validation
 ```powershell
 # Pre-change baseline
-.\Windows-Security-Audit-Script.ps1 -OutputPath "Pre-Change-Audit.json"
+.\Windows-Security-Audit.ps1 -OutputPath "Pre-Change-Audit.json"
 
 # Post-change validation
-.\Windows-Security-Audit-Script.ps1 -OutputPath "Post-Change-Audit.json"
+.\Windows-Security-Audit.ps1 -OutputPath "Post-Change-Audit.json"
 
 # Compare JSON files programmatically
 ```
 
 ## 🗂️ Project Structure
 ```
-Windows-Security-Audit-Script/
-├── Windows-Security-Audit-Script.ps1    # Main orchestrator (v5.3)
+Windows-Security-Audit/
+├── Windows-Security-Audit.ps1    # Main orchestrator (v5.3)
 │   ├── Result validation & normalization
 │   ├── Module execution engine
 │   ├── Multi-format report generation
 │   └── Intelligent remediation system
 │
-├── Modules/                              # Compliance framework modules
-│   ├── Module-Core.ps1                  # Foundational security (45+ checks)
-│   ├── Module-CIS.ps1                   # CIS Benchmarks (127+ checks)
-│   ├── Module-MS.ps1                    # Microsoft Baselines (80+ checks)
-│   ├── Module-NIST.ps1                  # NIST 800-53/CSF (60+ checks)
-│   ├── Module-STIG.ps1                  # DISA STIGs (90+ checks)
-│   ├── Module-NSA.ps1                   # NSA Guidance (60+ checks)
-│   └── Module-CISA.ps1                  # CISA CPG (80+ checks)
+├── modules/                              # Compliance framework modules
+│   ├── module-core.ps1                  # Foundational security (45+ checks)
+│   ├── module-cis.ps1                   # CIS Benchmarks (127+ checks)
+│   ├── module-ms.ps1                    # Microsoft Baselines (80+ checks)
+│   ├── module-nist.ps1                  # NIST 800-53/CSF (60+ checks)
+│   ├── module-stig.ps1                  # DISA STIGs (90+ checks)
+│   ├── module-nsa.ps1                   # NSA Guidance (60+ checks)
+│   └── module-cisa.ps1                  # CISA CPG (80+ checks)
 │
 ├── Reports/                              # Generated reports (auto-created)
 │   ├── Security-Audit-Report-*.html
@@ -549,16 +576,16 @@ Windows-Security-Audit-Script/
 
 | Domain | Checks | Examples |
 |--------|--------|----------|
-| **Access Control** | 80+ | Account policies, user rights, privilege management, local admin enumeration |
-| **Authentication** | 60+ | Password policies, MFA requirements, credential protection (WDigest, LSASS) |
-| **Audit & Accountability** | 70+ | Event logging (18+ subcategories), audit policies, log retention, PowerShell logging |
-| **System Hardening** | 90+ | UAC, Secure Boot, service configuration, AutoPlay/AutoRun, least privilege |
-| **Network Security** | 80+ | Firewall (all profiles), SMB security, LLMNR, NetBIOS, protocol hardening |
-| **Data Protection** | 50+ | BitLocker encryption, EFS usage, data at rest/in transit protection |
-| **Malware Defense** | 40+ | Windows Defender (real-time, cloud, behavior), signature updates, ASR rules |
-| **Application Control** | 30+ | AppLocker policies, WDAC, software restriction, execution policies |
-| **Update Management** | 25+ | Windows Update status, pending updates, automatic update configuration |
-| **Incident Response** | 35+ | System Restore, backup configuration, VSS, recovery capabilities |
+| **Access Control** | 200+ | Account policies, user rights, privilege management, local admin enumeration |
+| **Authentication** | 160+ | Password policies, MFA requirements, credential protection (WDigest, LSASS) |
+| **Audit & Accountability** | 140+ | Event logging (18+ subcategories), audit policies, log retention, PowerShell logging |
+| **System Hardening** | 250+ | UAC, Secure Boot, service configuration, AutoPlay/AutoRun, least privilege |
+| **Network Security** | 180+ | Firewall (all profiles), SMB security, LLMNR, NetBIOS, protocol hardening |
+| **Data Protection** | 120+ | BitLocker encryption, EFS usage, data at rest/in transit protection |
+| **Malware Defense** | 150+ | Windows Defender (real-time, cloud, behavior), signature updates, ASR rules |
+| **Application Control** | 80+ | AppLocker policies, WDAC, software restriction, execution policies |
+| **Update Management** | 60+ | Windows Update status, pending updates, automatic update configuration |
+| **Incident Response** | 50+ | System Restore, backup configuration, VSS, recovery capabilities |
 
 ### Example Checks (Subset)
 
@@ -613,8 +640,8 @@ See [Module Documentation](https://github.com/Sandler73/Windows-Security-Audit-P
 ### Performance & Impact
 
 **Execution Time:**
-- Full audit (all modules): 2-5 minutes
-- Single module: 15-45 seconds
+- Full audit (all 8 modules): 2-5 minutes
+- Single module: 15-60 seconds
 - Factors: System speed, enabled features, module selection
 
 **System Impact:**
@@ -774,19 +801,32 @@ This project builds upon the work and guidance of various security organizations
 
 | Metric | Value |
 |--------|-------|
-| **Current Version** | 5.3 |
-| **Total Security Checks** | 550+ |
-| **Frameworks Covered** | 7 |
-| **Code Base** | ~10,000 lines of PowerShell |
-| **Modules** | 7 specialized compliance modules |
+| **Current Version** | 6.0 |
+| **Total Security Checks** | 1,855 |
+| **Frameworks Covered** | 8 |
+| **Code Base** | ~21,200 lines of PowerShell (modules: 19,593 + orchestrator: ~1,600) |
+| **Modules** | 8 specialized compliance modules |
 | **Output Formats** | 5 (HTML, JSON, CSV, XML, Console) |
 | **Windows Versions Tested** | 10, 11, Server 2016/2019/2022 |
 | **PowerShell Version** | 5.1+ |
+| **Result Fields** | 9 (with Severity and CrossReferences) |
+| **Cross-Reference Mappings** | 1,568 |
 | **Active Development** | ✅ Yes |
 
 ## 📄 Version History
 
-### Version 5.3 (Current) - January 2025
+### Version 6.0 (Current) - March 2026
+- ✨ **NEW**: Severity classification on every check (Critical/High/Medium/Low/Informational)
+- ✨ **NEW**: Cross-framework correlation with 1,568 mappings
+- ✨ **NEW**: Microsoft Defender for Endpoint module (85 checks)
+- ✨ **NEW**: Standalone module execution support
+- ✨ **NEW**: Cache-aware registry helpers
+- ✨ **NEW**: 9-field result objects (added Severity and CrossReferences)
+- 🔧 **EXPANDED**: 1,855 total checks (up from 550+)
+- 🔧 **EXPANDED**: 8 modules (added MS-DefenderATP)
+- 🐛 **FIXED**: STIG $anonSid unused variable, NIST $Priority/$Severity mismatch, MS $profile reserved variable
+
+### Version 5.3 - February 2026
 - ✨ **NEW**: Interactive and automated remediation system
 - ✨ **NEW**: Targeted remediation from HTML report selections
 - ✨ **NEW**: SIEM-compatible XML output format
@@ -799,7 +839,7 @@ This project builds upon the work and guidance of various security organizations
 - 🐛 **FIXED**: Status value consistency across modules
 - 🐛 **FIXED**: Result object validation and repair
 
-### Version 5.0 - December 2024
+### Version 5.0 - December 2025
 - Complete rewrite with modular architecture
 - 550+ security checks across 7 frameworks
 - Multiple output formats (HTML, JSON, CSV)
