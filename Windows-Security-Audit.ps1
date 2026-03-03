@@ -408,7 +408,7 @@ function Get-ModuleStatistics {
 }
 
 # ============================================================================
-# Compliance Scoring (v6.0)
+# Compliance Scoring
 # ============================================================================
 function Get-ComplianceScore {
     param([string]$ModuleName, [array]$Results, [double]$Threshold = 70.0)
@@ -623,8 +623,9 @@ function Invoke-Remediation {
     Write-Host "========================================================================================================`n" -ForegroundColor Yellow
 }
 
+
 # ============================================================================
-# HTML Report Generation (Enhanced Dashboard - v6.0)
+# HTML Report Generation
 # ============================================================================
 function ConvertTo-HTMLReport {
     param(
@@ -652,11 +653,18 @@ function ConvertTo-HTMLReport {
         $moduleScores[$modName] = @{ Score = $score; Stats = $stats; Total = $stats.Total }
     }
 
-    # Severity distribution
+    # Severity distribution (all results)
     $sevCounts = @{ Critical = 0; High = 0; Medium = 0; Low = 0; Informational = 0 }
     foreach ($r in $AllResults) {
         $sev = if ($r.PSObject.Properties['Severity'] -and $r.Severity -in $script:ValidSeverityValues) { $r.Severity } else { 'Medium' }
         $sevCounts[$sev]++
+    }
+
+    # Failed severity distribution
+    $failSevCounts = @{ Critical = 0; High = 0; Medium = 0; Low = 0; Informational = 0 }
+    foreach ($r in ($AllResults | Where-Object { $_.Status -eq 'Fail' })) {
+        $sev = if ($r.PSObject.Properties['Severity'] -and $r.Severity -in $script:ValidSeverityValues) { $r.Severity } else { 'Medium' }
+        $failSevCounts[$sev]++
     }
 
     # Category-level statistics per module
@@ -673,7 +681,7 @@ function ConvertTo-HTMLReport {
         $categoryStats[$modName] = $cats
     }
 
-    # Remediation priority list (fail/warning sorted by severity)
+    # Remediation priority list (fail/warning sorted by severity) - top 50
     $severityOrder = @{ Critical = 0; High = 1; Medium = 2; Low = 3; Informational = 4 }
     $remediationItems = @($AllResults | Where-Object {
         ($_.Status -eq 'Fail' -or $_.Status -eq 'Warning') -and -not [string]::IsNullOrWhiteSpace($_.Remediation)
@@ -693,7 +701,7 @@ function ConvertTo-HTMLReport {
     foreach ($seg in $donutSegments) {
         if ($seg.Count -gt 0) {
             $segLen = ($seg.Count / $total) * $circumference
-            $donutParts += "<circle cx='60' cy='60' r='45' fill='none' stroke='$($seg.Color)' stroke-width='20' stroke-dasharray='$([Math]::Round($segLen,2)) $([Math]::Round($circumference,2))' stroke-dashoffset='$([Math]::Round(-$offset,2))' style='cursor:pointer' onclick=""dashboardFilter('status','$($seg.Label)')""`><title`>$($seg.Label): $($seg.Count)</title`></circle`>"
+            $donutParts += "<circle cx='60' cy='60' r='45' fill='none' stroke='$($seg.Color)' stroke-width='20' stroke-dasharray='$([Math]::Round($segLen,2)) $([Math]::Round($circumference,2))' stroke-dashoffset='$([Math]::Round(-$offset,2))' style='cursor:pointer' onclick=`"dashboardFilter('status','$($seg.Label)')`"><title>$($seg.Label): $($seg.Count)</title></circle>"
             $offset += $segLen
         }
     }
@@ -704,14 +712,14 @@ function ConvertTo-HTMLReport {
     foreach ($modName in ($moduleScores.Keys | Sort-Object)) {
         $sc = $moduleScores[$modName]
         $barColor = if ($sc.Score -ge 80) { '#28a745' } elseif ($sc.Score -ge 60) { '#fd7e14' } else { '#dc3545' }
-        $moduleBarHtml += "<div class='module-bar' onclick=""scrollToModule('$modName')"" style='cursor:pointer'`><span class='module-bar-label'`>$modName</span`><div class='module-bar-track'`><div class='module-bar-fill' style='width:$($sc.Score)`%;background:$barColor'`></div`></div`><span class='module-bar-pct'`>$($sc.Score)`%</span`></div`>`n"
+        $moduleBarHtml += "<div class='module-bar' onclick=`"scrollToModule('$modName')`" style='cursor:pointer'><span class='module-bar-label'>$modName</span><div class='module-bar-track'><div class='module-bar-fill' style='width:$($sc.Score)`%;background:$barColor'></div></div><span class='module-bar-pct'>$($sc.Score)`%</span></div>`n"
     }
 
-    # Severity badges
-    $sevBadgeHtml = ""
+    # Severity cards HTML (below summary cards)
+    $sevCardHtml = ""
     foreach ($sev in @('Critical','High','Medium','Low','Informational')) {
         $sevColor = switch ($sev) { 'Critical' { '#dc3545' }; 'High' { '#fd7e14' }; 'Medium' { '#ffc107' }; 'Low' { '#17a2b8' }; 'Informational' { '#6c757d' } }
-        $sevBadgeHtml += "<span class='severity-badge' style='background:$sevColor;cursor:pointer' onclick=""dashboardFilter('severity','$sev')""`>$sev`: $($sevCounts[$sev])</span`> "
+        $sevCardHtml += "<div class='summary-card' style='background:$sevColor;cursor:pointer' onclick=`"dashboardFilter('severity','$sev')`"><h3>$($sevCounts[$sev])</h3><p>$sev</p></div>`n"
     }
 
     # Compliance score section
@@ -719,36 +727,67 @@ function ConvertTo-HTMLReport {
     if ($ComplianceScores.Count -gt 0 -and $ComplianceScores.ContainsKey('overall')) {
         $oc = $ComplianceScores['overall']
         $ocColor = if ($oc.WeightedPct -ge 80) { '#28a745' } elseif ($oc.WeightedPct -ge 60) { '#fd7e14' } else { '#dc3545' }
-        $complianceHtml = "<div class='compliance-summary'`><h3`>Compliance Scores</h3`><div class='compliance-overall'`><span style='color:$ocColor;font-size:2em;font-weight:bold'`>$($oc.WeightedPct)`%</span`><br`><small`>Overall Weighted [$($oc.ThresholdResult)]</small`></div`><div class='compliance-details'`><div`>Simple: $($oc.SimplePct)`%</div`><div`>Severity-Adjusted: $($oc.SeverityWeightedPct)`%</div`></div`></div`>"
-    }
-
-    # Top remediation priorities table
-    $remPriorityHtml = ""
-    $remCount = [Math]::Min($remediationItems.Count, 25)
-    if ($remCount -gt 0) {
-        $remPriorityHtml = "<div class='remediation-priority'`><h3`>Top Remediation Priorities</h3`><table class='rem-table'`><tr`><th`>#</th`><th`>Severity</th`><th`>Module</th`><th`>Category</th`><th`>Issue</th`></tr`>"
-        for ($i = 0; $i -lt $remCount; $i++) {
-            $item = $remediationItems[$i]
-            $sc = switch ($item.Severity) { 'Critical' { '#dc3545' }; 'High' { '#fd7e14' }; 'Medium' { '#ffc107' }; 'Low' { '#17a2b8' }; default { '#6c757d' } }
-            $remPriorityHtml += "<tr`><td`>$($i+1)</td`><td`><span class='severity-badge' style='background:$sc'`>$($item.Severity)</span`></td`><td`>$($item.Module)</td`><td`>$([System.Security.SecurityElement]::Escape($item.Category))</td`><td`>$([System.Security.SecurityElement]::Escape($item.Message))</td`></tr`>"
-        }
-        $remPriorityHtml += "</table`></div`>"
+        $complianceHtml = @"
+<div class='compliance-cards'>
+<div class='compliance-card' style='background:$ocColor;color:#fff'>
+<div class='compliance-card-value'>$($oc.WeightedPct)`%</div>
+<div class='compliance-card-label'>Weighted Score</div>
+</div>
+<div class='compliance-card' style='background:var(--bg-tertiary)'>
+<div class='compliance-card-value' style='color:$ocColor'>$($oc.ThresholdResult)</div>
+<div class='compliance-card-label'>Overall Rating</div>
+</div>
+<div class='compliance-card' style='background:var(--bg-tertiary)'>
+<div class='compliance-card-value' style='color:$ocColor'>$($oc.SimplePct)`%</div>
+<div class='compliance-card-label'>Simple Score</div>
+</div>
+<div class='compliance-card' style='background:var(--bg-tertiary)'>
+<div class='compliance-card-value' style='color:$ocColor'>$($oc.SeverityWeightedPct)`%</div>
+<div class='compliance-card-label'>Severity-Adjusted</div>
+</div>
+</div>
+"@
     }
 
     # Table of Contents
-    $tocHtml = "<div class='toc'`><h3`>Table of Contents</h3`><ul`><li`><a href='#dashboard'`>Executive Dashboard</a`></li`>"
+    $tocHtml = "<div class='toc-section' id='toc'><div class='toc-header' onclick='toggleToc()'><h3><span class='collapse-icon' id='toc-icon'>&#9660;</span> Table of Contents</h3></div><div class='toc-content' id='toc-content'><ul>"
+    $tocHtml += "<li><a href='#dashboard'>Executive Dashboard</a></li>"
     foreach ($modName in ($modulesData.Keys | Sort-Object)) {
-        $tocHtml += "<li`><a href='#module-$modName'`>$modName `($($modulesData[$modName].Count) checks`)</a`></li`>"
+        $tocHtml += "<li><a href='#module-$modName'>$modName `($($modulesData[$modName].Count) checks`)</a></li>"
     }
-    $tocHtml += "</ul`></div`>"
+    $tocHtml += "<li><a href='#remediation-priority'>Remediation Priority Ranking</a></li>"
+    $tocHtml += "</ul></div></div>"
 
     # Cross-framework summary table
-    $crossFrameworkHtml = "<table class='rem-table' style='font-size:0.85em'`><tr`><th`>Framework</th`><th`>Checks</th`><th`>Pass</th`><th`>Fail</th`><th`>Score</th`></tr`>"
+    $crossFrameworkHtml = "<table class='rem-table' style='font-size:0.85em'><tr><th>Framework</th><th>Checks</th><th>Pass</th><th>Fail</th><th>Warn</th><th>Score</th></tr>"
     foreach ($modName in ($moduleScores.Keys | Sort-Object)) {
         $ms = $moduleScores[$modName]
-        $crossFrameworkHtml += "<tr`><td`>$modName</td`><td`>$($ms.Total)</td`><td`>$($ms.Stats.Pass)</td`><td`>$($ms.Stats.Fail)</td`><td`>$($ms.Score)`%</td`></tr`>"
+        $scoreColor = if ($ms.Score -ge 80) { '#28a745' } elseif ($ms.Score -ge 60) { '#fd7e14' } else { '#dc3545' }
+        $crossFrameworkHtml += "<tr><td><strong>$modName</strong></td><td>$($ms.Total)</td><td style='color:#28a745'>$($ms.Stats.Pass)</td><td style='color:#dc3545'>$($ms.Stats.Fail)</td><td style='color:#fd7e14'>$($ms.Stats.Warning)</td><td style='color:$scoreColor;font-weight:bold'>$($ms.Score)`%</td></tr>"
     }
-    $crossFrameworkHtml += "</table`>"
+    $crossFrameworkHtml += "</table>"
+
+    # Remediation Priority Ranking (Top 50) - collapsible panel
+    $remCount = [Math]::Min($remediationItems.Count, 50)
+    $remPriorityHtml = ""
+    if ($remCount -gt 0) {
+        $remPriorityHtml = @"
+<div class='module-section' id='remediation-priority'>
+<div class='module-header' onclick='toggleRemediation()'><h2><span class='collapse-icon' id='icon-remediation'>&#9660;</span> Remediation Priority Ranking (Top 50)</h2></div>
+<div class='module-content' id='content-remediation'>
+<table class='rem-table'><thead><tr><th>#</th><th>Severity</th><th>Status</th><th>Module</th><th>Category</th><th>Issue</th><th>Remediation</th></tr></thead><tbody>
+"@
+        for ($i = 0; $i -lt $remCount; $i++) {
+            $item = $remediationItems[$i]
+            $sc = switch ($item.Severity) { 'Critical' { '#dc3545' }; 'High' { '#fd7e14' }; 'Medium' { '#ffc107' }; 'Low' { '#17a2b8' }; default { '#6c757d' } }
+            $stClass = switch ($item.Status) { 'Fail' { 'status-fail' }; 'Warning' { 'status-warning' }; default { '' } }
+            $ec = [System.Security.SecurityElement]::Escape($item.Category)
+            $em = [System.Security.SecurityElement]::Escape($item.Message)
+            $er = [System.Security.SecurityElement]::Escape($item.Remediation)
+            $remPriorityHtml += "<tr><td>$($i+1)</td><td><span class='severity-badge' style='background:$sc'>$($item.Severity)</span></td><td class='$stClass'>$($item.Status)</td><td>$($item.Module)</td><td>$ec</td><td>$em</td><td class='rem-cell'>$er</td></tr>`n"
+        }
+        $remPriorityHtml += "</tbody></table></div></div>"
+    }
 
     # Build module result tables
     $moduleTablesHtml = ""
@@ -756,28 +795,29 @@ function ConvertTo-HTMLReport {
         $modResults = $modulesData[$modName]
         $modScore = $moduleScores[$modName]
 
-        # Category sub-stats badges
-        $catBadges = ""
+        # Category sub-section: expanded table per category
+        $catDetailHtml = ""
         if ($categoryStats.ContainsKey($modName)) {
+            $catDetailHtml = "<div class='cat-detail-section'><table class='cat-detail-table'><tr><th>Category</th><th>Total</th><th>Pass</th><th>Fail</th><th>Warn</th><th>Info</th><th>Error</th><th>Score</th></tr>"
             foreach ($catName in ($categoryStats[$modName].Keys | Sort-Object)) {
                 $cs = $categoryStats[$modName][$catName]
-                $catBadges += "<span class='cat-badge'`>$([System.Security.SecurityElement]::Escape($catName)) `($($cs.pass)/$($cs.total)`)</span`>"
+                $catApplicable = [Math]::Max(1, $cs.total - $cs.info)
+                $catScore = [Math]::Round(($cs.pass / $catApplicable) * 100, 1)
+                $csColor = if ($catScore -ge 80) { '#28a745' } elseif ($catScore -ge 60) { '#fd7e14' } else { '#dc3545' }
+                $ecCat = [System.Security.SecurityElement]::Escape($catName)
+                $catDetailHtml += "<tr><td>$ecCat</td><td>$($cs.total)</td><td style='color:#28a745'>$($cs.pass)</td><td style='color:#dc3545'>$($cs.fail)</td><td style='color:#fd7e14'>$($cs.warning)</td><td style='color:#17a2b8'>$($cs.info)</td><td style='color:#6f42c1'>$($cs.error)</td><td style='color:$csColor;font-weight:bold'>$catScore`%</td></tr>"
             }
+            $catDetailHtml += "</table></div>"
         }
 
         $moduleTablesHtml += @"
 <div class='module-section' id='module-$modName'>
-<div class='module-header' onclick='toggleModule("$modName")'><h2><span class='collapse-icon' id='icon-$modName'>&#9660;</span> $modName <span class='module-score'>$($modScore.Score)% `($($modScore.Stats.Total) checks`)</span></h2></div>
+<div class='module-header' onclick='toggleModule("$modName")'><h2><span class='collapse-icon' id='icon-$modName'>&#9660;</span> $modName <span class='module-score'>$($modScore.Score)`% `($($modScore.Stats.Total) checks`)</span></h2></div>
 <div class='module-content' id='content-$modName'>
-<div class='category-stats'>$catBadges</div>
+$catDetailHtml
 <div class='table-controls'>
 <input type='text' class='module-search' id='search-$modName' placeholder='Filter $modName...' oninput='filterModuleTable("$modName")'>
-<div class='export-buttons'>
-<button onclick='exportModuleData("$modName","csv")'>CSV</button>
-<button onclick='exportModuleData("$modName","json")'>JSON</button>
-<button onclick='exportModuleData("$modName","xml")'>XML</button>
-<button onclick='exportModuleSelected("$modName")'>Export Selected</button>
-</div></div>
+</div>
 <table class='results-table' id='table-$modName'>
 <thead><tr>
 <th class='col-select'><input type='checkbox' onchange='toggleAllRows("$modName",this.checked)'></th>
@@ -797,10 +837,10 @@ function ConvertTo-HTMLReport {
             $em = [System.Security.SecurityElement]::Escape($r.Message)
             $ed = [System.Security.SecurityElement]::Escape($r.Details)
             $er = [System.Security.SecurityElement]::Escape($r.Remediation)
-            $moduleTablesHtml += "<tr data-status='$($r.Status)' data-severity='$($r.Severity)' data-module='$modName'`><td`><input type='checkbox' class='row-select'`></td`><td data-col='category'`>$ec</td`><td data-col='status' class='$statusClass'`>$($r.Status)</td`><td data-col='severity' class='$sevClass'`>$($r.Severity)</td`><td data-col='message'`>$em</td`><td data-col='details'`>$ed</td`><td data-col='remediation'`>$er</td`></tr`>`n"
+            $moduleTablesHtml += "<tr data-status='$($r.Status)' data-severity='$($r.Severity)' data-module='$modName'><td><input type='checkbox' class='row-select'></td><td data-col='category'>$ec</td><td data-col='status' class='$statusClass'>$($r.Status)</td><td data-col='severity' class='$sevClass'>$($r.Severity)</td><td data-col='message'>$em</td><td data-col='details'>$ed</td><td data-col='remediation'>$er</td></tr>`n"
         }
 
-        $moduleTablesHtml += "</tbody`></table`></div`></div`>`n"
+        $moduleTablesHtml += "</tbody></table></div></div>`n"
     }
 
     # ================================================================
@@ -815,13 +855,13 @@ function ConvertTo-HTMLReport {
 <title>Windows Security Audit Report - $($ExecutionInfo.ComputerName)</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--bg-primary:#fff;--bg-secondary:#f8f9fa;--bg-tertiary:#e9ecef;--bg-gradient-start:#1a237e;--bg-gradient-end:#283593;--text-primary:#333;--text-secondary:#666;--border-color:#dee2e6;--card-shadow:rgba(0,0,0,.08);--row-hover:#f1f3f5;--accent:#1565c0;--accent-light:#e3f2fd}
-[data-theme="dark"]{--bg-primary:#1a1a2e;--bg-secondary:#16213e;--bg-tertiary:#0f3460;--bg-gradient-start:#0a1628;--bg-gradient-end:#1a237e;--text-primary:#e0e0e0;--text-secondary:#b0b0b0;--border-color:#2a3a5c;--card-shadow:rgba(0,0,0,.3);--row-hover:#1e2d4a;--accent:#42a5f5;--accent-light:#0d2137}
+:root{--bg-primary:#ffffff;--bg-secondary:#f8f9fa;--bg-tertiary:#e9ecef;--bg-gradient-start:#0d1b2a;--bg-gradient-end:#1b2838;--text-primary:#333333;--text-secondary:#666666;--border-color:#dee2e6;--card-shadow:rgba(0,0,0,.08);--row-hover:#f1f3f5;--accent:#1565c0;--accent-light:#e3f2fd;--header-bg:linear-gradient(135deg,#0d1b2a,#1b2838)}
+[data-theme="dark"]{--bg-primary:#0b0e14;--bg-secondary:#111822;--bg-tertiary:#1a2332;--bg-gradient-start:#060a10;--bg-gradient-end:#0d1520;--text-primary:#c9d1d9;--text-secondary:#8b949e;--border-color:#21262d;--card-shadow:rgba(0,0,0,.4);--row-hover:#161b22;--accent:#58a6ff;--accent-light:#0d1117;--header-bg:linear-gradient(135deg,#060a10,#0d1520)}
 body{font-family:Garamond,'Times New Roman',serif;background:var(--bg-primary);color:var(--text-primary);line-height:1.6}
-.report-header{background:linear-gradient(135deg,var(--bg-gradient-start),var(--bg-gradient-end));color:#fff;padding:30px 40px;width:100%}
-.report-header h1{font-size:2em;margin-bottom:5px}.report-header .subtitle{opacity:.9;font-size:1.1em}
-.header-controls{display:flex;gap:15px;align-items:center;margin-top:15px}
-.theme-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;color:#fff;font-size:.9em}
+.report-header{background:var(--header-bg);color:#fff;padding:30px 40px;width:100%;position:relative;text-align:center}
+.report-header h1{font-size:2em;margin-bottom:5px}
+.report-header .subtitle{opacity:.85;font-size:1.1em}
+.theme-toggle{position:absolute;top:20px;right:30px;display:flex;align-items:center;gap:8px;cursor:pointer;color:#fff;font-size:.9em}
 .theme-slider{width:44px;height:22px;background:rgba(255,255,255,.3);border-radius:11px;position:relative;transition:background .3s}
 .theme-slider::after{content:'';position:absolute;width:18px;height:18px;background:#fff;border-radius:50%;top:2px;left:2px;transition:transform .3s}
 [data-theme="dark"] .theme-slider::after{transform:translateX(22px)}
@@ -829,17 +869,28 @@ body{font-family:Garamond,'Times New Roman',serif;background:var(--bg-primary);c
 .info-card{background:var(--bg-secondary);border-radius:8px;padding:15px;box-shadow:0 2px 8px var(--card-shadow)}
 .info-card h3{font-size:.85em;color:var(--text-secondary);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
 .info-card p{font-size:1.1em;font-weight:600}
-.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;padding:0 40px 20px}
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;padding:0 40px 15px}
 .summary-card{text-align:center;border-radius:8px;padding:15px 10px;color:#fff;cursor:pointer;transition:transform .2s,box-shadow .2s}
 .summary-card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.2)}
 .summary-card h3{font-size:2em;margin-bottom:3px}.summary-card p{font-size:.85em;opacity:.9}
 .summary-card.total{background:#495057}.summary-card.pass{background:#28a745}.summary-card.fail{background:#dc3545}
 .summary-card.warning{background:#fd7e14}.summary-card.info{background:#17a2b8}.summary-card.error{background:#6f42c1}
-.dashboard{padding:20px 40px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.severity-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;padding:0 40px 20px}
+.severity-grid .summary-card{padding:12px 8px}
+.severity-grid .summary-card h3{font-size:1.6em}
+.severity-grid .summary-card p{font-size:.8em}
+.toc-section{margin:0 40px 15px;background:var(--bg-secondary);border-radius:8px;overflow:hidden;box-shadow:0 2px 8px var(--card-shadow)}
+.toc-header{background:linear-gradient(135deg,var(--bg-gradient-start),var(--bg-gradient-end));color:#fff;padding:10px 20px;cursor:pointer}
+.toc-header h3{font-size:1.1em;display:flex;align-items:center;gap:10px}
+.toc-content{padding:15px 20px}
+.toc-content ul{list-style:none;padding:0;columns:3;column-gap:20px}
+.toc-content li{margin-bottom:5px}.toc-content a{color:var(--accent);text-decoration:none}.toc-content a:hover{text-decoration:underline}
+.dashboard{padding:15px 40px;display:grid;grid-template-columns:1fr 2fr;gap:20px}
 .dashboard-panel{background:var(--bg-secondary);border-radius:8px;padding:20px;box-shadow:0 2px 8px var(--card-shadow)}
 .dashboard-panel h3{margin-bottom:15px;color:var(--accent);border-bottom:2px solid var(--accent);padding-bottom:8px}
+.dashboard-full{grid-column:1/-1}
 .donut-container{text-align:center}
-.donut-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:10px}
+.donut-legend{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:12px;padding-left:15px}
 .donut-legend span{display:flex;align-items:center;gap:5px;font-size:.9em;cursor:pointer}
 .donut-legend .dot{width:12px;height:12px;border-radius:50%;display:inline-block}
 .module-bar{display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:4px 0}
@@ -848,27 +899,27 @@ body{font-family:Garamond,'Times New Roman',serif;background:var(--bg-primary);c
 .module-bar-fill{height:100%;border-radius:10px;transition:width .5s ease;min-width:2px}
 .module-bar-pct{width:50px;font-weight:600;font-size:.9em}
 .severity-badge{display:inline-block;padding:3px 10px;border-radius:12px;color:#fff;font-size:.8em;font-weight:600;margin:2px}
-.severity-section{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
-.compliance-summary{text-align:center;padding:15px}
-.compliance-overall{margin:10px 0}.compliance-details{display:flex;gap:20px;justify-content:center;color:var(--text-secondary);font-size:.9em}
-.remediation-priority{padding:20px 40px}.remediation-priority h3{margin-bottom:10px;color:var(--accent)}
+.compliance-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;padding:10px 0}
+.compliance-card{border-radius:10px;padding:20px 15px;text-align:center;box-shadow:0 2px 8px var(--card-shadow)}
+.compliance-card-value{font-size:2em;font-weight:700;margin-bottom:4px}
+.compliance-card-label{font-size:.85em;opacity:.85;text-transform:uppercase;letter-spacing:.5px}
 .rem-table{width:100%;border-collapse:collapse;font-size:.9em}
 .rem-table th{background:var(--bg-gradient-start);color:#fff;padding:8px 12px;text-align:left}
-.rem-table td{padding:8px 12px;border-bottom:1px solid var(--border-color)}.rem-table tr:hover{background:var(--row-hover)}
-.toc{padding:20px 40px}.toc h3{color:var(--accent);margin-bottom:10px}.toc ul{list-style:none;padding:0;columns:2}
-.toc li{margin-bottom:5px}.toc a{color:var(--accent);text-decoration:none}.toc a:hover{text-decoration:underline}
+.rem-table td{padding:8px 12px;border-bottom:1px solid var(--border-color);vertical-align:top}.rem-table tr:hover{background:var(--row-hover)}
+.rem-cell{max-width:300px;word-wrap:break-word;overflow-wrap:break-word;font-family:monospace;font-size:.85em}
+.cat-detail-section{margin-bottom:15px}
+.cat-detail-table{width:100%;border-collapse:collapse;font-size:.85em;margin-bottom:10px}
+.cat-detail-table th{background:var(--bg-tertiary);color:var(--text-primary);padding:6px 10px;text-align:left;border-bottom:2px solid var(--border-color)}
+.cat-detail-table td{padding:6px 10px;border-bottom:1px solid var(--border-color)}
+.cat-detail-table tr:hover{background:var(--row-hover)}
 .module-section{margin:15px 40px;background:var(--bg-secondary);border-radius:8px;overflow:hidden;box-shadow:0 2px 8px var(--card-shadow)}
 .module-header{background:linear-gradient(135deg,var(--bg-gradient-start),var(--bg-gradient-end));color:#fff;padding:12px 20px;cursor:pointer}
 .module-header h2{font-size:1.2em;display:flex;align-items:center;gap:10px}
 .module-score{font-size:.75em;opacity:.8;margin-left:auto}
 .collapse-icon{font-size:.8em;transition:transform .3s}
 .module-content{padding:15px}.module-content.collapsed{display:none}
-.category-stats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-.cat-badge{background:var(--accent-light);color:var(--accent);padding:3px 10px;border-radius:12px;font-size:.8em}
 .table-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px}
 .module-search{padding:6px 12px;border:1px solid var(--border-color);border-radius:4px;font-family:inherit;background:var(--bg-primary);color:var(--text-primary);width:250px}
-.export-buttons button{padding:5px 12px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);border-radius:4px;cursor:pointer;font-family:inherit;font-size:.85em}
-.export-buttons button:hover{background:var(--accent);color:#fff}
 .results-table{width:100%;border-collapse:collapse;font-size:.9em;table-layout:auto}
 .results-table th{background:var(--bg-gradient-start);color:#fff;padding:8px 10px;text-align:left;position:relative;white-space:nowrap;user-select:none}
 .results-table td{padding:8px 10px;border-bottom:1px solid var(--border-color);word-wrap:break-word;overflow-wrap:break-word;vertical-align:top}
@@ -882,17 +933,29 @@ body{font-family:Garamond,'Times New Roman',serif;background:var(--bg-primary);c
 .global-controls{padding:15px 40px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--bg-secondary);border-bottom:1px solid var(--border-color);position:sticky;top:0;z-index:100}
 .global-search{padding:8px 14px;border:1px solid var(--border-color);border-radius:4px;font-family:inherit;background:var(--bg-primary);color:var(--text-primary);width:300px;font-size:.95em}
 .filter-mode{padding:5px 10px;border:1px solid var(--border-color);border-radius:4px;background:var(--bg-primary);color:var(--text-primary);cursor:pointer;font-family:inherit}
+.global-export{margin-left:auto;display:flex;gap:8px}
 .global-export button{padding:6px 14px;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:4px;cursor:pointer;font-family:inherit}
 .global-export button:hover{opacity:.9}
+.export-modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:1000;justify-content:center;align-items:center}
+.export-modal-overlay.active{display:flex}
+.export-modal{background:var(--bg-secondary);border-radius:12px;padding:25px;min-width:350px;box-shadow:0 8px 32px rgba(0,0,0,.3)}
+.export-modal h3{margin-bottom:15px;color:var(--accent)}
+.export-modal .format-list{display:flex;flex-direction:column;gap:8px}
+.export-modal .format-btn{padding:10px 15px;border:1px solid var(--border-color);background:var(--bg-primary);color:var(--text-primary);border-radius:6px;cursor:pointer;font-family:inherit;font-size:.95em;text-align:left;transition:background .2s}
+.export-modal .format-btn:hover{background:var(--accent);color:#fff}
+.export-modal .close-btn{margin-top:15px;padding:8px 20px;border:1px solid var(--border-color);background:transparent;color:var(--text-primary);border-radius:4px;cursor:pointer;font-family:inherit}
 .report-footer{text-align:center;padding:20px 40px;color:var(--text-secondary);font-size:.85em;border-top:1px solid var(--border-color);margin-top:30px}
-@media print{.header-controls,.theme-toggle,.global-controls,.table-controls,.export-buttons,.col-filter,.resize-handle,.col-select,.report-footer{display:none!important}.module-content{display:block!important}.module-section{break-inside:avoid;margin:10px 0;box-shadow:none}body{font-size:10pt}.results-table th{background:#333!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-@media(max-width:768px){.dashboard{grid-template-columns:1fr}.info-grid{grid-template-columns:1fr 1fr}.toc ul{columns:1}.report-header,.info-grid,.summary-grid,.dashboard,.module-section,.global-controls,.remediation-priority,.toc{padding-left:15px;padding-right:15px}}
+@media print{.theme-toggle,.global-controls,.table-controls,.col-filter,.resize-handle,.col-select,.report-footer,.export-modal-overlay{display:none!important}.module-content{display:block!important}.module-section{break-inside:avoid;margin:10px 0;box-shadow:none}body{font-size:10pt}.results-table th{background:#333!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+@media(max-width:768px){.dashboard{grid-template-columns:1fr}.info-grid{grid-template-columns:1fr 1fr}.toc-content ul{columns:1}.report-header,.info-grid,.summary-grid,.severity-grid,.dashboard,.module-section,.global-controls,.toc-section{padding-left:15px;padding-right:15px}}
 </style>
 </head>
 <body>
-<div class='report-header'><h1>Windows Security Audit Report</h1><div class='subtitle'>Comprehensive Multi-Framework Assessment &mdash; v$($script:ScriptVersion)</div>
-<div class='header-controls'><div class='theme-toggle' onclick='toggleTheme()'><span>&#9728;</span><div class='theme-slider'></div><span>&#9790;</span></div>
-<button onclick='window.print()' style='padding:5px 15px;border:1px solid rgba(255,255,255,.4);background:transparent;color:#fff;border-radius:4px;cursor:pointer;font-family:inherit'>Print Report</button></div></div>
+<div class='report-header'>
+<div class='theme-toggle' onclick='toggleTheme()'><span>&#9728;</span><div class='theme-slider'></div><span>&#9790;</span></div>
+<h1>Windows Security Audit Report</h1>
+<div class='subtitle'>Comprehensive Multi-Framework Security Assessment</div>
+
+</div>
 
 <div class='info-grid'>
 <div class='info-card'><h3>Computer Name</h3><p>$($ExecutionInfo.ComputerName)</p></div>
@@ -912,9 +975,15 @@ body{font-family:Garamond,'Times New Roman',serif;background:var(--bg-primary);c
 <div class='summary-card error' onclick="dashboardFilter('status','Error')"><h3>$($ExecutionInfo.ErrorCount)</h3><p>Errors</p></div>
 </div>
 
+<div class='severity-grid'>
+$sevCardHtml
+</div>
+
+$tocHtml
+
 <div class='dashboard' id='dashboard'>
 <div class='dashboard-panel'><h3>Status Distribution</h3><div class='donut-container'>
-<svg viewBox='0 0 120 120' width='200' height='200'>$donutSvg</svg>
+<svg viewBox='0 0 120 120' width='180' height='180'>$donutSvg</svg>
 <div class='donut-legend'>
 <span onclick="dashboardFilter('status','Pass')"><span class='dot' style='background:#28a745'></span>Pass `($($ExecutionInfo.PassCount)`)</span>
 <span onclick="dashboardFilter('status','Fail')"><span class='dot' style='background:#dc3545'></span>Fail `($($ExecutionInfo.FailCount)`)</span>
@@ -923,44 +992,63 @@ body{font-family:Garamond,'Times New Roman',serif;background:var(--bg-primary);c
 <span onclick="dashboardFilter('status','Error')"><span class='dot' style='background:#6f42c1'></span>Error `($($ExecutionInfo.ErrorCount)`)</span>
 </div></div></div>
 <div class='dashboard-panel'><h3>Module Compliance</h3>$moduleBarHtml</div>
-<div class='dashboard-panel'><h3>Severity Distribution</h3><div class='severity-section'>$sevBadgeHtml</div>$complianceHtml</div>
-<div class='dashboard-panel'><h3>Cross-Framework Summary</h3>$crossFrameworkHtml</div>
+<div class='dashboard-panel dashboard-full'><h3>Cross-Framework Compliance Matrix</h3>$crossFrameworkHtml</div>
+<div class='dashboard-panel dashboard-full'><h3>Overall Compliance</h3>$complianceHtml</div>
 </div>
-
-$remPriorityHtml
-$tocHtml
 
 <div class='global-controls'>
 <input type='text' class='global-search' id='globalSearch' placeholder='Search all results...' oninput='globalFilter()'>
 <select class='filter-mode' id='filterMode' onchange='globalFilter()'><option value='include'>Include matches</option><option value='exclude'>Exclude matches</option></select>
 <div class='global-export'>
-<button onclick='exportAllData("csv")'>Export All CSV</button>
-<button onclick='exportAllData("json")'>Export All JSON</button>
-<button onclick='exportAllData("xml")'>Export All XML</button>
+<button onclick='showExportModal("all")'>Export All</button>
+<button onclick='showExportModal("selected")'>Export Selected</button>
 </div></div>
 
 $moduleTablesHtml
 
-<div class='report-footer'>Generated by Windows Security Audit Script v$($script:ScriptVersion) | $($ExecutionInfo.ScanDate) | <a href='https://github.com/Sandler73/Windows-Security-Audit-Script'>GitHub</a></div>
+$remPriorityHtml
+
+<div class='report-footer'>Generated by Windows Security Audit Script | $($ExecutionInfo.ScanDate) | <a href='https://github.com/Sandler73/Windows-Security-Audit-Script'>GitHub</a></div>
+
+<div class='export-modal-overlay' id='exportModal'>
+<div class='export-modal'>
+<h3 id='exportModalTitle'>Export Format</h3>
+<div class='format-list'>
+<button class='format-btn' onclick='doExport("csv")'>CSV Workbook</button>
+<button class='format-btn' onclick='doExport("xls")'>Excel (XLS)</button>
+<button class='format-btn' onclick='doExport("json")'>JSON (Structured Data)</button>
+<button class='format-btn' onclick='doExport("xml")'>XML Workbook</button>
+<button class='format-btn' onclick='doExport("siem")'>XML (SIEM-Compatible)</button>
+<button class='format-btn' onclick='doExport("txt")'>TXT (Plain Text)</button>
+</div>
+<button class='close-btn' onclick='closeExportModal()'>Cancel</button>
+</div></div>
 
 <script>
+var exportMode='all';
 function toggleTheme(){var b=document.documentElement;b.setAttribute('data-theme',b.getAttribute('data-theme')==='dark'?'light':'dark')}
 function toggleModule(m){var c=document.getElementById('content-'+m),i=document.getElementById('icon-'+m);if(c.classList.contains('collapsed')){c.classList.remove('collapsed');i.innerHTML='&#9660;'}else{c.classList.add('collapsed');i.innerHTML='&#9654;'}}
+function toggleRemediation(){toggleModule('remediation')}
+function toggleToc(){var c=document.getElementById('toc-content'),i=document.getElementById('toc-icon');if(c.style.display==='none'){c.style.display='';i.innerHTML='&#9660;'}else{c.style.display='none';i.innerHTML='&#9654;'}}
 function scrollToModule(m){var e=document.getElementById('module-'+m);if(e){e.scrollIntoView({behavior:'smooth',block:'start'});var c=document.getElementById('content-'+m);if(c&&c.classList.contains('collapsed'))toggleModule(m)}}
 function dashboardFilter(t,v){document.querySelectorAll('.results-table tbody tr').forEach(function(r){if(t==='all'){r.style.display='';return}r.style.display=r.getAttribute('data-'+t)===v?'':'none'});document.getElementById('globalSearch').value=''}
 function globalFilter(){var q=document.getElementById('globalSearch').value.toLowerCase(),m=document.getElementById('filterMode').value;document.querySelectorAll('.results-table tbody tr').forEach(function(r){if(!q){r.style.display='';return}var t=r.textContent.toLowerCase(),h=t.includes(q);r.style.display=(m==='include'?h:!h)?'':'none'})}
 function filterModuleTable(mod){var q=document.getElementById('search-'+mod).value.toLowerCase();document.getElementById('table-'+mod).querySelectorAll('tbody tr').forEach(function(r){if(!q){r.style.display='';return}r.style.display=r.textContent.toLowerCase().includes(q)?'':'none'})}
 function filterColumn(mod,col,v){var q=v.toLowerCase();document.getElementById('table-'+mod).querySelectorAll('tbody tr').forEach(function(r){if(!q){r.style.display='';return}var c=r.querySelector('td[data-col="'+col+'"]');if(c)r.style.display=c.textContent.toLowerCase().includes(q)?'':'none'})}
 function toggleAllRows(mod,chk){document.getElementById('table-'+mod).querySelectorAll('tbody .row-select').forEach(function(cb){cb.checked=chk})}
-function getTableData(mod,selOnly){var t=document.getElementById('table-'+mod),d=[];t.querySelectorAll('tbody tr').forEach(function(r){if(r.style.display==='none')return;if(selOnly&&!r.querySelector('.row-select').checked)return;var c=r.querySelectorAll('td');d.push({module:r.getAttribute('data-module'),category:c[1]?c[1].textContent:'',status:c[2]?c[2].textContent:'',severity:c[3]?c[3].textContent:'',message:c[4]?c[4].textContent:'',details:c[5]?c[5].textContent:'',remediation:c[6]?c[6].textContent:''})});return d}
+function getTableData(mod,selOnly){var t=document.getElementById('table-'+mod),d=[];if(!t)return d;t.querySelectorAll('tbody tr').forEach(function(r){if(r.style.display==='none')return;if(selOnly&&!r.querySelector('.row-select').checked)return;var c=r.querySelectorAll('td');d.push({module:r.getAttribute('data-module'),category:c[1]?c[1].textContent:'',status:c[2]?c[2].textContent:'',severity:c[3]?c[3].textContent:'',message:c[4]?c[4].textContent:'',details:c[5]?c[5].textContent:'',remediation:c[6]?c[6].textContent:''})});return d}
+function getAllData(selOnly){var a=[];document.querySelectorAll('.results-table').forEach(function(t){var mod=t.id.replace('table-','');a=a.concat(getTableData(mod,selOnly))});return a}
 function dl(c,f,m){var b=new Blob([c],{type:m}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=f;a.click();URL.revokeObjectURL(u)}
-function exportToCSV(d,f){var h='Module,Category,Status,Severity,Message,Details,Remediation';var r=d.map(function(x){return[x.module,x.category,x.status,x.severity,x.message,x.details,x.remediation].map(function(v){return'"'+(v||'').replace(/"/g,'""')+'"'}).join(',')});dl(h+'\n'+r.join('\n'),f,'text/csv')}
-function exportToJSON(d,f){dl(JSON.stringify({export_date:new Date().toISOString(),results:d},null,2),f,'application/json')}
 function esc(s){var d=document.createElement('div');d.appendChild(document.createTextNode(s||''));return d.innerHTML}
-function exportToXML(d,f){var x='<?xml version="1.0" encoding="UTF-8"?>\n<audit_export>\n<metadata><export_date>'+new Date().toISOString()+'</export_date></metadata>\n<results>\n';d.forEach(function(r){x+='<r><module>'+esc(r.module)+'</module><category>'+esc(r.category)+'</category><status>'+esc(r.status)+'</status><severity>'+esc(r.severity)+'</severity><message>'+esc(r.message)+'</message><details>'+esc(r.details)+'</details><remediation>'+esc(r.remediation)+'</remediation></r>\n'});x+='</results>\n</audit_export>';dl(x,f,'application/xml')}
-function exportModuleData(m,fmt){var d=getTableData(m,false),fn='Windows-Audit-'+m+'-'+new Date().toISOString().slice(0,10);if(fmt==='csv')exportToCSV(d,fn+'.csv');else if(fmt==='json')exportToJSON(d,fn+'.json');else if(fmt==='xml')exportToXML(d,fn+'.xml')}
-function exportModuleSelected(m){var d=getTableData(m,true);if(!d.length){alert('No rows selected');return}var fn='Windows-Audit-'+m+'-Selected-'+new Date().toISOString().slice(0,10);dl(JSON.stringify({modules:[{module:m,checks:d.map(function(r){return{category:r.category,message:r.message,remediation:r.remediation}})}]},null,2),fn+'.json','application/json')}
-function exportAllData(fmt){var a=[];document.querySelectorAll('.results-table').forEach(function(t){a=a.concat(getTableData(t.id.replace('table-',''),false))});var fn='Windows-Audit-All-'+new Date().toISOString().slice(0,10);if(fmt==='csv')exportToCSV(a,fn+'.csv');else if(fmt==='json')exportToJSON(a,fn+'.json');else if(fmt==='xml')exportToXML(a,fn+'.xml')}
+function showExportModal(mode){exportMode=mode;document.getElementById('exportModalTitle').textContent=mode==='all'?'Export All - Select Format':'Export Selected - Select Format';document.getElementById('exportModal').classList.add('active')}
+function closeExportModal(){document.getElementById('exportModal').classList.remove('active')}
+function doExport(fmt){closeExportModal();var d=getAllData(exportMode==='selected');if(exportMode==='selected'&&!d.length){alert('No rows selected. Use checkboxes to select rows first.');return}var fn='Windows-Audit-'+(exportMode==='all'?'All':'Selected')+'-'+new Date().toISOString().slice(0,10);if(fmt==='csv')exportToCSV(d,fn+'.csv');else if(fmt==='xls')exportToXLS(d,fn+'.xls');else if(fmt==='json')exportToJSON(d,fn+'.json');else if(fmt==='xml')exportToXML(d,fn+'.xml');else if(fmt==='siem')exportToSIEM(d,fn+'-siem.xml');else if(fmt==='txt')exportToTXT(d,fn+'.txt')}
+function exportToCSV(d,f){var h='Module,Category,Status,Severity,Message,Details,Remediation';var r=d.map(function(x){return[x.module,x.category,x.status,x.severity,x.message,x.details,x.remediation].map(function(v){return'"'+(v||'').replace(/"/g,'""')+'"'}).join(',')});dl(h+'\n'+r.join('\n'),f,'text/csv')}
+function exportToJSON(d,f){dl(JSON.stringify({export_date:new Date().toISOString(),host:'$($ExecutionInfo.ComputerName)',total_results:d.length,results:d},null,2),f,'application/json')}
+function exportToXML(d,f){var x='<?xml version="1.0" encoding="UTF-8"?>\n<audit_export>\n<metadata><export_date>'+new Date().toISOString()+'</export_date><host>$($ExecutionInfo.ComputerName)</host><total>'+d.length+'</total></metadata>\n<results>\n';d.forEach(function(r){x+='<result><module>'+esc(r.module)+'</module><category>'+esc(r.category)+'</category><status>'+esc(r.status)+'</status><severity>'+esc(r.severity)+'</severity><message>'+esc(r.message)+'</message><details>'+esc(r.details)+'</details><remediation>'+esc(r.remediation)+'</remediation></result>\n'});x+='</results>\n</audit_export>';dl(x,f,'application/xml')}
+function exportToSIEM(d,f){var x='<?xml version="1.0" encoding="UTF-8"?>\n<SIEM_Events source="WindowsSecurityAudit" host="$($ExecutionInfo.ComputerName)" generated="'+new Date().toISOString()+'">\n';d.forEach(function(r,i){x+='<Event id="'+(i+1)+'" timestamp="'+new Date().toISOString()+'" severity="'+esc(r.severity)+'" status="'+esc(r.status)+'"><Source>'+esc(r.module)+'</Source><Category>'+esc(r.category)+'</Category><Message>'+esc(r.message)+'</Message><Details>'+esc(r.details)+'</Details><Remediation>'+esc(r.remediation)+'</Remediation></Event>\n'});x+='</SIEM_Events>';dl(x,f,'application/xml')}
+function exportToXLS(d,f){var t='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Audit Results</x:Name></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table border="1"><tr><th>Module</th><th>Category</th><th>Status</th><th>Severity</th><th>Message</th><th>Details</th><th>Remediation</th></tr>';d.forEach(function(r){t+='<tr><td>'+esc(r.module)+'</td><td>'+esc(r.category)+'</td><td>'+esc(r.status)+'</td><td>'+esc(r.severity)+'</td><td>'+esc(r.message)+'</td><td>'+esc(r.details)+'</td><td>'+esc(r.remediation)+'</td></tr>'});t+='</table></body></html>';dl(t,f,'application/vnd.ms-excel')}
+function exportToTXT(d,f){var t='Windows Security Audit Report - $($ExecutionInfo.ComputerName)\nGenerated: '+new Date().toISOString()+'\nTotal Results: '+d.length+'\n'+('=').repeat(80)+'\n\n';d.forEach(function(r,i){t+='['+(i+1)+'] ['+r.severity+'] ['+r.status+'] '+r.module+'\n    Category: '+r.category+'\n    Message: '+r.message+'\n';if(r.details)t+='    Details: '+r.details+'\n';if(r.remediation)t+='    Remediation: '+r.remediation+'\n';t+='\n'});dl(t,f,'text/plain')}
 document.querySelectorAll('.resize-handle').forEach(function(h){h.addEventListener('mousedown',function(e){e.preventDefault();var th=h.parentElement,sx=e.pageX,sw=th.offsetWidth;function mv(e2){th.style.width=(sw+e2.pageX-sx)+'px';th.style.minWidth=th.style.width}function up(){document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up)}document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up)})})
 </script>
 </body></html>
@@ -1296,12 +1384,10 @@ function Export-Results {
         }
     }
 
-    # JSON Export
-    if ($OutputFormat -eq 'json' -or $OutputFormat -eq 'all') {
-        $jsonPath = Join-Path $outputDir "$baseName.json"
-        if (Export-JSONResults -Results $Results -Path $jsonPath -ExecutionInfo $ExecutionInfo -ComplianceScores $ComplianceScores) {
-            $exportedFiles += $jsonPath
-        }
+    # JSON Export (always generated as companion to HTML report)
+    $jsonPath = Join-Path $outputDir "$baseName.json"
+    if (Export-JSONResults -Results $Results -Path $jsonPath -ExecutionInfo $ExecutionInfo -ComplianceScores $ComplianceScores) {
+        $exportedFiles += $jsonPath
     }
 
     # XML Export
@@ -1313,14 +1399,6 @@ function Export-Results {
     }
 
     Write-Host "`n  Total files exported: $($exportedFiles.Count)" -ForegroundColor Cyan
-
-    # Auto-open HTML report if requested
-    if ($exportedFiles.Count -gt 0 -and $htmlPath -and (Test-Path $htmlPath)) {
-        if (-not $Quiet) {
-            Write-Host "  Opening HTML report in default browser..." -ForegroundColor Gray
-            try { Start-Process $htmlPath } catch { }
-        }
-    }
 
     Write-Host "========================================================================================================`n" -ForegroundColor Cyan
 
