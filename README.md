@@ -19,16 +19,16 @@
 
 The **Windows Security Audit Script** is an advanced PowerShell-based security compliance auditing tool that evaluates Windows systems against multiple industry-standard security frameworks. Version 6.0 introduces **severity classification**, **cross-framework correlation**, **cache-aware architecture**, and **standalone module execution**, building on the intelligent remediation, enhanced reporting, and SIEM integration introduced in v5.3.
 
-The tool performs **1,855 automated security checks** across eight compliance modules, generating comprehensive reports in multiple formats with actionable remediation guidance. Every check now includes a severity rating and cross-references to equivalent controls across other frameworks, enabling multi-framework compliance scoring from a single audit run. Whether you're conducting compliance audits, hardening systems, or maintaining security baselines, this tool provides the insights and automation you need.
+The tool performs **3,199 automated security checks** across sixteen compliance modules, generating comprehensive reports in multiple formats with actionable remediation guidance. Every check now includes a severity rating and cross-references to equivalent controls across other frameworks, enabling multi-framework compliance scoring from a single audit run. Whether you're conducting compliance audits, hardening systems, or maintaining security baselines, this tool provides the insights and automation you need.
 
 ## 🎯 Key Features
 
 ### 🔍 **Comprehensive Security Assessment**
-- ✅ **1,855 Security Checks** across 8 major security frameworks
-- ✅ **Multi-Framework Coverage** — CIS, NIST, STIG, NSA, CISA, Microsoft, Microsoft Defender ATP, Core Baseline
+- ✅ **3,199 Security Checks** across 16 major security frameworks
+- ✅ **Multi-Framework Coverage** — CIS, NIST, STIG, NSA, CISA, Microsoft, Microsoft Defender ATP, Core, ACSC Essential Eight, CMMC, ENISA, GDPR, HIPAA, ISO 27001, PCI DSS, SOC 2
 - ✅ **Modular Architecture** — run all frameworks or select specific modules
 - ✅ **Severity Classification** — every check rated Critical/High/Medium/Low/Informational
-- ✅ **Cross-Framework Correlation** — 1,568 cross-reference mappings linking checks to equivalent controls
+- ✅ **Cross-Framework Correlation** — 3,000+ cross-reference mappings linking checks to equivalent controls
 - ✅ **Standalone Module Execution** — run any module independently for targeted testing
 - ✅ **Result Validation** — automated data integrity checks and normalization
 - ✅ **No External Dependencies** — pure PowerShell implementation using stdlib only
@@ -37,12 +37,12 @@ The tool performs **1,855 automated security checks** across eight compliance mo
 - ✅ **Interactive HTML Reports** with:
   - 🌓 Dark/Light theme toggle
   - 🔍 Advanced filtering and sorting per column
-  - 📤 Multi-format export (CSV, Excel, JSON, XML, TXT)
+  - 📤 Export All / Export Selected modal (CSV, Excel, JSON, XML Workbook, SIEM XML, TXT)
   - ☑️ Checkbox-based selective export
   - 📑 Per-module and global export options
   - 📊 Executive dashboard with statistics
 - ✅ **SIEM-Compatible XML** output for security monitoring platforms
-- ✅ **Multiple Output Formats** - HTML, JSON, CSV, XML, Console
+- ✅ **Multiple Output Formats** - HTML, JSON, CSV, XML, Console, plus 6 browser-based exports
 - ✅ **9-Field Result Objects** — Module, Category, Status, Severity, Message, Details, Remediation, CrossReferences, Timestamp
 - ✅ **Structured Data** — API and automation-friendly formats
 
@@ -67,8 +67,13 @@ The tool performs **1,855 automated security checks** across eight compliance mo
 - ✅ **Cross-Framework Mapping** — correlate findings across NIST, CIS, STIG, NSA, CISA
 - ✅ **Cache-Aware Architecture** — registry query caching for performance optimization
 - ✅ **Standalone Execution** — any module can run independently without the orchestrator
-- ✅ **Microsoft Defender ATP Module** — 85 new EDR/ATP-specific checks
-- ✅ **3.4× more checks** — expanded from 550+ to 1,855 total checks
+- ✅ **Microsoft Defender ATP Module** — 86 EDR/ATP-specific checks
+- ✅ **8 New Compliance Frameworks** — ACSC Essential Eight, CMMC 2.0, ENISA, GDPR, HIPAA, ISO 27001:2022, PCI DSS v4.0, SOC 2 Type II
+- ✅ **Interactive HTML Dashboard** — severity cards, category detail tables, export modal, remediation priority ranking
+- ✅ **6 Browser Export Formats** — CSV, Excel (XLS), JSON, XML Workbook (XSL-styled), SIEM-compatible XML, Plain Text
+- ✅ **Automatic JSON Companion** — structured JSON file generated alongside every HTML report
+- ✅ **Deep Navy Dark Theme** — matching Linux Security Audit report styling
+- ✅ **3.4× more checks** — expanded from 550+ to 3,199 total checks
 - ✅ **9-Field Result Objects** — added Severity and CrossReferences to every check output
 
 
@@ -76,16 +81,24 @@ The tool performs **1,855 automated security checks** across eight compliance mo
 
 | Module | Framework | Checks | Focus Areas |
 |--------|-----------|--------|------------|
-| **Core** | Foundational Windows Security Baseline | 176 | Essential system security, hardware, TLS, PowerShell |
-| **CIS** | CIS Microsoft Windows Benchmarks v3.0+ | 222 | Industry best practices, credential protection, MSS registry |
-| **MS** | Microsoft Security Baselines (SCT) | 313 | Defender, AppLocker, ASR, exploit protection, 33 categories |
-| **MS-DefenderATP** | Microsoft Defender for Endpoint | 85 | EDR, onboarding, TVM, AIR, tamper protection |
-| **NIST** | NIST 800-53 Rev 5, CSF 2.0, 800-171 | 473 | Federal compliance, 18 control families (AC, AU, IA, SC, SI, CM) |
-| **STIG** | DISA Security Technical Implementation Guide | 184 | DoD requirements, CAT I/II/III, credential/TLS/hardware hardening |
-| **NSA** | NSA Cybersecurity Information Sheets | 172 | Nation-state threat mitigation, certificate trust, wireless, exploit mitigation |
-| **CISA** | CISA Cybersecurity Performance Goals | 230 | Critical infrastructure, Zero Trust, supply chain, BOD 22-01/23-01 |
+| **Core** | Foundational Windows Security Baseline | 177 | Essential system security, hardware, TLS, PowerShell |
+| **CIS** | CIS Microsoft Windows Benchmarks v3.0+ | 223 | Industry best practices, credential protection, MSS registry |
+| **MS** | Microsoft Security Baselines (SCT) | 314 | Defender, AppLocker, ASR, exploit protection, 33 categories |
+| **MS-DefenderATP** | Microsoft Defender for Endpoint | 86 | EDR, onboarding, TVM, AIR, tamper protection |
+| **NIST** | NIST 800-53 Rev 5, CSF 2.0, 800-171 | 474 | Federal compliance, 18 control families (AC, AU, IA, SC, SI, CM) |
+| **STIG** | DISA Security Technical Implementation Guide | 185 | DoD requirements, CAT I/II/III, credential/TLS/hardware hardening |
+| **NSA** | NSA Cybersecurity Information Sheets | 173 | Nation-state threat mitigation, certificate trust, wireless, exploit mitigation |
+| **CISA** | CISA Cybersecurity Performance Goals | 231 | Critical infrastructure, Zero Trust, supply chain, BOD 22-01/23-01 |
+| **ACSC** | Australian CSC Essential Eight | 123 | Application control, patching, macros, hardening, admin privileges, MFA, backups |
+| **CMMC** | CMMC 2.0 Level 2 | 103 | Access control, audit, config management, authentication, media, comms, integrity |
+| **ENISA** | ENISA Cybersecurity Good Practices | 198 | Network security, IAM, patch mgmt, cryptography, logging, data protection |
+| **GDPR** | GDPR Technical Controls (Art. 5/25/32/33) | 133 | Privacy by design, encryption, confidentiality, availability, breach response |
+| **HIPAA** | HIPAA Security Rule (45 CFR 164) | 184 | Access control, audit controls, authentication, integrity, transmission security |
+| **ISO27001** | ISO/IEC 27001:2022 Annex A | 244 | Organizational, people, physical, authentication, backup, cryptography, hardening |
+| **PCI-DSS** | PCI DSS v4.0 | 227 | Network security, secure config, stored data, crypto, malware, access control |
+| **SOC2** | SOC 2 Type II Trust Service Criteria | 124 | Control activities, logical access, operations, change mgmt, availability |
 
-**Total Coverage**: 1,855 security checks with severity classification and cross-framework correlation across access control, authentication, auditing, network security, data protection, malware defense, system hardening, EDR, and Zero Trust architecture.
+**Total Coverage**: 3,199 security checks with severity classification and cross-framework correlation across access control, authentication, auditing, network security, data protection, malware defense, system hardening, EDR, Zero Trust architecture, privacy compliance, payment card security, and healthcare data protection.
 
 ## 🚀 Quick Start
 
@@ -299,7 +312,7 @@ Would you like to restart now? (Y/N):
   <metadata>
     <export_date>2025-01-01T12:00:00Z</export_date>
     <computer_name>HOSTNAME</computer_name>
-    <total_checks>1855</total_checks>
+    <total_checks>3199</total_checks>
     <pass_count>456</pass_count>
     <fail_count>42</fail_count>
   </metadata>
@@ -330,7 +343,7 @@ Would you like to restart now? (Y/N):
     "OSVersion": "Windows 11 Pro",
     "ScanDate": "2025-01-01 12:00:00",
     "Duration": "00:02:34",
-    "TotalChecks": 1855,
+    "TotalChecks": 3199,
     "PassCount": 456,
     "FailCount": 42
   },
@@ -376,7 +389,7 @@ Excel-compatible format for:
 ========================================================================
                             AUDIT SUMMARY
 ========================================================================
-Total Checks:    1855
+Total Checks:    3199
 Passed:          1542 (83.1%)
 Failed:          156 (8.4%)
 Warnings:        118 (6.4%)
@@ -545,13 +558,22 @@ Windows-Security-Audit/
 │   └── Intelligent remediation system
 │
 ├── modules/                              # Compliance framework modules
-│   ├── module-core.ps1                  # Foundational security (45+ checks)
-│   ├── module-cis.ps1                   # CIS Benchmarks (127+ checks)
-│   ├── module-ms.ps1                    # Microsoft Baselines (80+ checks)
-│   ├── module-nist.ps1                  # NIST 800-53/CSF (60+ checks)
-│   ├── module-stig.ps1                  # DISA STIGs (90+ checks)
-│   ├── module-nsa.ps1                   # NSA Guidance (60+ checks)
-│   └── module-cisa.ps1                  # CISA CPG (80+ checks)
+│   ├── module-acsc.ps1                  # ACSC Essential Eight (123 checks)
+│   ├── module-cis.ps1                   # CIS Benchmarks (223 checks)
+│   ├── module-cisa.ps1                  # CISA Best Practices (231 checks)
+│   ├── module-cmmc.ps1                  # CMMC Level 2 (103 checks)
+│   ├── module-core.ps1                  # Core Security Baseline (177 checks)
+│   ├── module-enisa.ps1                 # ENISA Guidelines (198 checks)
+│   ├── module-gdpr.ps1                  # GDPR Technical Controls (133 checks)
+│   ├── module-hipaa.ps1                 # HIPAA Security Rule (184 checks)
+│   ├── module-iso27001.ps1              # ISO 27001:2022 (244 checks)
+│   ├── module-ms.ps1                    # Microsoft Baselines (314 checks)
+│   ├── module-ms-defenderatp.ps1        # Defender ATP (86 checks)
+│   ├── module-nist.ps1                  # NIST SP 800-53/CSF (474 checks)
+│   ├── module-nsa.ps1                   # NSA Guidance (173 checks)
+│   ├── module-pcidss.ps1                # PCI DSS v4.0 (227 checks)
+│   ├── module-soc2.ps1                  # SOC 2 Type II (124 checks)
+│   └── module-stig.ps1                  # DISA STIGs (185 checks)
 │
 ├── Reports/                              # Generated reports (auto-created)
 │   ├── Security-Audit-Report-*.html
@@ -640,7 +662,7 @@ See [Module Documentation](https://github.com/Sandler73/Windows-Security-Audit-P
 ### Performance & Impact
 
 **Execution Time:**
-- Full audit (all 8 modules): 2-5 minutes
+- Full audit (all 16 modules): 3-7 minutes
 - Single module: 15-60 seconds
 - Factors: System speed, enabled features, module selection
 
@@ -802,7 +824,7 @@ This project builds upon the work and guidance of various security organizations
 | Metric | Value |
 |--------|-------|
 | **Current Version** | 6.0 |
-| **Total Security Checks** | 1,855 |
+| **Total Security Checks** | 3,199 |
 | **Frameworks Covered** | 8 |
 | **Code Base** | ~21,200 lines of PowerShell (modules: 19,593 + orchestrator: ~1,600) |
 | **Modules** | 8 specialized compliance modules |
@@ -818,12 +840,12 @@ This project builds upon the work and guidance of various security organizations
 ### Version 6.0 (Current) - March 2026
 - ✨ **NEW**: Severity classification on every check (Critical/High/Medium/Low/Informational)
 - ✨ **NEW**: Cross-framework correlation with 1,568 mappings
-- ✨ **NEW**: Microsoft Defender for Endpoint module (85 checks)
+- ✨ **NEW**: Microsoft Defender for Endpoint module (86 checks)
 - ✨ **NEW**: Standalone module execution support
 - ✨ **NEW**: Cache-aware registry helpers
 - ✨ **NEW**: 9-field result objects (added Severity and CrossReferences)
-- 🔧 **EXPANDED**: 1,855 total checks (up from 550+)
-- 🔧 **EXPANDED**: 8 modules (added MS-DefenderATP)
+- 🔧 **EXPANDED**: 3,199 total checks (up from 550+)
+- 🔧 **EXPANDED**: 16 modules (expanded from original 8)
 - 🐛 **FIXED**: STIG $anonSid unused variable, NIST $Priority/$Severity mismatch, MS $profile reserved variable
 
 ### Version 5.3 - February 2026
