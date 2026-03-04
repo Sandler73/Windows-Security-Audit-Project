@@ -11,7 +11,7 @@ We provide security updates for the following versions:
 | Version | Supported          | Notes |
 | ------- | ------------------ | ----- |
 | 6.0.x   | :white_check_mark: | Current release, actively maintained |
-| 5.x     | :x:                | Upgrade recommended |, upgrade recommended |
+| 5.x     | :x:                | Upgrade recommended |
 | < 5.0   | :x:                | No longer supported |
 
 We recommend always using the latest release version for the most up-to-date security features and protections.
