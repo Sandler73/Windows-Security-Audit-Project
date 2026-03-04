@@ -881,6 +881,8 @@ See [CHANGELOG.md](https://github.com/Sandler73/Windows-Security-Audit-Project/b
 
 **[⬆ Back to Top](#windows-security-audit-script)**
 
-Made with ❤️ for the cybersecurity community
+Made with ❤️ for the Windows security community
+
+**[📖 Documentation](../../wiki/Home)** • **[🐛 Report Bug](https://github.com/Sandler73/Windows-Security-Audit-Project/issues)** • **[✨ Request Feature](https://github.com/Sandler73/Windows-Security-Audit-Project/issues)**
 
 </div>
