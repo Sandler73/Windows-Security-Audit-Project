@@ -24,7 +24,7 @@
 
 ## 📋 Overview
 
-The **Windows Security Audit Script** is an advanced PowerShell-based security compliance auditing tool that evaluates Windows systems against multiple industry-standard security frameworks. Version 6.0 introduces **severity classification**, **cross-framework correlation**, **cache-aware architecture**, and **standalone module execution**, building on the intelligent remediation, enhanced reporting, and SIEM integration introduced in v5.3.
+The **Windows Security Audit Project** is an advanced PowerShell-based security compliance auditing tool that evaluates Windows systems against multiple industry-standard security frameworks. Version 6.0 introduces **severity classification**, **cross-framework correlation**, **cache-aware architecture**, and **standalone module execution**, building on the intelligent remediation, enhanced reporting, and SIEM integration introduced in v5.3.
 
 The tool performs **3,199 automated security checks** across sixteen compliance modules, generating comprehensive reports in multiple formats with actionable remediation guidance. Every check now includes a severity rating and cross-references to equivalent controls across other frameworks, enabling multi-framework compliance scoring from a single audit run. Whether you're conducting compliance audits, hardening systems, or maintaining security baselines, this tool provides the insights and automation you need.
 
