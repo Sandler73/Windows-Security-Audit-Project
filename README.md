@@ -2,13 +2,17 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-6.0-blue.svg)
+![Version](https://img.shields.io/badge/version-6.0-teal.svg)
 ![PowerShell](https://img.shields.io/badge/PowerShell-5.1+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20Server%202016%2B-lightgrey.svg)
 
-[![Security Focus](https://img.shields.io/badge/Focus-CIS%20%7C%20NIST%20%7C%20STIG%20%7C%20CISA%20%7C%20NSA-red.svg)]()
-[![Sponsor](https://img.shields.io/badge/Sponsor-Support%20the%20Project-pink.svg)](https://github.com/sponsors/Sandler73)
+[![Supported Frameworks](https://img.shields.io/badge/Supported%20Frameworks-ACSC%20%E2%80%A2%20CIS%20%E2%80%A2%20CISA%20%E2%80%A2%20CMMC%20%E2%80%A2%20ENISA%20%E2%80%A2%20MSB%20%E2%80%A2%20MDE%20%E2%80%A2%20NIST%20%E2%80%A2%20NSA%20%E2%80%A2%20STIG-cyan.svg)]()
+
+[![Regulatory Compliance](https://img.shields.io/badge/Regulatory%20Compliance-GDPR%20%E2%80%A2%20HIPAA%20%E2%80%A2%20ISO%2027001%20%E2%80%A2%20PCI-DSS%20%E2%80%A2%20SOC%202-orange.svg)]()
+
+
+[![Sponsor](https://img.shields.io/badge/Sponsor-Support%20the%20Project-vanilla.svg)](https://github.com/sponsors/Sandler73)
 
 **Comprehensive Module-Based Multi-Framework Windows Security Assessment/Auditing & Remediation Tool**
 
