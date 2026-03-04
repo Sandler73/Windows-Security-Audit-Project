@@ -1,0 +1,369 @@
+# =============================================================================
+# .gitignore — Windows Security Audit Project
+# =============================================================================
+# Version:     6.1
+# Updated:     2026-03-03
+# Description: Excludes audit output artifacts, runtime logs, editor metadata,
+#              OS junk files, build/package artifacts, and sensitive data from
+#              version control. Only source scripts, modules, shared components,
+#              and documentation should be tracked.
+# =============================================================================
+
+# =============================================================================
+# AUDIT OUTPUT ARTIFACTS
+# =============================================================================
+# Generated reports, exports, and companion files produced by script execution.
+# These are per-run artifacts and must never be committed.
+# =============================================================================
+
+# HTML reports and JSON companion files
+*.html
+*.htm
+
+# Structured data exports (CSV, JSON, XML, Excel, TXT)
+# NOTE: docs/*.md and project config JSONs are NOT matched — these patterns
+#       only catch loose export files in working directories.
+SecurityAudit-*.csv
+SecurityAudit-*.json
+SecurityAudit-*.xml
+SecurityAudit-*.xls
+SecurityAudit-*.xlsx
+SecurityAudit-*.txt
+Windows-Audit-*.csv
+Windows-Audit-*.json
+Windows-Audit-*.xml
+Windows-Audit-*.xls
+Windows-Audit-*.xlsx
+Windows-Audit-*.txt
+
+# Catch-all for any audit output directory the script writes to
+/output/
+/outputs/
+/results/
+/reports/
+
+# =============================================================================
+# RUNTIME LOGS
+# =============================================================================
+# Execution logs, debug traces, and remediation audit trails generated during
+# script runs. Log retention is the operator's responsibility, not the repo's.
+# =============================================================================
+
+# Log files (all formats)
+*.log
+*.log.*
+*.log-*
+
+# Structured/JSON logs
+*.jsonlog
+*.ndjson
+
+# Remediation logs and audit trails
+remediation-*.log
+remediation-*.txt
+audit-trail-*.log
+audit-trail-*.txt
+
+# =============================================================================
+# POWERSHELL ARTIFACTS
+# =============================================================================
+# Module caches, analysis output, transcript files, and other PowerShell
+# runtime byproducts.
+# =============================================================================
+
+# PSScriptAnalyzer results
+*ScriptAnalyzer*.xml
+*ScriptAnalyzer*.json
+*ScriptAnalyzer*.csv
+
+# PowerShell module cache and help
+/PSModulePath/
+**/ModuleAnalysisCache
+
+# PowerShell transcripts (Start-Transcript output)
+PowerShell_transcript*.txt
+*_transcript_*.txt
+
+# Compiled script files (if using PS2EXE or similar)
+*.exe
+
+# PowerShell data files (if generated at runtime)
+*.clixml
+
+# =============================================================================
+# EDITOR AND IDE FILES
+# =============================================================================
+# Workspace settings, caches, and metadata from common editors.
+# Personal editor configs should stay local, not in the repo.
+# =============================================================================
+
+# Visual Studio Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# JetBrains (IntelliJ, Rider, etc.)
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# Vim / Neovim
+*.swp
+*.swo
+*~
+.netrwhist
+tags
+
+# Emacs
+\#*\#
+.#*
+*.elc
+*~
+
+# Notepad++
+*.bak
+nppBackup/
+
+# =============================================================================
+# OPERATING SYSTEM FILES
+# =============================================================================
+# Desktop metadata, thumbnail caches, and filesystem artifacts from Windows,
+# macOS, and Linux. None of these belong in a repository.
+# =============================================================================
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.stackdump
+[Dd]esktop.ini
+
+# Windows shortcut files
+*.lnk
+
+# Windows Installer files
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+
+# macOS
+.DS_Store
+.DS_Store?
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =============================================================================
+# TEMPORARY AND BACKUP FILES
+# =============================================================================
+# Scratch files, backups, archives, and intermediate artifacts that should
+# never enter version control.
+# =============================================================================
+
+# Generic temp/backup patterns
+*.tmp
+*.temp
+*.bak
+*.bak.*
+*.backup
+*.old
+*.orig
+*.save
+
+# Archive files (unless intentionally tracked)
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+
+# Diff and patch artifacts
+*.patch
+*.diff
+*.rej
+
+# =============================================================================
+# PYTHON ARTIFACTS (Build/Verification Scripts)
+# =============================================================================
+# Module generation and verification scripts may produce Python bytecode,
+# virtual environments, and tool caches.
+# =============================================================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env/
+.venv/
+env/
+venv/
+ENV/
+
+# Distribution / packaging
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Mypy / type checking
+.mypy_cache/
+.dmypy.json
+
+# =============================================================================
+# NODE.JS / NPM ARTIFACTS (If tooling is added)
+# =============================================================================
+# Included proactively in case linting, formatting, or CI tooling introduces
+# Node.js dependencies in the future.
+# =============================================================================
+
+node_modules/
+npm-debug.log*
+yarn-error.log*
+yarn-debug.log*
+.yarn/cache
+.yarn/unplugged
+.pnp.*
+package-lock.json
+yarn.lock
+
+# =============================================================================
+# CI/CD AND DEVOPS
+# =============================================================================
+# Pipeline artifacts, test results, and deployment-specific files generated
+# by CI/CD systems.
+# =============================================================================
+
+# GitHub Actions
+.github/actions/*/dist/
+
+# Azure DevOps
+TestResults/
+*.trx
+
+# Generic CI artifacts
+/artifacts/
+/coverage/
+/test-results/
+
+# =============================================================================
+# SECURITY AND SENSITIVE DATA
+# =============================================================================
+# Credentials, keys, tokens, and environment-specific configuration that must
+# never be committed. Even for a read-only audit tool, operators may create
+# local config files with sensitive paths or identifiers.
+# =============================================================================
+
+# Environment and secrets files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.cer
+*.crt
+*.p12
+
+# Credential files
+*credentials*
+*secrets*
+*token*
+!**/docs/**
+
+# Local configuration overrides
+local.settings.json
+appsettings.local.json
+config.local.*
+
+# =============================================================================
+# PROJECT-SPECIFIC EXCLUSIONS
+# =============================================================================
+# Patterns specific to the Windows Security Audit project structure,
+# development workflow, and known generated artifacts.
+# =============================================================================
+
+# Task management files (local development tracking, not for repo)
+/tasks/
+
+# Brace-expansion artifacts and generation intermediates
+*{*,*}*
+
+# Module generation scripts output (intermediate .ps1 before verification)
+/gen_output/
+/generated/
+
+# Verification scan results
+/scan_results/
+verify_*.txt
+unused_vars_*.txt
+
+# Performance profiling output
+profile_*.txt
+profile_*.json
+timing_*.log
+
+# Remediation file-based input (operator-specific)
+remediation_input_*.json
+
+# =============================================================================
+# EXPLICIT INCLUSIONS (Override patterns above where needed)
+# =============================================================================
+# Force-track files that might otherwise match an exclusion pattern.
+# =============================================================================
+
+# Track documentation markdown (overrides *.html exclusion does not affect .md)
+!docs/**/*.md
+!README.md
+!CHANGELOG.md
+!CONTRIBUTING.md
+!LICENSE.md
+!SECURITY.md
+
+# Track the shared library
+!shared_components/**/*.ps1
+
+# Track all module source files
+!modules/**/*.ps1
+
+# Track the main script
+!Windows-Security-Audit.ps1
