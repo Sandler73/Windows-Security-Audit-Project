@@ -7,6 +7,9 @@
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20Server%202016%2B-lightgrey.svg)
 
+[![Security Focus](https://img.shields.io/badge/Focus-CIS%20%7C%20NIST%20%7C%20STIG%20%7C%20CISA%20%7C%20NSA-red.svg)]()
+[![Sponsor](https://img.shields.io/badge/Sponsor-Support%20the%20Project-pink.svg)](https://github.com/sponsors/Sandler73)
+
 **Comprehensive Module-Based Multi-Framework Windows Security Assessment/Auditing & Remediation Tool**
 
 [Overview](#-overview) • [Key Features](#-key-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Remediation Capabilities](#-remediation-capabilities) • [Contributing](#-contributing)
