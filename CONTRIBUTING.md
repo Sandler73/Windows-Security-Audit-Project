@@ -73,7 +73,7 @@ Get-BitLockerVolume : Access denied
 ## Environment
 - OS: Windows Server 2016 Standard (Build 14393)
 - PowerShell: 5.1.14393.5582
-- Script Version: 6.0
+- Script Version: 6.1.2
 ```
 
 ### Suggesting Enhancements
@@ -238,7 +238,7 @@ All modules must follow this structure:
 ```powershell
 # Module-Example.ps1
 # Brief description
-# Version: 6.0
+# Version: 6.1.2
 # Based on: Framework Name
 
 <#
@@ -253,7 +253,7 @@ All modules must follow this structure:
 
 .NOTES
     Author: Name
-    Version: 6.0
+    Version: 6.1.2
     Based on: Framework
 #>
 
