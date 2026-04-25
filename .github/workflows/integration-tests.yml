@@ -59,16 +59,30 @@ jobs:
       - name: Verify orchestrator help system
         shell: pwsh
         run: |
-          $output = & .\Windows-Security-Audit.ps1 -Help 2>&1 | Out-String
+          # Capture all streams (1=stdout, 2=stderr, 3=warning, 4=verbose,
+          # 5=debug, 6=information). Show-DetailedHelp uses Write-Host, which
+          # emits to stream 6 -- a `2>&1` redirect would miss it.
+          $output = & .\Windows-Security-Audit.ps1 -Help *>&1 | Out-String
+
+          Write-Host "----- Captured help output (first 800 chars) -----"
+          $preview = if ($output.Length -gt 800) { $output.Substring(0, 800) + '...' } else { $output }
+          Write-Host $preview
+          Write-Host "----- End preview (total length: $($output.Length) chars) -----"
+
           if ($output -notmatch 'Windows Security Audit') {
-            throw "Help output missing expected content"
+            throw "Help output missing expected content (no 'Windows Security Audit' string found in $($output.Length) chars of output)"
           }
           Write-Host "Help system: OK"
 
       - name: Verify module discovery
         shell: pwsh
         run: |
-          $output = & .\Windows-Security-Audit.ps1 -ListModules 2>&1 | Out-String
+          $output = & .\Windows-Security-Audit.ps1 -ListModules *>&1 | Out-String
+
+          Write-Host "----- Captured -ListModules output -----"
+          Write-Host $output
+          Write-Host "----- End output -----"
+
           $expected = @('acsc','cis','cisa','cmmc','core','enisa','gdpr','hipaa',
                         'iso27001','ms','ms-defenderatp','nist','nsa','pcidss','soc2','stig')
           $missing = @()
