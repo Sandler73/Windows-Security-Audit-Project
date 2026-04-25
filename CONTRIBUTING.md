@@ -409,11 +409,82 @@ try {
     # Display summary
     $results | Group-Object Status | Format-Table Count, Name
     
-    Write-Host "`n✓ Module executed successfully" -ForegroundColor Green
+    Write-Host "`n[PASS] Module executed successfully" -ForegroundColor Green
     
 } catch {
-    Write-Host "`n✗ Module failed: $_" -ForegroundColor Red
+    Write-Host "`n[FAIL] Module failed: $_" -ForegroundColor Red
 }
+```
+
+### Common Testing Pitfalls
+
+These are real issues that have surfaced in CI / contributor environments. Avoid them.
+
+**1. PowerShell stream redirection -- `Write-Host` is on stream 6, not 2**
+
+When tests or workflows capture script output for assertion, the orchestrator's
+banner and `Show-DetailedHelp` use `Write-Host` extensively. In PowerShell 5.x
+and 7.x, `Write-Host` writes to the **information stream (#6)**, NOT stdout (#1)
+or stderr (#2).
+
+```powershell
+# WRONG -- captures only stderr; banner output is lost
+$output = & .\Windows-Security-Audit.ps1 -Help 2>&1 | Out-String
+$output -match 'Windows Security Audit'  # FALSE -- banner not captured
+
+# RIGHT -- captures all streams (1, 2, 3, 4, 5, 6) into stdout
+$output = & .\Windows-Security-Audit.ps1 -Help *>&1 | Out-String
+$output -match 'Windows Security Audit'  # TRUE
+```
+
+**2. Reserved variable shadowing**
+
+PowerShell has automatic variables (`$matches`, `$_`, `$args`, `$input`, `$error`,
+`$true`, `$false`, `$null`, `$psitem`, `$psversiontable`, etc.) that you must not
+overwrite. The most common collision is `$matches` (set by every `-match`
+operator and `[regex]::Matches`).
+
+```powershell
+# WRONG -- shadows the automatic $matches
+$matches = [regex]::Matches($content, 'pattern')
+$matches.Count  # may work, but later -match operators behave unexpectedly
+
+# RIGHT -- pick a custom name
+$patternMatches = [regex]::Matches($content, 'pattern')
+$patternMatches.Count
+```
+
+PSScriptAnalyzer rule `PSAvoidAssignmentToAutomaticVariable` catches this. Run
+the linter before submitting.
+
+**3. `$null` comparisons must be left-side**
+
+```powershell
+# WRONG -- if $value is an array, returns array of nulls instead of boolean
+if ($value -eq $null) { ... }
+
+# RIGHT
+if ($null -eq $value) { ... }
+```
+
+**4. Brace counters must be string-aware**
+
+A naive `[regex]::Matches($content, '\{').Count` produces false-positive
+imbalance reports on test files that use literal `'\{'` and `'\}'` patterns.
+Use `[System.Management.Automation.PSParser]::Tokenize` and count
+`GroupStart`/`GroupEnd` tokens for accurate structural-only counting (this is
+what the project's `lint.yml` workflow uses).
+
+**5. Unused variables**
+
+```powershell
+# WRONG -- assigned but never used; PSScriptAnalyzer flags as warning
+$totalControls = 110
+# ... no use of $totalControls anywhere
+
+# RIGHT -- either remove, or use in result Details/Message:
+$totalControls = 110
+Add-Result -Details "Assessed $totalControls controls" ...
 ```
 
 ## Submission Process
@@ -527,4 +598,4 @@ Always include framework references in Details:
 
 ---
 
-**Thank you for contributing to making Windows systems more secure!** 🛡️
+**Thank you for contributing to making Windows systems more secure!** 
