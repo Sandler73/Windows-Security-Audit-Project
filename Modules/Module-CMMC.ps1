@@ -1,6 +1,6 @@
 # module-cmmc.ps1
 # CMMC 2.0 Compliance Module for Windows Security Audit
-# Version: 6.0
+# Version: 6.1.2
 #
 # Evaluates Windows configuration against Cybersecurity Maturity Model Certification 2.0 (DoD)
 # with Severity ratings and cross-framework references.
@@ -32,7 +32,7 @@
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
     References: CMMC 2.0 (November 2021), NIST SP 800-171 Rev 2, 32 CFR Part 170
-    Version: 6.0
+    Version: 6.1.2
 
 .EXAMPLE
     $results = & .\modules\module-cmmc.ps1 -SharedData $sharedData
@@ -44,7 +44,7 @@ param(
 )
 
 $moduleName = "CMMC"
-$moduleVersion = "6.0"
+$moduleVersion = "6.1.2"
 $results = @()
 
 # ---------------------------------------------------------------------------
@@ -86,7 +86,7 @@ function Get-RegValue {
     try {
         $item = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
         if ($null -ne $item) { return $item.$Name }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
     return $Default
 }
 
@@ -906,6 +906,398 @@ Write-Host "[CMMC] Checking SI -- System and Information Integrity..." -Foregrou
             -CrossReferences @{ CMMC='SI.L2-3.14.7'; NIST171='3.14.7'; NIST='SI-4' }
     }
 
+
+# ===========================================================================
+# v6.1: CMMC Level 1 explicit subset (15 basic safeguarding requirements)
+# ===========================================================================
+Write-Host "[CMMC] Checking CMMC Level 1 basic safeguarding requirements..." -ForegroundColor Yellow
+
+try {
+    $luaSetting = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "EnableLUA" -Default $null
+    if ($luaSetting -eq 1) {
+        Add-Result -Category "CMMC - L1 Basic Safeguarding" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "L1 AC.L1-3.1.1 Authorized access enforcement (UAC active)" `
+            -Details "User Account Control limits unauthorized privilege escalation" `
+            -CrossReferences @{ CMMC='AC.L1-3.1.1'; FAR='52.204-21'; NIST171='3.1.1' }
+    }
+    else {
+        Add-Result -Category "CMMC - L1 Basic Safeguarding" -Status "Fail" `
+            -Severity "High" `
+            -Message "L1 AC.L1-3.1.1 UAC is disabled" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'EnableLUA' -Value 1 -Type DWord; Restart-Computer" `
+            -CrossReferences @{ CMMC='AC.L1-3.1.1'; FAR='52.204-21'; NIST171='3.1.1' }
+    }
+
+    $guestStatus = Get-CachedLocalUsers -Cache $SharedData.Cache | Where-Object { $_.Name -eq 'Guest' }
+    if ($guestStatus -and -not $guestStatus.Disabled) {
+        Add-Result -Category "CMMC - L1 Basic Safeguarding" -Status "Fail" `
+            -Severity "High" `
+            -Message "L1 AC.L1-3.1.20 Guest account is enabled" `
+            -Remediation "Disable-LocalUser -Name 'Guest'" `
+            -CrossReferences @{ CMMC='AC.L1-3.1.20'; FAR='52.204-21'; NIST171='3.1.20' }
+    }
+    else {
+        Add-Result -Category "CMMC - L1 Basic Safeguarding" -Status "Pass" `
+            -Severity "Low" `
+            -Message "L1 AC.L1-3.1.20 Guest account is disabled" `
+            -CrossReferences @{ CMMC='AC.L1-3.1.20'; FAR='52.204-21' }
+    }
+
+    $defenderStatus = Get-DefenderStatus -Cache $SharedData.Cache
+    if ($defenderStatus -and $defenderStatus.RealTimeProtectionEnabled) {
+        Add-Result -Category "CMMC - L1 Basic Safeguarding" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "L1 SI.L1-3.14.2 Malicious code protection active" `
+            -CrossReferences @{ CMMC='SI.L1-3.14.2'; FAR='52.204-21'; NIST171='3.14.2' }
+    }
+    else {
+        Add-Result -Category "CMMC - L1 Basic Safeguarding" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "L1 SI.L1-3.14.2 Malicious code protection inactive" `
+            -Remediation "Set-MpPreference -DisableRealtimeMonitoring `$false" `
+            -CrossReferences @{ CMMC='SI.L1-3.14.2'; FAR='52.204-21'; NIST171='3.14.2' }
+    }
+
+    $fwProfiles = Get-CachedFirewallStatus -Cache $SharedData.Cache
+    if ($fwProfiles) {
+        $disabledProfiles = @($fwProfiles | Where-Object { -not $_.Enabled })
+        if ($disabledProfiles.Count -eq 0) {
+            Add-Result -Category "CMMC - L1 Basic Safeguarding" -Status "Pass" `
+                -Severity "Medium" `
+                -Message "L1 SC.L1-3.13.1 Communications boundary protection (firewall enabled on all profiles)" `
+                -CrossReferences @{ CMMC='SC.L1-3.13.1'; FAR='52.204-21'; NIST171='3.13.1' }
+        }
+        else {
+            $names = ($disabledProfiles.Name -join ', ')
+            Add-Result -Category "CMMC - L1 Basic Safeguarding" -Status "Fail" `
+                -Severity "High" `
+                -Message "L1 SC.L1-3.13.1 Firewall disabled on profile(s): $names" `
+                -Remediation "Set-NetFirewallProfile -Profile $names -Enabled True" `
+                -CrossReferences @{ CMMC='SC.L1-3.13.1'; FAR='52.204-21'; NIST171='3.13.1' }
+        }
+    }
+}
+catch {
+    Add-Result -Category "CMMC - L1 Basic Safeguarding" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Level 1 baseline assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: CMMC Level 3 enhanced controls (NIST SP 800-172)
+# ===========================================================================
+Write-Host "[CMMC] Checking CMMC Level 3 enhanced controls..." -ForegroundColor Yellow
+
+try {
+    $vbsEnabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" -Name "EnableVirtualizationBasedSecurity" -Default 0
+    $hvciEnabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" -Name "Enabled" -Default 0
+
+    if ($vbsEnabled -eq 1 -and $hvciEnabled -eq 1) {
+        Add-Result -Category "CMMC - L3 Enhanced Controls" -Status "Pass" `
+            -Severity "High" `
+            -Message "L3 SC.L3-3.13.4 Hardware-enforced isolation (VBS + HVCI active)" `
+            -Details "Memory integrity prevents kernel-mode malware execution" `
+            -CrossReferences @{ CMMC='SC.L3-3.13.4'; NIST172='3.13.4e'; NIST='SC-39' }
+    }
+    else {
+        Add-Result -Category "CMMC - L3 Enhanced Controls" -Status "Fail" `
+            -Severity "High" `
+            -Message "L3 SC.L3-3.13.4 Hardware-enforced isolation incomplete (VBS=$vbsEnabled HVCI=$hvciEnabled)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard' -Name 'EnableVirtualizationBasedSecurity' -Value 1 -Type DWord; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity' -Name 'Enabled' -Value 1 -Type DWord; Restart-Computer" `
+            -CrossReferences @{ CMMC='SC.L3-3.13.4'; NIST172='3.13.4e'; NIST='SC-39' }
+    }
+
+    $cgEnabled = Test-CredentialGuardEnabled
+    if ($cgEnabled) {
+        Add-Result -Category "CMMC - L3 Enhanced Controls" -Status "Pass" `
+            -Severity "High" `
+            -Message "L3 IA.L3-3.5.1 Identity verification through Credential Guard isolation" `
+            -CrossReferences @{ CMMC='IA.L3-3.5.1'; NIST172='3.5.1e'; NIST='IA-2' }
+    }
+    else {
+        Add-Result -Category "CMMC - L3 Enhanced Controls" -Status "Fail" `
+            -Severity "High" `
+            -Message "L3 IA.L3-3.5.1 Credential Guard not active" `
+            -Remediation "Configure VBS, then enable Credential Guard via Group Policy or DG-Readiness tool" `
+            -CrossReferences @{ CMMC='IA.L3-3.5.1'; NIST172='3.5.1e' }
+    }
+
+    $sbEnabled = Test-SecureBootEnabled
+    if ($sbEnabled) {
+        Add-Result -Category "CMMC - L3 Enhanced Controls" -Status "Pass" `
+            -Severity "High" `
+            -Message "L3 SI.L3-3.14.1 Boot integrity verified (Secure Boot enabled)" `
+            -CrossReferences @{ CMMC='SI.L3-3.14.1'; NIST172='3.14.1e'; NIST='SI-7(8)' }
+    }
+    else {
+        Add-Result -Category "CMMC - L3 Enhanced Controls" -Status "Fail" `
+            -Severity "High" `
+            -Message "L3 SI.L3-3.14.1 Secure Boot not active" `
+            -Details "UEFI firmware setting; cannot be remediated from PowerShell. Reconfigure in firmware setup." `
+            -CrossReferences @{ CMMC='SI.L3-3.14.1'; NIST172='3.14.1e' }
+    }
+
+    $tpm = Get-CimInstance -Namespace 'root\CIMv2\Security\MicrosoftTpm' -ClassName Win32_Tpm -ErrorAction SilentlyContinue
+    if ($tpm -and $tpm.IsActivated_InitialValue) {
+        $tpmVer = if ($tpm.SpecVersion) { ($tpm.SpecVersion -split ',')[0].Trim() } else { 'Unknown' }
+        if ($tpmVer -like '2.*') {
+            Add-Result -Category "CMMC - L3 Enhanced Controls" -Status "Pass" `
+                -Severity "High" `
+                -Message "L3 IA.L3-3.5.2 Hardware-backed credential storage (TPM 2.0 active)" `
+                -CrossReferences @{ CMMC='IA.L3-3.5.2'; NIST172='3.5.2e'; NIST='IA-5(2)' }
+        }
+        else {
+            Add-Result -Category "CMMC - L3 Enhanced Controls" -Status "Warning" `
+                -Severity "Medium" `
+                -Message "L3 IA.L3-3.5.2 TPM present but not 2.0 (version: $tpmVer)" `
+                -CrossReferences @{ CMMC='IA.L3-3.5.2'; NIST172='3.5.2e' }
+        }
+    }
+    else {
+        Add-Result -Category "CMMC - L3 Enhanced Controls" -Status "Fail" `
+            -Severity "High" `
+            -Message "L3 IA.L3-3.5.2 TPM not active" `
+            -CrossReferences @{ CMMC='IA.L3-3.5.2'; NIST172='3.5.2e' }
+    }
+
+    $tamperReg = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Features" -Name "TamperProtection" -Default $null
+    if ($tamperReg -eq 5) {
+        Add-Result -Category "CMMC - L3 Enhanced Controls" -Status "Pass" `
+            -Severity "High" `
+            -Message "L3 SI.L3-3.14.2 Tamper protection active for security tools" `
+            -CrossReferences @{ CMMC='SI.L3-3.14.2'; NIST172='3.14.2e' }
+    }
+    else {
+        Add-Result -Category "CMMC - L3 Enhanced Controls" -Status "Fail" `
+            -Severity "High" `
+            -Message "L3 SI.L3-3.14.2 Tamper protection not enforced (value: $tamperReg)" `
+            -Details "Configure tamper protection through Defender portal or Intune" `
+            -CrossReferences @{ CMMC='SI.L3-3.14.2'; NIST172='3.14.2e' }
+    }
+
+    $auditPCL = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit" -Name "ProcessCreationIncludeCmdLine_Enabled" -Default 0
+    if ($auditPCL -eq 1) {
+        Add-Result -Category "CMMC - L3 Enhanced Controls" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "L3 AU.L3-3.3.1 Process command line auditing enabled" `
+            -CrossReferences @{ CMMC='AU.L3-3.3.1'; NIST172='3.3.1e'; NIST='AU-12' }
+    }
+    else {
+        Add-Result -Category "CMMC - L3 Enhanced Controls" -Status "Fail" `
+            -Severity "Medium" `
+            -Message "L3 AU.L3-3.3.1 Process command line auditing disabled" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name 'ProcessCreationIncludeCmdLine_Enabled' -Value 1 -Type DWord" `
+            -CrossReferences @{ CMMC='AU.L3-3.3.1'; NIST172='3.3.1e' }
+    }
+}
+catch {
+    Add-Result -Category "CMMC - L3 Enhanced Controls" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Level 3 enhanced control assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: SPRS scoring calculation (NIST SP 800-171 DoD Assessment Methodology)
+# ===========================================================================
+Write-Host "[CMMC] Computing SPRS score (NIST 800-171 DoD methodology)..." -ForegroundColor Yellow
+
+try {
+    $sprsScoreMap = @{
+        '3.1.1' = 5; '3.1.2' = 5; '3.1.3' = 1; '3.1.5' = 3; '3.1.6' = 3; '3.1.20' = 5
+        '3.3.1' = 5; '3.3.2' = 3; '3.3.5' = 1; '3.3.8' = 1; '3.3.9' = 1
+        '3.4.1' = 5; '3.4.2' = 5; '3.4.6' = 5; '3.4.7' = 5; '3.4.8' = 5; '3.4.9' = 1
+        '3.5.1' = 5; '3.5.2' = 5; '3.5.3' = 5; '3.5.5' = 1; '3.5.7' = 1; '3.5.8' = 1; '3.5.10' = 5
+        '3.6.1' = 5; '3.6.2' = 5
+        '3.8.1' = 1; '3.8.3' = 5; '3.8.4' = 1; '3.8.7' = 5; '3.8.8' = 5; '3.8.9' = 1
+        '3.13.1' = 5; '3.13.2' = 5; '3.13.5' = 5; '3.13.6' = 5; '3.13.8' = 5; '3.13.11' = 5; '3.13.16' = 5
+        '3.14.1' = 5; '3.14.2' = 5; '3.14.4' = 5; '3.14.5' = 5; '3.14.6' = 5; '3.14.7' = 5
+    }
+
+    $totalControls = 110
+    $maxScore = 110
+    $deductions = 0
+
+    foreach ($r in $results) {
+        if ($r.Module -eq 'CMMC' -and $r.Status -in @('Fail','Warning')) {
+            if ($r.PSObject.Properties['CrossReferences'] -and $r.CrossReferences.NIST171) {
+                $controlId = $r.CrossReferences.NIST171
+                if ($sprsScoreMap.ContainsKey($controlId)) {
+                    $deduction = $sprsScoreMap[$controlId]
+                    if ($r.Status -eq 'Warning') { $deduction = [Math]::Ceiling($deduction / 2) }
+                    $deductions += $deduction
+                }
+                else {
+                    $deductions += 1
+                }
+            }
+        }
+    }
+
+    $sprsScore = $maxScore - $deductions
+    $sprsRating = switch ($sprsScore) {
+        { $_ -ge 110 } { 'Full Implementation' }
+        { $_ -ge 90 }  { 'Substantial Implementation' }
+        { $_ -ge 50 }  { 'Partial Implementation' }
+        { $_ -ge 0 }   { 'Limited Implementation' }
+        default        { 'Below Minimum' }
+    }
+
+    Add-Result -Category "CMMC - SPRS Scoring" -Status "Info" `
+        -Severity "Informational" `
+        -Message "SPRS Score: $sprsScore / 110 ($sprsRating)" `
+        -Details "Calculated per NIST SP 800-171 DoD Assessment Methodology v1.2.1. Deductions: $deductions points across detected non-compliant controls. This is a self-assessment estimate; formal SPRS submission requires DoD assessment." `
+        -CrossReferences @{ DFARS='252.204-7019'; DFARS2='252.204-7020' }
+
+    if ($sprsScore -lt 90) {
+        Add-Result -Category "CMMC - SPRS Scoring" -Status "Warning" `
+            -Severity "High" `
+            -Message "SPRS score below 90 indicates significant control gaps for CUI handling" `
+            -Details "DoD contracts requiring DFARS 252.204-7012 generally expect scores at or near 110" `
+            -CrossReferences @{ DFARS='252.204-7019' }
+    }
+}
+catch {
+    Add-Result -Category "CMMC - SPRS Scoring" -Status "Error" `
+        -Severity "Medium" `
+        -Message "SPRS score calculation failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: DFARS 252.204-7012 Safeguarding Covered Defense Information
+# ===========================================================================
+Write-Host "[CMMC] Checking DFARS 252.204-7012 safeguarding controls..." -ForegroundColor Yellow
+
+try {
+    $bitLockerStatus = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLockerStatus -and $bitLockerStatus.SystemDriveProtected) {
+        Add-Result -Category "CMMC - DFARS Safeguarding" -Status "Pass" `
+            -Severity "High" `
+            -Message "DFARS 252.204-7012(b)(2)(i)(A) System drive encryption active" `
+            -Details "BitLocker protects CUI data at rest on the system drive" `
+            -CrossReferences @{ DFARS='252.204-7012'; CMMC='MP.L2-3.8.9'; NIST171='3.8.9' }
+    }
+    else {
+        Add-Result -Category "CMMC - DFARS Safeguarding" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "DFARS 252.204-7012(b)(2)(i)(A) System drive encryption not active" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ DFARS='252.204-7012'; CMMC='MP.L2-3.8.9'; NIST171='3.8.9' }
+    }
+
+    $smbSigning = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "RequireSecuritySignature" -Default 0
+    if ($smbSigning -eq 1) {
+        Add-Result -Category "CMMC - DFARS Safeguarding" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "DFARS 252.204-7012(b)(2)(i)(B) SMB transmission signing required" `
+            -CrossReferences @{ DFARS='252.204-7012'; CMMC='SC.L2-3.13.8'; NIST171='3.13.8' }
+    }
+    else {
+        Add-Result -Category "CMMC - DFARS Safeguarding" -Status "Fail" `
+            -Severity "High" `
+            -Message "DFARS 252.204-7012(b)(2)(i)(B) SMB signing not required" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'RequireSecuritySignature' -Value 1 -Type DWord" `
+            -CrossReferences @{ DFARS='252.204-7012'; CMMC='SC.L2-3.13.8'; NIST171='3.13.8' }
+    }
+
+    $tlsv11Enabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server" -Name "Enabled" -Default $null
+    if ($null -eq $tlsv11Enabled -or $tlsv11Enabled -eq 0) {
+        Add-Result -Category "CMMC - DFARS Safeguarding" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "DFARS 252.204-7012 Legacy TLS 1.1 disabled on server side" `
+            -CrossReferences @{ DFARS='252.204-7012'; CMMC='SC.L2-3.13.11'; NIST171='3.13.11' }
+    }
+    else {
+        Add-Result -Category "CMMC - DFARS Safeguarding" -Status "Fail" `
+            -Severity "High" `
+            -Message "DFARS 252.204-7012 TLS 1.1 enabled (FIPS-validated module required for CUI)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server' -Name 'Enabled' -Value 0 -Type DWord" `
+            -CrossReferences @{ DFARS='252.204-7012'; CMMC='SC.L2-3.13.11'; NIST171='3.13.11' }
+    }
+
+    $fipsPolicy = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy" -Name "Enabled" -Default 0
+    if ($fipsPolicy -eq 1) {
+        Add-Result -Category "CMMC - DFARS Safeguarding" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "DFARS 252.204-7012(b)(2)(i)(C) FIPS-validated cryptography policy enforced" `
+            -CrossReferences @{ DFARS='252.204-7012'; CMMC='SC.L2-3.13.11'; NIST171='3.13.11' }
+    }
+    else {
+        Add-Result -Category "CMMC - DFARS Safeguarding" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "DFARS 252.204-7012(b)(2)(i)(C) FIPS-only mode not enforced" `
+            -Details "FIPS-only mode required when handling CUI per NIST SP 800-171 3.13.11" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy' -Name 'Enabled' -Value 1 -Type DWord; Restart-Computer" `
+            -CrossReferences @{ DFARS='252.204-7012'; NIST171='3.13.11' }
+    }
+}
+catch {
+    Add-Result -Category "CMMC - DFARS Safeguarding" -Status "Error" `
+        -Severity "Medium" `
+        -Message "DFARS safeguarding assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: CDI/CUI marking and handling indicators
+# ===========================================================================
+Write-Host "[CMMC] Checking CDI/CUI handling indicators..." -ForegroundColor Yellow
+
+try {
+    $aipPath = "HKLM:\SOFTWARE\Microsoft\MSIPC"
+    $mipPath = "HKLM:\SOFTWARE\Microsoft\Office\16.0\Common\InformationRightsManagement"
+
+    if ((Test-Path $aipPath -ErrorAction SilentlyContinue) -or (Test-Path $mipPath -ErrorAction SilentlyContinue)) {
+        Add-Result -Category "CMMC - CUI Handling" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Information rights management infrastructure present (AIP/MIP)" `
+            -Details "Microsoft Information Protection / Azure Information Protection supports CUI marking" `
+            -CrossReferences @{ CMMC='MP.L2-3.8.3'; NIST171='3.8.3'; NARA='32 CFR 2002' }
+    }
+    else {
+        Add-Result -Category "CMMC - CUI Handling" -Status "Info" `
+            -Severity "Informational" `
+            -Message "No Information Rights Management infrastructure detected" `
+            -Details "AIP/MIP supports labeling and protection of CUI in documents and email" `
+            -CrossReferences @{ CMMC='MP.L2-3.8.3' }
+    }
+
+    $secEvtSize = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Security" -Name "MaxSize" -Default 0
+    $secEvtMB = [Math]::Round($secEvtSize / 1MB, 0)
+    if ($secEvtSize -ge 1073741824) {
+        Add-Result -Category "CMMC - CUI Handling" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Security event log sized for CUI audit retention ($secEvtMB MB)" `
+            -CrossReferences @{ CMMC='AU.L2-3.3.1'; NIST171='3.3.1' }
+    }
+    else {
+        Add-Result -Category "CMMC - CUI Handling" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Security event log undersized for CUI auditing ($secEvtMB MB; recommend 1024 MB+)" `
+            -Remediation "wevtutil sl Security /ms:1073741824" `
+            -CrossReferences @{ CMMC='AU.L2-3.3.1'; NIST171='3.3.1' }
+    }
+
+    $autoPlay = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoDriveTypeAutoRun" -Default 0
+    if ($autoPlay -eq 255) {
+        Add-Result -Category "CMMC - CUI Handling" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "AutoPlay disabled for all drive types (CUI exfiltration risk reduced)" `
+            -CrossReferences @{ CMMC='MP.L2-3.8.7'; NIST171='3.8.7' }
+    }
+    else {
+        Add-Result -Category "CMMC - CUI Handling" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "AutoPlay not fully disabled (current value: $autoPlay)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name 'NoDriveTypeAutoRun' -Value 255 -Type DWord" `
+            -CrossReferences @{ CMMC='MP.L2-3.8.7'; NIST171='3.8.7' }
+    }
+}
+catch {
+    Add-Result -Category "CMMC - CUI Handling" -Status "Error" `
+        -Severity "Medium" `
+        -Message "CDI/CUI handling assessment failed: $($_.Exception.Message)"
+}
+
 # ===========================================================================
 # Module Summary
 # ===========================================================================
@@ -936,15 +1328,11 @@ foreach ($cat in ($catGroups.Keys | Sort-Object)) {
 
 # Severity distribution for failures
 $failResults = @($results | Where-Object { $_.Status -eq "Fail" })
-if ($failResults.Count -gt 0) {
-    Write-Host "`n  Failed Check Severity Distribution:" -ForegroundColor Yellow
-    foreach ($sev in @("Critical","High","Medium","Low")) {
-        $sevCount = @($failResults | Where-Object { $_.Severity -eq $sev }).Count
-        if ($sevCount -gt 0) {
-            $color = switch ($sev) { "Critical" { "Red" }; "High" { "Red" }; "Medium" { "Yellow" }; default { "White" } }
-            Write-Host "    $($sev.PadRight(12)): $sevCount" -ForegroundColor $color
-        }
-    }
+Write-Host "`n  Failed Check Severity Distribution:" -ForegroundColor Yellow
+foreach ($sev in @("Critical","High","Medium","Low")) {
+    $sevCount = @($failResults | Where-Object { $_.Severity -eq $sev }).Count
+    $color = switch ($sev) { "Critical" { "Red" }; "High" { "Red" }; "Medium" { "Yellow" }; default { "White" } }
+    Write-Host "    $($sev.PadRight(12)): $sevCount" -ForegroundColor $color
 }
 Write-Host "$("=" * 80)`n" -ForegroundColor White
 
@@ -1031,7 +1419,3 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
-
-# ============================================================================
-# End of CMMC 2.0 Module (Module-CMMC.ps1)
-# ============================================================================
