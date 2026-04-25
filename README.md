@@ -18,7 +18,7 @@
 [![Full Matrix](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/full-matrix.yml/badge.svg?branch=main)](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/full-matrix.yml)
 
 [![Latest Release](https://img.shields.io/github/v/release/Sandler73/Windows-Security-Audit-Project?logo=github&label=release)](https://github.com/Sandler73/Windows-Security-Audit-Project/releases/latest)
-[![License](https://img.shields.io/github/license/Sandler73/Windows-Security-Audit-Project?logo=opensourceinitiative&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/docs/project/LICENSE.md)
+[![License](https://img.shields.io/github/license/Sandler73/Windows-Security-Audit-Project?logo=opensourceinitiative&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/LICENSE.md)
 [![Last Commit](https://img.shields.io/github/last-commit/Sandler73/Windows-Security-Audit-Project?logo=git&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/commits/main)
 [![Open Issues](https://img.shields.io/github/issues/Sandler73/Windows-Security-Audit-Project?logo=github)](https://github.com/Sandler73/Windows-Security-Audit-Project/issues)
 [![Stars](https://img.shields.io/github/stars/Sandler73/Windows-Security-Audit-Project?logo=github&style=flat)](https://github.com/Sandler73/Windows-Security-Audit-Project/stargazers)
