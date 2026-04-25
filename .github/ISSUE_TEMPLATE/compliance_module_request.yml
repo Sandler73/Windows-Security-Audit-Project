@@ -1,0 +1,176 @@
+name: 📚 Compliance Module Request
+description: Request support for a new compliance framework (e.g., FedRAMP, FFIEC, MITRE ATT&CK)
+title: "[Module]: <Framework Name>"
+labels: ["new-module", "compliance", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a new compliance module! New modules are major additions —
+        a single module can take 2-6 weeks of engineering effort.
+
+        **Current modules (v6.1.2):** acsc, cis, cisa, cmmc, core, enisa, gdpr, hipaa,
+        iso27001, ms, ms-defenderatp, nist, nsa, pcidss, soc2, stig
+
+        **Before opening this:**
+        - Verify that no existing module substantially covers your framework. Many frameworks
+          are derivative of NIST 800-53, ISO 27001, or CIS Controls; the existing modules
+          may already test what you need via `CrossReferences`.
+        - Check the [Framework Reference wiki](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Framework-Reference)
+          to see exactly what each existing module covers.
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: I have searched existing issues and this framework has not been requested
+          required: true
+        - label: No existing module sufficiently covers this framework
+          required: true
+        - label: This framework is publicly published or commonly cited
+          required: true
+
+  - type: input
+    id: framework-name
+    attributes:
+      label: Framework name
+      placeholder: "FedRAMP High Baseline / FFIEC CAT / NERC CIP / etc."
+    validations:
+      required: true
+
+  - type: input
+    id: publisher
+    attributes:
+      label: Publishing organization
+      description: Who publishes this framework?
+      placeholder: "GSA / FFIEC / NERC / etc."
+    validations:
+      required: true
+
+  - type: input
+    id: framework-version
+    attributes:
+      label: Specific version / revision to target
+      description: Frameworks evolve. Pick one specific version as the target.
+      placeholder: "Rev 5 / 2024 / v1.2 / etc."
+    validations:
+      required: true
+
+  - type: input
+    id: official-url
+    attributes:
+      label: Official publication URL
+      description: Link to the canonical document (must be publicly accessible)
+      placeholder: "https://csrc.nist.gov/..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: license-clear
+    attributes:
+      label: Licensing / nominative use
+      description: Confirm the framework is publicly published and free to reference for audit-tooling purposes
+      options:
+        - "Yes — publicly published, free to reference"
+        - "Conditional — reference allowed for audit/educational use"
+        - "Unclear — would need legal review"
+        - "No — proprietary or paywalled"
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Framework scope and structure
+      description: |
+        Briefly describe what the framework covers and how it's organized. How many controls?
+        Is it organized by control families, domains, control numbers? What's the typical
+        structure of a control?
+      placeholder: |
+        FedRAMP High has ~421 controls organized into 17 control families inherited from
+        NIST 800-53 R5 (AC, AU, AT, CM, etc.). Each control has a control statement,
+        guidance, and FedRAMP-specific parameter values.
+    validations:
+      required: true
+
+  - type: textarea
+    id: applicability
+    attributes:
+      label: Windows applicability
+      description: |
+        Many controls in many frameworks are organizational/process-level and cannot be
+        verified by a Windows-side script. Be realistic about how many of the framework's
+        controls have a Windows technical implementation.
+      placeholder: |
+        Of FedRAMP High's ~421 controls, approximately 180-220 have a Windows technical
+        verification path. The rest are process controls (policies, training, vendor
+        contracts, etc.) that this audit framework cannot test.
+    validations:
+      required: true
+
+  - type: textarea
+    id: priority-controls
+    attributes:
+      label: Priority controls
+      description: |
+        List 10-20 specific control identifiers that would be highest priority to implement
+        first, with a one-line description each.
+      placeholder: |
+        AC-2: Account Management — verify Guest disabled, lockout policy
+        AC-7: Unsuccessful Logon Attempts — lockout threshold/duration
+        AU-2: Audit Events — auditpol coverage of required event categories
+        CM-7: Least Functionality — disabled unnecessary services
+        IA-5: Authenticator Management — password complexity policy
+        ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: existing-mappings
+    attributes:
+      label: Cross-framework mappings
+      description: |
+        Most frameworks officially map to NIST 800-53. Listing the mapping helps maintainers
+        understand how much can be reused from existing modules vs. genuinely new.
+      placeholder: |
+        FedRAMP controls are a tailored subset of NIST 800-53 R5. ~95% of FedRAMP controls
+        have a direct NIST 800-53 R5 equivalent already covered by the `nist` module.
+        A FedRAMP module would primarily be a re-tagging exercise + FedRAMP-specific
+        parameter values for ~25 controls.
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: |
+        Who would use this module? What audit scenarios does it support? How does it relate
+        to formal certification/attestation processes?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Are you willing to contribute?
+      description: New modules typically require deep framework expertise
+      options:
+        - Yes — I will draft the full module (with maintainer review)
+        - Yes — I can contribute control-by-control mappings
+        - Yes — I can review and validate maintainer's draft
+        - Maybe — depending on scope
+        - No — requesting only
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Anything else relevant to scoping this module
+    validations:
+      required: false
