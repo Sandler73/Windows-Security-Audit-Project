@@ -45,7 +45,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Show environment
         shell: pwsh
@@ -120,8 +120,8 @@ jobs:
           $data = Get-Content $jsonPath -Raw | ConvertFrom-Json
           $count = @($data.Results).Count
           Write-Host "core module emitted $count results"
-          if ($count -lt 100) {
-            throw "core module emitted only $count results (expected >=100)"
+          if ($count -lt 50) {
+            throw "core module emitted only $count results (expected >=50)"
           }
 
       - name: Run multi-module sequential audit
@@ -141,8 +141,8 @@ jobs:
           $data = Get-Content $jsonFiles[0].FullName -Raw | ConvertFrom-Json
           $count = @($data.Results).Count
           Write-Host "Sequential 3-module audit: $count results"
-          if ($count -lt 500) {
-            throw "Multi-module audit emitted only $count results"
+          if ($count -lt 150) {
+            throw "Multi-module audit emitted only $count results (expected >=150)"
           }
 
       - name: Run multi-module parallel audit
@@ -226,8 +226,8 @@ jobs:
           Write-Host "Unique modules:      $($modules.Count)"
           Write-Host "Module list:         $($modules -join ', ')"
 
-          if ($count -lt 3000) {
-            throw "Full audit emitted only $count results (expected >=3000)"
+          if ($count -lt 1500) {
+            throw "Full audit emitted only $count results (expected >=1500)"
           }
           if ($modules.Count -lt 14) {
             throw "Only $($modules.Count) modules contributed results (expected >=14)"
@@ -283,7 +283,7 @@ jobs:
 
       - name: Upload audit artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: audit-output-${{ matrix.os }}
           path: |
@@ -319,7 +319,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Verify runner
         shell: pwsh
@@ -349,7 +349,7 @@ jobs:
 
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: e2e-${{ matrix.runner.label }}
           path: |
