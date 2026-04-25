@@ -1,6 +1,6 @@
 # module-acsc.ps1
 # ACSC Essential Eight Compliance Module for Windows Security Audit
-# Version: 6.0
+# Version: 6.1.2
 #
 # Evaluates Windows configuration against the Australian Cyber Security Centre (ACSC)
 # Essential Eight mitigation strategies with Severity ratings and cross-framework references.
@@ -32,7 +32,7 @@
     Dependencies: audit-common.ps1 (optional, for caching)
     References: ACSC Essential Eight Maturity Model (July 2023),
                 ACSC Strategies to Mitigate Cyber Security Incidents
-    Version: 6.0
+    Version: 6.1.2
 
 .EXAMPLE
     $results = & .\modules\module-acsc.ps1 -SharedData $sharedData
@@ -44,7 +44,7 @@ param(
 )
 
 $moduleName = "ACSC"
-$moduleVersion = "6.0"
+$moduleVersion = "6.1.2"
 $results = @()
 
 # ---------------------------------------------------------------------------
@@ -86,7 +86,7 @@ function Get-RegValue {
     try {
         $item = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
         if ($null -ne $item) { return $item.$Name }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
     return $Default
 }
 
@@ -890,6 +890,416 @@ Write-Host "[ACSC] Checking E8 -- Regular Backups..." -ForegroundColor Yellow
             -Severity "High" -CrossReferences @{ ACSC='E8'; NIST='CP-9' }
     }
 
+
+# ===========================================================================
+# v6.1: Essential Eight Maturity Level assessment
+# ===========================================================================
+Write-Host "[ACSC] Computing Essential Eight Maturity Levels..." -ForegroundColor Yellow
+
+try {
+    $strategies = @('E1','E2','E3','E4','E5','E6','E7','E8')
+    foreach ($strat in $strategies) {
+        $strategyResults = @($results | Where-Object {
+            $_.Category -like "ACSC - $strat *"
+        })
+        if ($strategyResults.Count -eq 0) { continue }
+
+        $stratPass = @($strategyResults | Where-Object { $_.Status -eq 'Pass' }).Count
+        $stratTotal = $strategyResults.Count
+        $passRate = if ($stratTotal -gt 0) { ($stratPass / $stratTotal) * 100 } else { 0 }
+
+        $maturityLevel = switch ($passRate) {
+            { $_ -ge 85 } { 3 }
+            { $_ -ge 65 } { 2 }
+            { $_ -ge 40 } { 1 }
+            default       { 0 }
+        }
+
+        $maturityDesc = switch ($maturityLevel) {
+            3 { 'Adversaries with effective targeting and capability addressed' }
+            2 { 'Adversaries operating with modest step-up in capability addressed' }
+            1 { 'Adversaries content with publicly available techniques addressed' }
+            0 { 'Below Maturity Level 1 - significant gaps' }
+        }
+
+        $stratName = ($strategyResults[0].Category -replace 'ACSC - ', '')
+        $status = if ($maturityLevel -ge 2) { 'Pass' } elseif ($maturityLevel -eq 1) { 'Warning' } else { 'Fail' }
+        $severity = if ($maturityLevel -ge 2) { 'Low' } elseif ($maturityLevel -eq 1) { 'Medium' } else { 'High' }
+
+        Add-Result -Category "ACSC - Maturity Levels" -Status $status `
+            -Severity $severity `
+            -Message "$stratName Maturity Level: $maturityLevel ($([Math]::Round($passRate, 1))% controls passing)" `
+            -Details "$maturityDesc. ACSC defines Maturity Levels Zero through Three; Level Two is the recommended baseline for most non-government organizations." `
+            -CrossReferences @{ ACSC='Essential Eight Maturity Model'; ISM='0001' }
+    }
+}
+catch {
+    Add-Result -Category "ACSC - Maturity Levels" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Maturity level computation failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: ACSC Information Security Manual (ISM) controls
+# ===========================================================================
+Write-Host "[ACSC] Checking ISM control implementation indicators..." -ForegroundColor Yellow
+
+try {
+    $sbEnabled = Test-SecureBootEnabled
+    if ($sbEnabled) {
+        Add-Result -Category "ACSC - ISM Controls" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "ISM-1051 Trusted boot mechanism active (Secure Boot)" `
+            -CrossReferences @{ ACSC='ISM-1051'; ISM='1051' }
+    }
+    else {
+        Add-Result -Category "ACSC - ISM Controls" -Status "Fail" `
+            -Severity "High" `
+            -Message "ISM-1051 Secure Boot not enabled" `
+            -Details "Configure in UEFI firmware setup; cannot be remediated from PowerShell" `
+            -CrossReferences @{ ACSC='ISM-1051' }
+    }
+
+    $cgActive = Test-CredentialGuardEnabled
+    if ($cgActive) {
+        Add-Result -Category "ACSC - ISM Controls" -Status "Pass" `
+            -Severity "High" `
+            -Message "ISM-1681 Hardware-based credential isolation (Credential Guard)" `
+            -CrossReferences @{ ACSC='ISM-1681'; ISM='1681' }
+    }
+    else {
+        Add-Result -Category "ACSC - ISM Controls" -Status "Fail" `
+            -Severity "High" `
+            -Message "ISM-1681 Credential Guard not active" `
+            -CrossReferences @{ ACSC='ISM-1681' }
+    }
+
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "ACSC - ISM Controls" -Status "Pass" `
+            -Severity "High" `
+            -Message "ISM-0457 Full disk encryption on system drive" `
+            -CrossReferences @{ ACSC='ISM-0457'; ISM='0457' }
+    }
+    else {
+        Add-Result -Category "ACSC - ISM Controls" -Status "Fail" `
+            -Severity "High" `
+            -Message "ISM-0457 System drive not encrypted" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ ACSC='ISM-0457' }
+    }
+
+    $tlsv12Server = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server" -Name "Enabled" -Default $null
+    if ($null -eq $tlsv12Server -or $tlsv12Server -eq 1) {
+        Add-Result -Category "ACSC - ISM Controls" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "ISM-1139 TLS 1.2 or higher available for server-side connections" `
+            -CrossReferences @{ ACSC='ISM-1139'; ISM='1139' }
+    }
+    else {
+        Add-Result -Category "ACSC - ISM Controls" -Status "Fail" `
+            -Severity "High" `
+            -Message "ISM-1139 TLS 1.2 disabled on server side" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server' -Name 'Enabled' -Value 1 -Type DWord" `
+            -CrossReferences @{ ACSC='ISM-1139' }
+    }
+
+    $auditPolicy = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "SCENoApplyLegacyAuditPolicy" -Default 0
+    if ($auditPolicy -eq 1) {
+        Add-Result -Category "ACSC - ISM Controls" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "ISM-0582 Advanced audit policy in use (legacy override active)" `
+            -CrossReferences @{ ACSC='ISM-0582'; ISM='0582' }
+    }
+    else {
+        Add-Result -Category "ACSC - ISM Controls" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "ISM-0582 Legacy audit policy may be active" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name 'SCENoApplyLegacyAuditPolicy' -Value 1 -Type DWord" `
+            -CrossReferences @{ ACSC='ISM-0582' }
+    }
+
+    $rcaPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
+    $consentPrompt = Get-RegValue -Path $rcaPath -Name "ConsentPromptBehaviorAdmin" -Default 0
+    if ($consentPrompt -eq 2) {
+        Add-Result -Category "ACSC - ISM Controls" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "ISM-1490 UAC prompts for credentials on Secure Desktop" `
+            -CrossReferences @{ ACSC='ISM-1490'; ISM='1490' }
+    }
+    elseif ($consentPrompt -ge 1) {
+        Add-Result -Category "ACSC - ISM Controls" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "ISM-1490 UAC consent behavior weaker than recommended (value: $consentPrompt)" `
+            -Remediation "Set-ItemProperty -Path '$rcaPath' -Name 'ConsentPromptBehaviorAdmin' -Value 2 -Type DWord" `
+            -CrossReferences @{ ACSC='ISM-1490' }
+    }
+    else {
+        Add-Result -Category "ACSC - ISM Controls" -Status "Fail" `
+            -Severity "High" `
+            -Message "ISM-1490 UAC silently elevates (value: 0)" `
+            -Remediation "Set-ItemProperty -Path '$rcaPath' -Name 'ConsentPromptBehaviorAdmin' -Value 2 -Type DWord" `
+            -CrossReferences @{ ACSC='ISM-1490' }
+    }
+}
+catch {
+    Add-Result -Category "ACSC - ISM Controls" -Status "Error" `
+        -Severity "Medium" `
+        -Message "ISM control assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Protective Security Policy Framework (PSPF) alignment
+# ===========================================================================
+Write-Host "[ACSC] Checking PSPF technical alignment..." -ForegroundColor Yellow
+
+try {
+    $defenderStatus = Get-DefenderStatus -Cache $SharedData.Cache
+    if ($defenderStatus -and $defenderStatus.RealTimeProtectionEnabled) {
+        Add-Result -Category "ACSC - PSPF Alignment" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "PSPF Policy 10 Endpoint malicious content protection active" `
+            -Details "Australian Government PSPF Policy 10 requires malicious content protection on endpoints" `
+            -CrossReferences @{ ACSC='PSPF-10'; PSPF='Policy 10' }
+    }
+    else {
+        Add-Result -Category "ACSC - PSPF Alignment" -Status "Fail" `
+            -Severity "High" `
+            -Message "PSPF Policy 10 Endpoint protection inactive" `
+            -CrossReferences @{ ACSC='PSPF-10' }
+    }
+
+    $logEntries = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging" -Name "EnableScriptBlockLogging" -Default 0
+    if ($logEntries -eq 1) {
+        Add-Result -Category "ACSC - PSPF Alignment" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "PSPF Policy 11 Activity logging enabled (PowerShell script block logging)" `
+            -CrossReferences @{ ACSC='PSPF-11'; PSPF='Policy 11' }
+    }
+    else {
+        Add-Result -Category "ACSC - PSPF Alignment" -Status "Fail" `
+            -Severity "Medium" `
+            -Message "PSPF Policy 11 PowerShell logging not enabled" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name 'EnableScriptBlockLogging' -Value 1 -Type DWord" `
+            -CrossReferences @{ ACSC='PSPF-11' }
+    }
+
+    $infoMarking = Test-Path "HKLM:\SOFTWARE\Microsoft\MSIPC" -ErrorAction SilentlyContinue
+    if ($infoMarking) {
+        Add-Result -Category "ACSC - PSPF Alignment" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "PSPF Policy 8 Information classification infrastructure present (AIP/MIP)" `
+            -CrossReferences @{ ACSC='PSPF-8'; PSPF='Policy 8' }
+    }
+    else {
+        Add-Result -Category "ACSC - PSPF Alignment" -Status "Info" `
+            -Severity "Informational" `
+            -Message "No information classification infrastructure detected" `
+            -Details "PSPF Policy 8 requires marking of OFFICIAL, OFFICIAL: Sensitive, PROTECTED, SECRET, TOP SECRET" `
+            -CrossReferences @{ ACSC='PSPF-8' }
+    }
+}
+catch {
+    Add-Result -Category "ACSC - PSPF Alignment" -Status "Error" `
+        -Severity "Medium" `
+        -Message "PSPF alignment assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: ASD Cryptographic Protocols (ACSI 33)
+# ===========================================================================
+Write-Host "[ACSC] Checking ASD-approved cryptographic protocols..." -ForegroundColor Yellow
+
+try {
+    $rc4 = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\RC4 128/128" -Name "Enabled" -Default $null
+    if ($null -eq $rc4 -or $rc4 -eq 0) {
+        Add-Result -Category "ACSC - Cryptographic Protocols" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "ASD-blacklisted cipher RC4-128 disabled" `
+            -CrossReferences @{ ACSC='ACSI-33'; ISM='1232' }
+    }
+    else {
+        Add-Result -Category "ACSC - Cryptographic Protocols" -Status "Fail" `
+            -Severity "High" `
+            -Message "RC4-128 cipher enabled (ASD-prohibited)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\RC4 128/128' -Name 'Enabled' -Value 0 -Type DWord" `
+            -CrossReferences @{ ACSC='ACSI-33'; ISM='1232' }
+    }
+
+    $tripleDes = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\Triple DES 168" -Name "Enabled" -Default $null
+    if ($null -eq $tripleDes -or $tripleDes -eq 0) {
+        Add-Result -Category "ACSC - Cryptographic Protocols" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Triple DES disabled (Sweet32 attack mitigation)" `
+            -CrossReferences @{ ACSC='ACSI-33' }
+    }
+    else {
+        Add-Result -Category "ACSC - Cryptographic Protocols" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Triple DES enabled (vulnerable to Sweet32)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Ciphers\Triple DES 168' -Name 'Enabled' -Value 0 -Type DWord" `
+            -CrossReferences @{ ACSC='ACSI-33'; CVE='CVE-2016-2183' }
+    }
+
+    $md5Hash = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Hashes\MD5" -Name "Enabled" -Default $null
+    if ($null -eq $md5Hash -or $md5Hash -eq 0) {
+        Add-Result -Category "ACSC - Cryptographic Protocols" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "MD5 hash algorithm disabled in SCHANNEL" `
+            -CrossReferences @{ ACSC='ACSI-33'; ISM='1232' }
+    }
+    else {
+        Add-Result -Category "ACSC - Cryptographic Protocols" -Status "Fail" `
+            -Severity "High" `
+            -Message "MD5 hash algorithm enabled (collision-vulnerable, ASD-prohibited)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Hashes\MD5' -Name 'Enabled' -Value 0 -Type DWord" `
+            -CrossReferences @{ ACSC='ACSI-33'; ISM='1232' }
+    }
+}
+catch {
+    Add-Result -Category "ACSC - Cryptographic Protocols" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Cryptographic protocol assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: ACSC Strategies to Mitigate (broader than Essential Eight)
+# ===========================================================================
+Write-Host "[ACSC] Checking broader Strategies to Mitigate Cyber Security Incidents..." -ForegroundColor Yellow
+
+try {
+    $exploitGuard = Get-CimInstance -ClassName MSFT_MpPreference -Namespace 'root\Microsoft\Windows\Defender' -ErrorAction SilentlyContinue
+    if ($exploitGuard) {
+        Add-Result -Category "ACSC - Strategies to Mitigate" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Strategy 11 Exploit protection management infrastructure available" `
+            -Details "ACSC Top 37 Strategies #11 (Operating system generic exploit mitigation)" `
+            -CrossReferences @{ ACSC='Strategy-11'; ASD='Top 37' }
+    }
+    else {
+        Add-Result -Category "ACSC - Strategies to Mitigate" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Strategy 11 Defender exploit protection not assessable" `
+            -CrossReferences @{ ACSC='Strategy-11' }
+    }
+
+    $sbomEvent = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "NoAutoUpdate" -Default 0
+    if ($sbomEvent -eq 0) {
+        Add-Result -Category "ACSC - Strategies to Mitigate" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Strategy 4 Operating system patching automation active" `
+            -CrossReferences @{ ACSC='Strategy-4'; ASD='Top 37' }
+    }
+    else {
+        Add-Result -Category "ACSC - Strategies to Mitigate" -Status "Fail" `
+            -Severity "High" `
+            -Message "Strategy 4 Automatic OS patching disabled" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name 'NoAutoUpdate' -Value 0 -Type DWord" `
+            -CrossReferences @{ ACSC='Strategy-4' }
+    }
+
+    $smbv1 = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "SMB1" -Default 1
+    if ($smbv1 -eq 0) {
+        Add-Result -Category "ACSC - Strategies to Mitigate" -Status "Pass" `
+            -Severity "High" `
+            -Message "Strategy 18 Block legacy network protocol (SMBv1 disabled)" `
+            -CrossReferences @{ ACSC='Strategy-18'; ASD='Top 37' }
+    }
+    else {
+        Add-Result -Category "ACSC - Strategies to Mitigate" -Status "Fail" `
+            -Severity "High" `
+            -Message "Strategy 18 SMBv1 enabled (legacy protocol)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'SMB1' -Value 0 -Type DWord; Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" `
+            -CrossReferences @{ ACSC='Strategy-18'; CVE='CVE-2017-0144' }
+    }
+
+    $rdpEnabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Default 1
+    $rdpNla = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "UserAuthentication" -Default 0
+    if ($rdpEnabled -eq 1) {
+        Add-Result -Category "ACSC - Strategies to Mitigate" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Strategy 24 Remote access denied (RDP disabled)" `
+            -CrossReferences @{ ACSC='Strategy-24' }
+    }
+    elseif ($rdpEnabled -eq 0 -and $rdpNla -eq 1) {
+        Add-Result -Category "ACSC - Strategies to Mitigate" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Strategy 24 Remote access enabled with NLA enforced" `
+            -CrossReferences @{ ACSC='Strategy-24' }
+    }
+    else {
+        Add-Result -Category "ACSC - Strategies to Mitigate" -Status "Fail" `
+            -Severity "High" `
+            -Message "Strategy 24 RDP enabled without NLA enforcement" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name 'UserAuthentication' -Value 1 -Type DWord" `
+            -CrossReferences @{ ACSC='Strategy-24' }
+    }
+}
+catch {
+    Add-Result -Category "ACSC - Strategies to Mitigate" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Broader Strategies assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Australian Privacy Principles (APP) technical safeguards
+# ===========================================================================
+Write-Host "[ACSC] Checking Australian Privacy Principles technical safeguards..." -ForegroundColor Yellow
+
+try {
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "ACSC - Privacy Principles" -Status "Pass" `
+            -Severity "High" `
+            -Message "APP 11 Personal information protection (drive encryption active)" `
+            -Details "Privacy Act 1988 APP 11 requires reasonable steps to protect personal information from unauthorized access" `
+            -CrossReferences @{ APP='APP-11'; PrivacyAct='1988' }
+    }
+    else {
+        Add-Result -Category "ACSC - Privacy Principles" -Status "Fail" `
+            -Severity "High" `
+            -Message "APP 11 System drive not encrypted (personal information at rest unprotected)" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ APP='APP-11'; PrivacyAct='1988' }
+    }
+
+    $auditObjAccess = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -like '*File System*' }
+    if ($auditObjAccess -and $auditObjAccess.Setting -ne 'No Auditing') {
+        Add-Result -Category "ACSC - Privacy Principles" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "APP 11 File system auditing active for accountability" `
+            -CrossReferences @{ APP='APP-11' }
+    }
+    else {
+        Add-Result -Category "ACSC - Privacy Principles" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "APP 11 File system auditing not active" `
+            -Remediation "auditpol /set /subcategory:'File System' /success:enable /failure:enable" `
+            -CrossReferences @{ APP='APP-11' }
+    }
+
+    $secLogSize = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Security" -Name "MaxSize" -Default 0
+    if ($secLogSize -ge 268435456) {
+        $secLogMB = [Math]::Round($secLogSize / 1MB, 0)
+        Add-Result -Category "ACSC - Privacy Principles" -Status "Pass" `
+            -Severity "Low" `
+            -Message "APP 1 Audit log retention adequate (${secLogMB} MB)" `
+            -CrossReferences @{ APP='APP-1' }
+    }
+    else {
+        Add-Result -Category "ACSC - Privacy Principles" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "APP 1 Security event log undersized for accountability requirements" `
+            -Remediation "wevtutil sl Security /ms:268435456" `
+            -CrossReferences @{ APP='APP-1' }
+    }
+}
+catch {
+    Add-Result -Category "ACSC - Privacy Principles" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Privacy Principles assessment failed: $($_.Exception.Message)"
+}
+
 # ===========================================================================
 # Module Summary
 # ===========================================================================
@@ -920,15 +1330,11 @@ foreach ($cat in ($catGroups.Keys | Sort-Object)) {
 
 # Severity distribution for failures
 $failResults = @($results | Where-Object { $_.Status -eq "Fail" })
-if ($failResults.Count -gt 0) {
-    Write-Host "`n  Failed Check Severity Distribution:" -ForegroundColor Yellow
-    foreach ($sev in @("Critical","High","Medium","Low")) {
-        $sevCount = @($failResults | Where-Object { $_.Severity -eq $sev }).Count
-        if ($sevCount -gt 0) {
-            $color = switch ($sev) { "Critical" { "Red" }; "High" { "Red" }; "Medium" { "Yellow" }; default { "White" } }
-            Write-Host "    $($sev.PadRight(12)): $sevCount" -ForegroundColor $color
-        }
-    }
+Write-Host "`n  Failed Check Severity Distribution:" -ForegroundColor Yellow
+foreach ($sev in @("Critical","High","Medium","Low")) {
+    $sevCount = @($failResults | Where-Object { $_.Severity -eq $sev }).Count
+    $color = switch ($sev) { "Critical" { "Red" }; "High" { "Red" }; "Medium" { "Yellow" }; default { "White" } }
+    Write-Host "    $($sev.PadRight(12)): $sevCount" -ForegroundColor $color
 }
 Write-Host "$("=" * 80)`n" -ForegroundColor White
 
@@ -1015,7 +1421,3 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
-
-# ============================================================================
-# End of ACSC Essential Eight module (Module-ACSC.ps1)
-# ============================================================================
