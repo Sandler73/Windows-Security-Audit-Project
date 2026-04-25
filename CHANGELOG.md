@@ -15,7 +15,173 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [6.1.0] - 2026-03-03
+## [6.1.2] - 2026-04-25
+
+### Patch — Test Feedback: Cache Errors, Account Policy Parsing, and Logging Wiring
+
+**This patch resolves 30 errors observed during real-world testing of v6.1.1 plus three logging deficiencies that prevented effective debugging. The errors arose from helper-function API mismatches introduced during v6.1.0's Phase 1-4 module expansion, baseline `[int]` casts that failed on uninitialized `net accounts` policy fields, and a fundamental gap between the orchestrator's logging design and the shared library's implementation.**
+
+### Fixed
+
+- **`Get-BitLockerStatus -Cache` parameter mismatch (24 errors)** — v6.1.0 added 24 call sites passing `-Cache $SharedData.Cache` to `Get-BitLockerStatus`, but the function did not declare a `-Cache` parameter, causing PowerShell to throw "A parameter cannot be found that matches parameter name 'Cache'". The function now accepts `-Cache` for API consistency, serves cached results when present, populates the cache on first call, and returns both `IsEncrypted` and `SystemDriveProtected` properties (the latter expected by Phase 1-4 callers).
+- **`Get-OSInfo -Cache` parameter mismatch (3 errors)** — Three v6.1.0 call sites passed `-Cache` to `Get-OSInfo`, which did not accept it. The function now accepts `-Cache` and serves the pre-populated `$Cache.OSInfo` when available, eliminating redundant CIM queries.
+- **`[int]` cast failures on uninitialized `net accounts` fields (3 errors)** — Pre-existing baseline code in `module-cis.ps1`, `module-nist.ps1`, and `module-stig.ps1` cast `net accounts` policy strings directly to `[int]`. When Windows reports policy values as `None` or `Unlimited` (unset/disabled), the cast threw "Cannot convert value 'None' to type 'System.Int32'". 27 cast sites across the three modules now use the existing `ConvertTo-SafeInt` helper from `audit-common.ps1`, which returns `0` (or a configurable default) for non-numeric input.
+- **No log file generated when `-LogFile` is omitted** — The shared library's `Initialize-AuditLogging` left `$script:LogFilePath = $null` when called without `-LogFile`, silently discarding all log messages. The shared library now auto-generates `<ScriptRoot>\logs\audit-yyyyMMdd-HHmmss.log` (or `.json` when `-JsonLog` is set) when `-LogFile` is empty. This matches the orchestrator's built-in fallback behavior, so the shared-library code path no longer regresses logging.
+- **Logging silent on console (only writes to file)** — The shared library's `Write-AuditLog` only wrote to the log file, never the console, so when `-LogFile` was omitted (no file) and the shared library was loaded (no fallback), no log output appeared anywhere. `Write-AuditLog` now emits color-coded console output (`DarkGray` DEBUG, `Gray` INFO, `Yellow` WARNING, `Red` ERROR, `Magenta` CRITICAL) in addition to file output. Console emission is suppressible via `-Quiet` on `Initialize-AuditLogging`.
+- **Empty cache stats display** — The orchestrator referenced `$cacheSummary.ServicesCount`, `$cacheSummary.RegistryCacheCount`, and `$cacheSummary.HotfixCount`, but `Get-CacheSummary` returns `ServicesCached`, `RegistryCached`, `HotFixesCached`, and `LocalUsersCached`. The console output `Cache initialized:  services,  registry keys` had empty interpolations because all property references were wrong. Property names now match; the display also includes local-user count.
+
+### Added
+
+- **DEBUG-level logging at major flow points** — v6.1.1 emitted almost no `-Level 'DEBUG'` messages, so `-LogLevel Debug` produced output indistinguishable from `-LogLevel Info`. v6.1.2 adds 15 DEBUG statements covering invocation context (PowerShell version, OS, user, admin status, parameter values), prerequisite checks, module discovery and selection, parallel/sequential execution mode, per-module start/complete with timing, export start/complete with file paths, and per-module timing summary at audit completion. Running with `-LogLevel Debug` now provides genuine deep-dive diagnostic visibility.
+- **`-Quiet` and `-ScriptRoot` parameters on `Initialize-AuditLogging`** — The orchestrator now passes these so the shared library can suppress console output in quiet mode and locate the correct directory for auto-generated logs.
+
+### Verification
+
+- All 18 `.ps1` files brace-balanced (delta 0)
+- Zero non-ASCII, zero BOMs, zero AI patterns, zero `$null` wrong-side comparisons
+- Total check count preserved at 3,994
+- All 16 modules retain exactly 1 `return $results` statement
+- All 18 file headers and `$moduleVersion`/`$script:ScriptVersion`/`$script:COMMON_LIB_VERSION` synchronized at 6.1.2
+- 27 of 27 bad `Get-BitLockerStatus -Cache` calls and 3 of 3 bad `Get-OSInfo -Cache` calls now resolve correctly (function signatures updated)
+- 27 of 27 unsafe `[int]$var` casts replaced with `ConvertTo-SafeInt $var`
+
+---
+
+## [6.1.1] - 2026-04-25
+
+### Patch — Post-Release Usability Fixes
+
+**This patch resolves a critical regression introduced in v6.1.0 that broke automation in 9 modules, expands help system invocation forms, and substantially enriches the help content.**
+
+### Fixed
+
+- **`Get-CachedAuditPolicy` automation regression (CRITICAL)** — v6.1.0 introduced 23 call sites across 9 modules (acsc, enisa, gdpr, hipaa, iso27001, nist, pcidss, soc2, stig) that invoked `Get-CachedAuditPolicy` without `-Subcategory`. Because the function declared `Subcategory` as `Mandatory=$true`, PowerShell prompted the user for input on every call, breaking unattended automation. Additionally, the v6.1.0 callers expected object output (`.Subcategory`, `.Setting` properties) while the function returned raw text strings.
+  - The function signature now declares `Subcategory` as optional (default `""`).
+  - When `-Subcategory` is provided, the original v6.0 string-returning behavior is preserved (full backward compatibility).
+  - When `-Subcategory` is omitted, the function parses the entire `auditpol /get /category:*` output and returns a `PSCustomObject[]` array with `Category`, `Subcategory`, and `Setting` properties — matching the v6.1.0 calling pattern.
+
+### Added
+
+- **Multiple help invocation forms** — The previous release only supported PowerShell's built-in `-?`. v6.1.1 recognizes:
+  - Bound aliases: `-Help`, `-H`, `-ShowHelp`, `-?`
+  - Non-standard forms (caught via `[Parameter(ValueFromRemainingArguments=$true)]`): `help`, `-help`, `--help`, `--h`, `/?`, `/help`, `/h`
+- **Comprehensive `Show-DetailedHelp` function** — Replaces the minimal previous help with a 10-section help screen:
+  1. Banner with version
+  2. SYNOPSIS with all switch groups
+  3. DESCRIPTION
+  4. SUPPORTED FRAMEWORKS (16 modules, descriptions)
+  5. PARAMETERS sectioned by purpose: Module Selection/Output, Remediation, v6.1 Cross-Cutting Capabilities, Performance and Caching, Logging, Help
+  6. EXAMPLES (10 worked examples covering all major workflows)
+  7. REMEDIATION BUNDLES (v6.1 — all 5 bundles documented with control coverage)
+  8. QUICK REFERENCE (Output Formats, Status Values, Severity Levels)
+  9. REQUIREMENTS
+  10. MORE INFORMATION (paths to docs)
+- Color-coded output via `Write-Section`, `Write-SubSection`, `Write-Param`, `Write-Example` helpers.
+
+### Changed
+
+- Comment-based help (`Get-Help` integration) now documents `-ShowHelp` parameter, all alias forms, and includes a help-invocation example.
+
+### Technical Notes
+
+- Help detection runs at the very start of `Start-SecurityAudit` before any logging or initialization, so help displays cleanly without log noise or prerequisite checks.
+- The `$RemainingArgs` catch-all is purely additive — it does not affect any existing parameter binding behavior.
+- All 18 files brace-balanced; zero non-ASCII; zero BOMs; zero null wrong-side comparisons; total check count preserved at 3,994.
+
+---
+
+## [6.1.0] - 2026-04-25
+
+### Major — Cross-Cutting Capability Release
+
+**This release adds 795 new compliance checks across all 16 modules, introduces seven cross-cutting orchestrator capabilities, and consolidates the NIST module's 230 control-specific categories into 20 framework-aligned groupings while preserving precise control IDs in CrossReferences.**
+
+### Added
+
+#### Foundation Library — 10 New Cross-Cutting Functions
+- **`ConvertTo-RegistryRollback`** — Computes the inverse Set-ItemProperty for any forward registry remediation by querying current value state before modification
+- **`ConvertTo-ServiceRollback`** — Generates inverse service-state command (Stop/Start/StartupType) based on observed service state
+- **`Get-RemediationImpact`** — Classifies remediation operational impact: reboot/logoff requirement, service disruption, network effect, reversibility
+- **`Get-RiskPriorityScore`** — Computes 1-100 priority score combining severity, exploitability heuristics, exposure context, and asset criticality
+- **`Find-CompensatingControls`** — Identifies failed checks where a passing related control may mitigate the risk (e.g., Credential Guard compensating for missing LSA Protection)
+- **`Find-CrossFrameworkCorrelations`** — Groups results across modules that test the same underlying control (SMBv1, TLS protocols, LLMNR, Credential Guard, etc.) to reduce duplicate noise
+- **`Compare-ToBaseline`** — Compares current results against a stored baseline JSON: identifies new failures, resolved findings, regressions, and stable findings
+- **`Export-RegistryPolicyFile`** — Generates Group Policy `.pol` binary file with PReg signature from registry-modifying remediations
+- **`Test-InternetFacingHost`** — Heuristic detection of internet exposure for risk scoring
+- **`Test-DomainControllerHost`** — Detects DC role for criticality weighting
+
+#### Orchestrator — 7 New Parameters
+- **`-Baseline <path>`** — Compare to a previous audit JSON; report includes drift section with new/resolved/regressions
+- **`-ExportGPO <path>`** — Generate Group Policy `.pol` file from selected remediations
+- **`-RollbackPath <path>`** — Generate inverse-script alongside auto-remediation
+- **`-RemediationBundle <name>`** — Apply predefined remediation collections: `DisableLegacyProtocols`, `HardenAuthentication`, `EnableAuditLogging`, `LockDownRDP`, `EssentialEightLevel1`
+- **`-ShowRiskPriority`** — Add 1-100 risk priority score column to reports
+- **`-ShowCorrelations`** — Add cross-framework correlation panel
+- **`-ShowCompensatingControls`** — Add compensating-control mitigation panel
+- Pre-confirmation impact analysis displays reboot/logoff/service/network/destructive counts before auto-remediation
+- Per-item impact display in interactive remediation mode
+
+#### Module Expansions (+795 checks across all 16 modules)
+
+| Module | Baseline | New | Delta |
+|--------|----------|-----|-------|
+| acsc | 123 | 170 | +47 |
+| cis | 223 | 260 | +37 |
+| cisa | 231 | 289 | +58 |
+| cmmc | 103 | 145 | +42 |
+| core | 177 | 243 | +66 |
+| enisa | 198 | 248 | +50 |
+| gdpr | 133 | 183 | +50 |
+| hipaa | 184 | 237 | +53 |
+| iso27001 | 244 | 286 | +42 |
+| ms-defenderatp | 86 | 155 | +69 |
+| ms | 314 | 367 | +53 |
+| nist | 474 | 520 | +46 |
+| nsa | 173 | 225 | +52 |
+| pcidss | 227 | 279 | +52 |
+| soc2 | 124 | 162 | +38 |
+| stig | 185 | 225 | +40 |
+| **Total** | **3,199** | **3,994** | **+795** |
+
+#### Coverage Highlights
+- **acsc** — Essential Eight Maturity Level computation per strategy, ISM controls, PSPF alignment, ACSI 33 cryptographic protocols, broader Strategies to Mitigate, Australian Privacy Principles
+- **cis** — CIS Controls v8 IG2/IG3 maturity, Cloud/Mobile/ICS-OT Companion Guides, workload-specific Benchmark detection (IIS/Exchange/SQL)
+- **cisa** — KEV catalog (CVE-2017-0144, CVE-2021-34527, CVE-2023-24932, CVE-2020-1472), BOD 23-02, Secure by Design, Zero Trust Maturity Model (5 pillars), Cross-Sector CPGs v1.0.1, Bad Practices, Pre-Ransomware Notification
+- **cmmc** — Level 1 basic safeguarding, Level 3 enhanced (NIST SP 800-172), SPRS scoring (DoD methodology), DFARS 252.204-7012, CDI/CUI handling
+- **core** — Windows Hello, VBS+HVCI, Kernel DMA Protection, TPM 2.0 expanded, USB/removable storage, post-PrintNightmare hardening, Windows Sandbox, Enhanced Phishing Protection, MOTW preservation, Pluton, System Guard, kCET
+- **enisa** — NIS2 Directive Art. 21, Cyber Resilience Act, Threat Landscape, Reference Incident Classification Taxonomy, IoC good practice, EUCC, DORA, AI Threat Landscape
+- **gdpr** — ePrivacy Directive, Schrems II / EDPB Recommendations 01/2020, data subject rights (Art. 15-21), Art. 28 processor, Art. 32(1)(b) CIA + resilience, Art. 35 DPIA, pseudonymisation
+- **hipaa** — HHS Recognized Security Practices, NIST SP 800-66 R2, HITECH Sec. 13402(h)/13405(c), 405(d) HICP, Sec. 164.312(a)(2)(iv), Sec. 164.312(e)(2)(ii), Breach Notification Sec. 164.402, 21st Century Cures Sec. 4004, ONC Sec. 170.315
+- **iso27001** — ISO 27002:2022 implementation guidance, ISO 27017/27018 cloud, ISO 27701 privacy, automated SoA computation, ISO 27005 risk + 27031 ICT continuity, Annex A.5/A.7
+- **ms-defenderatp** — Component currency (engine/platform/signature/NIS), Network Protection per-profile, CFA, Enhanced Phishing Protection, WDAC enumeration, device tagging, Defender for Identity, per-rule ASR (15 GUIDs), plan detection, Live Response, Cloud Apps, custom IOCs
+- **ms** — Win11 24H2 / Server 2025 baseline, Edge security baseline, M365 Apps for Enterprise, SCT/LGPO indicators, Pluton + DRTM, Smart App Control, cloud-managed update channels
+- **nist** — SP 800-53 Rev 5 extended controls, CSF 2.0 with new GOVERN function, SP 800-171 Rev 3, SP 800-207 Zero Trust Architecture, SP 800-161 Supply Chain Risk Management, FedRAMP Rev 5
+- **nsa** — Expanded CSI (CredGuard/AppWhitelist/HVCI), AD hardening (DC + member), Top 10 Mitigation Strategies, BlackLotus (CVE-2023-24932 / KB5025885), CSfC prerequisites, Network Infrastructure Security, IPv6 hardening (Teredo/ISATAP)
+- **pcidss** — v4.0.1 Customized Approach, SAQ environment detection, CHD discovery readiness, network segmentation validation, SAD post-authorization prohibition, Req 9 physical security, PCI PIN Security + 3DS Core, PCI Software Security Framework
+- **soc2** — Processing Integrity (PI) criteria, Privacy (P) criteria, Type II evidence collection, AICPA TSP Section 100 Points of Focus, common subject matter mappings
+- **stig** — SRG cross-mapping (SRG-OS-000004/000033/000185/000257), V-finding format consistency, STIG Viewer compatibility, Microsoft Defender Antivirus STIG, BlackLotus mitigation, CAT I/II/III distribution
+
+### Changed
+
+#### NIST Module Category Consolidation (230 → 20)
+- Pre-v6.1: one Category per individual control (e.g., `NIST - AC-2(11)`, `NIST - AC-2(12)`, `NIST - AC-3(7)`) producing 230 distinct categories
+- v6.1: control-family groupings (`NIST - AC Access Control`, `NIST - AU Audit Accountability`, `NIST - SI System Information Integrity`, etc.) plus 12 framework-extension categories (CSF GV/PR/DE/RC/RS, ID.AM, 800-53 Rev 5 Extended, 800-171 Rev 3, 800-207 Zero Trust, 800-161 SCRM, FedRAMP Rev 5, CSF 2.0 Mapping)
+- Precise control IDs preserved in `CrossReferences` hashtables (e.g., `@{ NIST='AC-2(11)' }`) — no traceability loss
+- 466 Category strings transformed; 429 CrossReferences hashtables verified byte-identical pre/post
+- Reduces report category clutter while retaining full audit traceability
+
+### Verification
+- All 18 files brace-balanced (zero delta)
+- Zero non-ASCII characters across the codebase
+- Zero BOM bytes
+- Zero AI linguistic patterns in any module
+- Zero `$null` wrong-side comparisons
+- All `return $results` statements preserved
+- All 18 file headers synchronized at Version 6.1
+
+---
+
+## [6.0.5] - 2026-03-03
 
 ### Major — Full Multi-Framework Parity Release
 
@@ -262,7 +428,8 @@ Version 4.x and earlier used a monolithic script design. Version 5.0 represents 
 
 | Version | Modules | Checks | Output Formats | Key Feature | Architecture |
 |---------|---------|--------|----------------|-------------|--------------|
-| 6.1.0   | 16      | 3,199  | HTML, JSON, CSV, XML, Console + 6 browser exports | 8 new frameworks, XSL-styled XML, report overhaul | Modular, cache-aware |
+| 6.1.0   | 16      | 3,994  | HTML, JSON, CSV, XML, Console + 6 browser exports | Cross-cutting capabilities: risk priority, correlations, baseline drift, rollback, GPO export, bundles | Modular, cache-aware |
+| 6.0.5   | 16      | 3,199  | HTML, JSON, CSV, XML, Console + 6 browser exports | 8 new frameworks, XSL-styled XML, report overhaul | Modular, cache-aware |
 | 6.0.0   | 8       | 1,855  | HTML, JSON, CSV, XML, Console | Severity + CrossReferences | Modular, cache-aware |
 | 5.3.0   | 7       | 550+   | HTML, JSON, CSV, XML, Console | Remediation + Interactive HTML | Modular |
 | 5.0.0   | 7       | 550+   | HTML, JSON, CSV | Multi-framework modular | Modular |
