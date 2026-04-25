@@ -1,0 +1,189 @@
+name: 🐌 Performance Issue
+description: Audit is unusually slow, hangs, consumes excessive memory, or has parallel-execution problems
+title: "[Perf]: <module or scenario>"
+labels: ["performance", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Reference performance baseline (v6.1.2):
+
+        | Scenario | Expected duration |
+        |----------|------------------|
+        | Single small module (`-Modules core`) | ~20-35 seconds |
+        | Single large module (`-Modules nist` / `-Modules ms`) | ~30-75 seconds |
+        | All 16 modules sequential | ~75-150 seconds |
+        | All 16 modules `-Parallel -Workers 8` | ~60-90 seconds |
+
+        Memory usage typically peaks at 200-500 MB. CPU usage spikes during parallel runs but returns to idle between modules.
+
+        **Significantly outside these ranges?** This template is for you. Run with `-ShowProfile` first — it gives per-module timing breakdown and is critical for triage.
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: I have run with `-ShowProfile` and can provide the timing breakdown
+          required: true
+        - label: I have read the Troubleshooting Guide's "Performance Problems" section
+          required: true
+        - label: I am running the latest stable release
+          required: true
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Performance issue type
+      options:
+        - Total audit duration is significantly longer than expected
+        - One specific module is dramatically slower than others
+        - Audit hangs / does not complete
+        - Memory usage is excessive
+        - Parallel execution slower than sequential
+        - Cache (`-NoCache` vs default) shows wrong relationship
+        - HTML report rendering / browser opens slowly
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: timing
+    attributes:
+      label: Observed timing
+      description: |
+        Total time and per-module breakdown. Use `-ShowProfile`. If you cannot get
+        `-ShowProfile` to produce output, that itself is a bug — describe what happens.
+      placeholder: |
+        Total: 14 minutes 23 seconds (expected: 60-90 seconds)
+
+        From -ShowProfile output:
+          core      : 0.6s
+          cis       : 0.4s
+          cisa      : 0.7s
+          cmmc      : 0.3s
+          enisa     : 12m 45s   <-- huge outlier
+          gdpr      : 0.4s
+          ...
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact command invocation
+      placeholder: ".\\Windows-Security-Audit.ps1 -Modules All -Parallel -Workers 8 -ShowProfile"
+      render: powershell
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Audit framework version
+      placeholder: "6.1.2"
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: Windows version + build
+      placeholder: "Windows Server 2022, build 20348"
+    validations:
+      required: true
+
+  - type: input
+    id: cores
+    attributes:
+      label: CPU cores / RAM
+      description: Run `(Get-CimInstance Win32_Processor).NumberOfCores` and `Get-CimInstance Win32_ComputerSystem | Select-Object TotalPhysicalMemory`
+      placeholder: "8 cores, 32 GB"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: storage
+    attributes:
+      label: System drive type
+      options:
+        - SSD (SATA)
+        - SSD (NVMe)
+        - HDD (spinning disk)
+        - Virtual disk (VMware/Hyper-V/Azure)
+        - Network-mounted (iSCSI/SMB/etc.)
+        - Unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: event-log-size
+    attributes:
+      label: Event log sizes (if relevant to slow module)
+      description: |
+        Run:
+        ```powershell
+        Get-WinEvent -ListLog Security,System,Application |
+            Select-Object LogName, FileSize, RecordCount
+        ```
+      render: powershell
+    validations:
+      required: false
+
+  - type: dropdown
+    id: edr
+    attributes:
+      label: Third-party EDR / AV present?
+      description: EDR products can throttle script execution
+      options:
+        - "No (Defender only)"
+        - "CrowdStrike Falcon"
+        - "SentinelOne"
+        - "Microsoft Defender for Endpoint"
+        - "Carbon Black"
+        - "Sophos Intercept X"
+        - "Trend Micro"
+        - "Symantec / Broadcom"
+        - "Cylance"
+        - "Other (specify in description)"
+        - "Unknown"
+    validations:
+      required: true
+
+  - type: textarea
+    id: parallel-comparison
+    attributes:
+      label: Sequential vs parallel comparison (if applicable)
+      description: |
+        If the issue involves parallel execution, run both modes and compare:
+        ```powershell
+        Measure-Command { .\Windows-Security-Audit.ps1 -Modules All -Quiet }
+        Measure-Command { .\Windows-Security-Audit.ps1 -Modules All -Parallel -Workers 4 -Quiet }
+        Measure-Command { .\Windows-Security-Audit.ps1 -Modules All -Parallel -Workers 8 -Quiet }
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    id: log-output
+    attributes:
+      label: Relevant log output
+      description: |
+        Re-run with `-LogLevel Debug -Verbose -ShowProfile` and paste any messages around
+        the slow / hung / problem area.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: reproducibility
+    attributes:
+      label: Reproducibility
+      description: |
+        Does the slowness reproduce on every run, or intermittent? Different times of day?
+        After certain events (Windows Update, restart, etc.)?
+    validations:
+      required: true
