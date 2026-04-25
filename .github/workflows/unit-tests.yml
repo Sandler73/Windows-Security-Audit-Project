@@ -5,21 +5,25 @@
 # the full matrix of currently-supported Windows versions:
 #
 #   GitHub-hosted runners:
-#     - windows-2025  (Windows Server 2025 - PowerShell 5.1 + 7.x)
-#     - windows-2022  (Windows Server 2022 - PowerShell 5.1 + 7.x)
-#     - windows-2019  (Windows Server 2019 - PowerShell 5.1 + 7.x)
+#     - windows-2025  (Windows Server 2025)
+#     - windows-2022  (Windows Server 2022)
+#     - windows-2019  (Windows Server 2019)
 #
 #   Self-hosted runners (configured per-installation):
-#     - self-hosted-server-2016  (Windows Server 2016)
-#     - self-hosted-win11-21h2   (Windows 11 21H2)
-#     - self-hosted-win11-22h2   (Windows 11 22H2)
-#     - self-hosted-win11-23h2   (Windows 11 23H2)
-#     - self-hosted-win11-24h2   (Windows 11 24H2)
-#     - self-hosted-win10-21h2   (Windows 10 21H2)
-#     - self-hosted-win10-22h2   (Windows 10 22H2)
-#     - self-hosted-win10-iotltsc-2021  (Windows 10 IoT LTSC 2021)
+#     - self-hosted-server-2016        (Windows Server 2016)
+#     - self-hosted-win11-{21h2..24h2} (Windows 11)
+#     - self-hosted-win10-21h2/22h2    (Windows 10)
+#     - self-hosted-win10-iotltsc-2021 (Windows 10 IoT LTSC 2021)
 #
-# Each runner tests both PowerShell 5.1 (Desktop) and PowerShell 7.x (Core).
+# Each runner is tested under both PowerShell editions:
+#   - Windows PowerShell 5.1 (Desktop) -- shell: powershell
+#   - PowerShell 7.x        (Core)     -- shell: pwsh
+#
+# DESIGN NOTE: GitHub Actions does not allow the matrix context in a step's
+# `shell:` directive (the workflow validator rejects it before matrix
+# expansion). Instead, this workflow splits each runner-class into TWO
+# jobs (one per shell), each with `defaults.run.shell` fixed at the job
+# level, where matrix substitution is permitted.
 # ============================================================================
 
 name: Unit Tests
@@ -36,10 +40,10 @@ permissions:
 
 jobs:
   # --------------------------------------------------------------------------
-  # GitHub-hosted Windows Server runners
+  # GitHub-hosted -- PowerShell 7.x (Core)
   # --------------------------------------------------------------------------
-  pester-hosted:
-    name: Pester (${{ matrix.os }} / PS ${{ matrix.ps }})
+  pester-hosted-pwsh:
+    name: Pester PS7 (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
 
@@ -47,14 +51,16 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-2025, windows-2022, windows-2019]
-        ps: ['5.1', '7']
+
+    defaults:
+      run:
+        shell: pwsh
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Verify environment
-        shell: ${{ matrix.ps == '5.1' && 'powershell' || 'pwsh' }}
         run: |
           Write-Host "Runner OS:     ${{ matrix.os }}"
           Write-Host "PowerShell:    $($PSVersionTable.PSVersion)"
@@ -62,7 +68,6 @@ jobs:
           Write-Host "Pester:        $((Get-Module Pester -ListAvailable | Sort-Object Version -Descending | Select-Object -First 1).Version)"
 
       - name: Install / verify Pester 5.x
-        shell: ${{ matrix.ps == '5.1' && 'powershell' || 'pwsh' }}
         run: |
           if (-not (Get-Module Pester -ListAvailable | Where-Object { $_.Version -ge '5.0.0' })) {
             Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck -Scope CurrentUser
@@ -71,7 +76,6 @@ jobs:
           Write-Host "Pester loaded: $((Get-Module Pester).Version)"
 
       - name: Run unit tests (audit-common, module-schema)
-        shell: ${{ matrix.ps == '5.1' && 'powershell' || 'pwsh' }}
         run: |
           Import-Module Pester -MinimumVersion 5.0.0
 
@@ -82,7 +86,7 @@ jobs:
           )
           $config.Run.PassThru = $true
           $config.TestResult.Enabled = $true
-          $config.TestResult.OutputPath = "test-results-${{ matrix.os }}-ps${{ matrix.ps }}.xml"
+          $config.TestResult.OutputPath = "test-results-${{ matrix.os }}-ps7.xml"
           $config.TestResult.OutputFormat = 'NUnitXml'
           $config.Output.Verbosity = 'Detailed'
           $config.Run.Exit = $true
@@ -102,20 +106,88 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: unit-test-results-${{ matrix.os }}-ps${{ matrix.ps }}
-          path: test-results-${{ matrix.os }}-ps${{ matrix.ps }}.xml
+          name: unit-test-results-${{ matrix.os }}-ps7
+          path: test-results-${{ matrix.os }}-ps7.xml
           retention-days: 30
 
   # --------------------------------------------------------------------------
-  # Self-hosted client/server runners
+  # GitHub-hosted -- Windows PowerShell 5.1 (Desktop)
   # --------------------------------------------------------------------------
-  # NOTE: requires self-hosted runner configuration with matching labels.
-  # Each runner machine should have Pester 5.x and the runner agent installed.
-  # If self-hosted runners are not configured, this job is skipped via
-  # workflow_dispatch input or is allowed to fail without blocking.
+  pester-hosted-windowspowershell:
+    name: Pester WPS5.1 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, windows-2022, windows-2019]
+
+    defaults:
+      run:
+        shell: powershell
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify environment
+        run: |
+          Write-Host "Runner OS:     ${{ matrix.os }}"
+          Write-Host "PowerShell:    $($PSVersionTable.PSVersion)"
+          Write-Host "Edition:       $($PSVersionTable.PSEdition)"
+
+      - name: Install / verify Pester 5.x
+        run: |
+          if (-not (Get-Module Pester -ListAvailable | Where-Object { $_.Version -ge '5.0.0' })) {
+            Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck -Scope CurrentUser
+          }
+          Import-Module Pester -MinimumVersion 5.0.0
+          Write-Host "Pester loaded: $((Get-Module Pester).Version)"
+
+      - name: Run unit tests (audit-common, module-schema)
+        run: |
+          Import-Module Pester -MinimumVersion 5.0.0
+
+          $config = New-PesterConfiguration
+          $config.Run.Path = @(
+            '.\tests\audit-common.Tests.ps1',
+            '.\tests\module-schema.Tests.ps1'
+          )
+          $config.Run.PassThru = $true
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputPath = "test-results-${{ matrix.os }}-ps51.xml"
+          $config.TestResult.OutputFormat = 'NUnitXml'
+          $config.Output.Verbosity = 'Detailed'
+          $config.Run.Exit = $true
+
+          $result = Invoke-Pester -Configuration $config
+
+          Write-Host ""
+          Write-Host "====== Summary ======"
+          Write-Host "Total:    $($result.TotalCount)"
+          Write-Host "Passed:   $($result.PassedCount)"
+          Write-Host "Failed:   $($result.FailedCount)"
+          Write-Host "Skipped:  $($result.SkippedCount)"
+
+          if ($result.FailedCount -gt 0) { exit 1 }
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results-${{ matrix.os }}-ps51
+          path: test-results-${{ matrix.os }}-ps51.xml
+          retention-days: 30
+
   # --------------------------------------------------------------------------
-  pester-self-hosted:
-    name: Pester (${{ matrix.runner.os }} / PS ${{ matrix.ps }})
+  # Self-hosted -- PowerShell 7.x (Core)
+  # --------------------------------------------------------------------------
+  # Requires self-hosted runner configuration with matching labels.
+  # If self-hosted runners are not configured, these jobs are skipped.
+  # --------------------------------------------------------------------------
+  pester-self-hosted-pwsh:
+    name: Pester PS7 (${{ matrix.runner.os }})
     runs-on:
       - self-hosted
       - ${{ matrix.runner.label }}
@@ -134,14 +206,16 @@ jobs:
           - { label: win10-21h2,         os: 'Windows 10 21H2' }
           - { label: win10-22h2,         os: 'Windows 10 22H2' }
           - { label: win10-iotltsc-2021, os: 'Windows 10 IoT LTSC 2021' }
-        ps: ['5.1', '7']
+
+    defaults:
+      run:
+        shell: pwsh
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Verify runner identity
-        shell: ${{ matrix.ps == '5.1' && 'powershell' || 'pwsh' }}
         run: |
           Write-Host "Expected: ${{ matrix.runner.os }}"
           $os = Get-CimInstance Win32_OperatingSystem
@@ -149,7 +223,6 @@ jobs:
           Write-Host "PowerShell: $($PSVersionTable.PSVersion) ($($PSVersionTable.PSEdition))"
 
       - name: Run unit tests
-        shell: ${{ matrix.ps == '5.1' && 'powershell' || 'pwsh' }}
         run: |
           Import-Module Pester -MinimumVersion 5.0.0 -ErrorAction SilentlyContinue
           if (-not (Get-Module Pester)) {
@@ -165,7 +238,7 @@ jobs:
           )
           $config.Run.PassThru = $true
           $config.TestResult.Enabled = $true
-          $config.TestResult.OutputPath = "test-results-${{ matrix.runner.label }}-ps${{ matrix.ps }}.xml"
+          $config.TestResult.OutputPath = "test-results-${{ matrix.runner.label }}-ps7.xml"
           $config.TestResult.OutputFormat = 'NUnitXml'
           $config.Output.Verbosity = 'Detailed'
 
@@ -177,8 +250,79 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: unit-test-results-${{ matrix.runner.label }}-ps${{ matrix.ps }}
-          path: test-results-${{ matrix.runner.label }}-ps${{ matrix.ps }}.xml
+          name: unit-test-results-${{ matrix.runner.label }}-ps7
+          path: test-results-${{ matrix.runner.label }}-ps7.xml
+          retention-days: 30
+
+  # --------------------------------------------------------------------------
+  # Self-hosted -- Windows PowerShell 5.1 (Desktop)
+  # --------------------------------------------------------------------------
+  pester-self-hosted-windowspowershell:
+    name: Pester WPS5.1 (${{ matrix.runner.os }})
+    runs-on:
+      - self-hosted
+      - ${{ matrix.runner.label }}
+    timeout-minutes: 45
+    continue-on-error: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - { label: server-2016,        os: 'Windows Server 2016' }
+          - { label: win11-21h2,         os: 'Windows 11 21H2' }
+          - { label: win11-22h2,         os: 'Windows 11 22H2' }
+          - { label: win11-23h2,         os: 'Windows 11 23H2' }
+          - { label: win11-24h2,         os: 'Windows 11 24H2' }
+          - { label: win10-21h2,         os: 'Windows 10 21H2' }
+          - { label: win10-22h2,         os: 'Windows 10 22H2' }
+          - { label: win10-iotltsc-2021, os: 'Windows 10 IoT LTSC 2021' }
+
+    defaults:
+      run:
+        shell: powershell
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify runner identity
+        run: |
+          Write-Host "Expected: ${{ matrix.runner.os }}"
+          $os = Get-CimInstance Win32_OperatingSystem
+          Write-Host "Actual:   $($os.Caption) (build $($os.BuildNumber))"
+          Write-Host "PowerShell: $($PSVersionTable.PSVersion) ($($PSVersionTable.PSEdition))"
+
+      - name: Run unit tests
+        run: |
+          Import-Module Pester -MinimumVersion 5.0.0 -ErrorAction SilentlyContinue
+          if (-not (Get-Module Pester)) {
+            Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck -Scope CurrentUser
+            Import-Module Pester -MinimumVersion 5.0.0
+          }
+
+          $config = New-PesterConfiguration
+          $config.Run.Path = @(
+            '.\tests\audit-common.Tests.ps1',
+            '.\tests\module-schema.Tests.ps1',
+            '.\tests\result-schema.Tests.ps1'
+          )
+          $config.Run.PassThru = $true
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputPath = "test-results-${{ matrix.runner.label }}-ps51.xml"
+          $config.TestResult.OutputFormat = 'NUnitXml'
+          $config.Output.Verbosity = 'Detailed'
+
+          $result = Invoke-Pester -Configuration $config
+
+          if ($result.FailedCount -gt 0) { exit 1 }
+
+      - name: Upload self-hosted test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results-${{ matrix.runner.label }}-ps51
+          path: test-results-${{ matrix.runner.label }}-ps51.xml
           retention-days: 30
 
   # --------------------------------------------------------------------------
@@ -187,7 +331,7 @@ jobs:
   summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [pester-hosted]
+    needs: [pester-hosted-pwsh, pester-hosted-windowspowershell]
     if: always()
     steps:
       - name: Download all test results
