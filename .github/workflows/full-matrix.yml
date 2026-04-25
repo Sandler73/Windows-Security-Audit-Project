@@ -2,12 +2,18 @@
 # Full Matrix Workflow
 # ----------------------------------------------------------------------------
 # Comprehensive test matrix run weekly (Sunday 6am UTC) and on-demand.
-# Tests every supported Windows version × every PowerShell edition × every
+# Tests every supported Windows version x every PowerShell edition x every
 # test category. This is the slowest workflow (~30-60 minutes total wall
 # time when run in parallel).
 #
 # Includes the complete result-schema and e2e tests with full module
 # coverage. Used as a release-gating workflow.
+#
+# DESIGN NOTE: GitHub Actions does not allow the matrix context in a step's
+# `shell:` directive (the workflow validator rejects it before matrix
+# expansion). Instead, this workflow splits each runner-class into TWO
+# jobs (one per shell), each with `defaults.run.shell` fixed at the job
+# level, where matrix substitution is permitted.
 # ============================================================================
 
 name: Full Matrix Tests
@@ -34,10 +40,10 @@ permissions:
 
 jobs:
   # --------------------------------------------------------------------------
-  # GitHub-hosted full matrix
+  # GitHub-hosted -- PowerShell 7.x (Core)
   # --------------------------------------------------------------------------
-  full-hosted:
-    name: Full (${{ matrix.os }} / PS ${{ matrix.ps }})
+  full-hosted-pwsh:
+    name: Full PS7 (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
 
@@ -45,14 +51,16 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-2025, windows-2022, windows-2019]
-        ps: ['5.1', '7']
+
+    defaults:
+      run:
+        shell: pwsh
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Show environment
-        shell: ${{ matrix.ps == '5.1' && 'powershell' || 'pwsh' }}
         run: |
           $os = Get-CimInstance Win32_OperatingSystem
           Write-Host "Runner OS:     ${{ matrix.os }}"
@@ -64,14 +72,12 @@ jobs:
           Write-Host "RAM (GB):      $([math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 2))"
 
       - name: Install Pester 5.x
-        shell: ${{ matrix.ps == '5.1' && 'powershell' || 'pwsh' }}
         run: |
           if (-not (Get-Module Pester -ListAvailable | Where-Object { $_.Version -ge '5.0.0' })) {
             Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck -Scope CurrentUser
           }
 
       - name: Run full Pester test suite (all 5 categories)
-        shell: ${{ matrix.ps == '5.1' && 'powershell' || 'pwsh' }}
         run: |
           Import-Module Pester -MinimumVersion 5.0.0
 
@@ -79,7 +85,7 @@ jobs:
           $config.Run.Path = '.\tests\'
           $config.Run.PassThru = $true
           $config.TestResult.Enabled = $true
-          $config.TestResult.OutputPath = "full-${{ matrix.os }}-ps${{ matrix.ps }}.xml"
+          $config.TestResult.OutputPath = "full-${{ matrix.os }}-ps7.xml"
           $config.TestResult.OutputFormat = 'NUnitXml'
           $config.Output.Verbosity = 'Detailed'
 
@@ -91,13 +97,13 @@ jobs:
             '.\Windows-Security-Audit.ps1'
           )
           $config.CodeCoverage.OutputFormat = 'JaCoCo'
-          $config.CodeCoverage.OutputPath = "coverage-${{ matrix.os }}-ps${{ matrix.ps }}.xml"
+          $config.CodeCoverage.OutputPath = "coverage-${{ matrix.os }}-ps7.xml"
 
           $result = Invoke-Pester -Configuration $config
 
           Write-Host ""
           Write-Host "================================================="
-          Write-Host "Test Results — ${{ matrix.os }} / PS ${{ matrix.ps }}"
+          Write-Host "Test Results  ${{ matrix.os }} / PS 7"
           Write-Host "================================================="
           Write-Host "Total:    $($result.TotalCount)"
           Write-Host "Passed:   $($result.PassedCount)"
@@ -119,10 +125,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: full-${{ matrix.os }}-ps${{ matrix.ps }}
+          name: full-${{ matrix.os }}-ps7
           path: |
-            full-${{ matrix.os }}-ps${{ matrix.ps }}.xml
-            coverage-${{ matrix.os }}-ps${{ matrix.ps }}.xml
+            full-${{ matrix.os }}-ps7.xml
+            coverage-${{ matrix.os }}-ps7.xml
           retention-days: 90
 
       - name: Upload coverage to Codecov
@@ -130,15 +136,84 @@ jobs:
         uses: codecov/codecov-action@v4
         continue-on-error: true
         with:
-          files: coverage-${{ matrix.os }}-ps${{ matrix.ps }}.xml
-          flags: full,${{ matrix.os }},ps${{ matrix.ps }}
+          files: coverage-${{ matrix.os }}-ps7.xml
+          flags: full,${{ matrix.os }},ps7
           fail_ci_if_error: false
 
   # --------------------------------------------------------------------------
-  # Self-hosted full matrix (skip if input set to false)
+  # GitHub-hosted -- Windows PowerShell 5.1 (Desktop)
   # --------------------------------------------------------------------------
-  full-self-hosted:
-    name: Full (${{ matrix.runner.os }} / PS ${{ matrix.ps }})
+  full-hosted-windowspowershell:
+    name: Full WPS5.1 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, windows-2022, windows-2019]
+
+    defaults:
+      run:
+        shell: powershell
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show environment
+        run: |
+          $os = Get-CimInstance Win32_OperatingSystem
+          Write-Host "Runner OS:     ${{ matrix.os }}"
+          Write-Host "OS Caption:    $($os.Caption)"
+          Write-Host "PowerShell:    $($PSVersionTable.PSVersion)"
+          Write-Host "Edition:       $($PSVersionTable.PSEdition)"
+
+      - name: Install Pester 5.x
+        run: |
+          if (-not (Get-Module Pester -ListAvailable | Where-Object { $_.Version -ge '5.0.0' })) {
+            Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck -Scope CurrentUser
+          }
+
+      - name: Run full Pester test suite
+        run: |
+          Import-Module Pester -MinimumVersion 5.0.0
+
+          $config = New-PesterConfiguration
+          $config.Run.Path = '.\tests\'
+          $config.Run.PassThru = $true
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputPath = "full-${{ matrix.os }}-ps51.xml"
+          $config.TestResult.OutputFormat = 'NUnitXml'
+          $config.Output.Verbosity = 'Detailed'
+
+          $result = Invoke-Pester -Configuration $config
+
+          Write-Host ""
+          Write-Host "================================================="
+          Write-Host "Test Results  ${{ matrix.os }} / PS 5.1"
+          Write-Host "================================================="
+          Write-Host "Total:    $($result.TotalCount)"
+          Write-Host "Passed:   $($result.PassedCount)"
+          Write-Host "Failed:   $($result.FailedCount)"
+          Write-Host "Skipped:  $($result.SkippedCount)"
+          Write-Host "Duration: $($result.Duration)"
+
+          if ($result.FailedCount -gt 0) { exit 1 }
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-${{ matrix.os }}-ps51
+          path: full-${{ matrix.os }}-ps51.xml
+          retention-days: 90
+
+  # --------------------------------------------------------------------------
+  # Self-hosted -- PowerShell 7.x (Core)
+  # --------------------------------------------------------------------------
+  full-self-hosted-pwsh:
+    name: Full PS7 (${{ matrix.runner.os }})
     if: github.event_name == 'schedule' || github.event.inputs.include_self_hosted == 'true'
     runs-on:
       - self-hosted
@@ -158,28 +233,28 @@ jobs:
           - { label: win10-21h2,         os: 'Windows 10 21H2' }
           - { label: win10-22h2,         os: 'Windows 10 22H2' }
           - { label: win10-iotltsc-2021, os: 'Windows 10 IoT LTSC 2021' }
-        ps: ['5.1', '7']
+
+    defaults:
+      run:
+        shell: pwsh
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Verify runner
-        shell: ${{ matrix.ps == '5.1' && 'powershell' || 'pwsh' }}
         run: |
           Write-Host "Expected: ${{ matrix.runner.os }}"
           $os = Get-CimInstance Win32_OperatingSystem
           Write-Host "Actual:   $($os.Caption) (build $($os.BuildNumber))"
 
       - name: Install Pester (if missing)
-        shell: ${{ matrix.ps == '5.1' && 'powershell' || 'pwsh' }}
         run: |
           if (-not (Get-Module Pester -ListAvailable | Where-Object { $_.Version -ge '5.0.0' })) {
             Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck -Scope CurrentUser
           }
 
       - name: Run full test suite
-        shell: ${{ matrix.ps == '5.1' && 'powershell' || 'pwsh' }}
         run: |
           Import-Module Pester -MinimumVersion 5.0.0
 
@@ -187,7 +262,7 @@ jobs:
           $config.Run.Path = '.\tests\'
           $config.Run.PassThru = $true
           $config.TestResult.Enabled = $true
-          $config.TestResult.OutputPath = "full-${{ matrix.runner.label }}-ps${{ matrix.ps }}.xml"
+          $config.TestResult.OutputPath = "full-${{ matrix.runner.label }}-ps7.xml"
           $config.TestResult.OutputFormat = 'NUnitXml'
           $config.Output.Verbosity = 'Detailed'
 
@@ -199,8 +274,77 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: full-${{ matrix.runner.label }}-ps${{ matrix.ps }}
-          path: full-${{ matrix.runner.label }}-ps${{ matrix.ps }}.xml
+          name: full-${{ matrix.runner.label }}-ps7
+          path: full-${{ matrix.runner.label }}-ps7.xml
+          retention-days: 90
+
+  # --------------------------------------------------------------------------
+  # Self-hosted -- Windows PowerShell 5.1 (Desktop)
+  # --------------------------------------------------------------------------
+  full-self-hosted-windowspowershell:
+    name: Full WPS5.1 (${{ matrix.runner.os }})
+    if: github.event_name == 'schedule' || github.event.inputs.include_self_hosted == 'true'
+    runs-on:
+      - self-hosted
+      - ${{ matrix.runner.label }}
+    timeout-minutes: 90
+    continue-on-error: true
+
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - { label: server-2016,        os: 'Windows Server 2016' }
+          - { label: win11-21h2,         os: 'Windows 11 21H2' }
+          - { label: win11-22h2,         os: 'Windows 11 22H2' }
+          - { label: win11-23h2,         os: 'Windows 11 23H2' }
+          - { label: win11-24h2,         os: 'Windows 11 24H2' }
+          - { label: win10-21h2,         os: 'Windows 10 21H2' }
+          - { label: win10-22h2,         os: 'Windows 10 22H2' }
+          - { label: win10-iotltsc-2021, os: 'Windows 10 IoT LTSC 2021' }
+
+    defaults:
+      run:
+        shell: powershell
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify runner
+        run: |
+          Write-Host "Expected: ${{ matrix.runner.os }}"
+          $os = Get-CimInstance Win32_OperatingSystem
+          Write-Host "Actual:   $($os.Caption) (build $($os.BuildNumber))"
+
+      - name: Install Pester (if missing)
+        run: |
+          if (-not (Get-Module Pester -ListAvailable | Where-Object { $_.Version -ge '5.0.0' })) {
+            Install-Module -Name Pester -RequiredVersion 5.7.1 -Force -SkipPublisherCheck -Scope CurrentUser
+          }
+
+      - name: Run full test suite
+        run: |
+          Import-Module Pester -MinimumVersion 5.0.0
+
+          $config = New-PesterConfiguration
+          $config.Run.Path = '.\tests\'
+          $config.Run.PassThru = $true
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputPath = "full-${{ matrix.runner.label }}-ps51.xml"
+          $config.TestResult.OutputFormat = 'NUnitXml'
+          $config.Output.Verbosity = 'Detailed'
+
+          $result = Invoke-Pester -Configuration $config
+
+          if ($result.FailedCount -gt 0) { exit 1 }
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-${{ matrix.runner.label }}-ps51
+          path: full-${{ matrix.runner.label }}-ps51.xml
           retention-days: 90
 
   # --------------------------------------------------------------------------
@@ -209,7 +353,7 @@ jobs:
   matrix-summary:
     name: Matrix Summary
     runs-on: ubuntu-latest
-    needs: [full-hosted]
+    needs: [full-hosted-pwsh, full-hosted-windowspowershell]
     if: always()
 
     steps:
@@ -232,7 +376,7 @@ jobs:
             if [ -n "$xml" ]; then
               passed=$(grep -oP 'total="\K[0-9]+' "$xml" | head -1)
               failures=$(grep -oP 'failures="\K[0-9]+' "$xml" | head -1)
-              if [ "$failures" = "0" ]; then status="✅ PASS"; else status="❌ FAIL"; fi
+              if [ "$failures" = "0" ]; then status="PASS"; else status="FAIL"; fi
               echo "| $name |  | $status ($passed tests) |" >> matrix-report.md
             fi
           done
