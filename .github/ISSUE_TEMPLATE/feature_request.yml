@@ -1,0 +1,152 @@
+name: ✨ Feature Request
+description: Suggest a new capability for the audit framework
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for your interest in improving the Windows Security Audit Project!
+
+        **Before opening a feature request, consider:**
+        - **Is it a new check or a new framework?** Use the Compliance Module Request or Check Request templates instead — they capture the framework-mapping context.
+        - **Is it a usage question?** Use [Discussions](https://github.com/Sandler73/Windows-Security-Audit-Project/discussions).
+        - **Is the feature specific to a particular customer environment?** Consider whether it has broad value before requesting it upstream.
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: I have searched [existing issues](https://github.com/Sandler73/Windows-Security-Audit-Project/issues?q=is%3Aissue) and this is not a duplicate
+          required: true
+        - label: I have reviewed the [Roadmap and Future Compatibility](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Future-Compatibility-and-Testing) document
+          required: true
+        - label: This feature has broad applicability beyond my specific environment
+          required: true
+
+  - type: dropdown
+    id: feature-category
+    attributes:
+      label: Feature category
+      description: What area of the framework would this affect?
+      options:
+        - New compliance module (use Compliance Module Request template instead)
+        - New check within an existing module (use Check Request template instead)
+        - New output format
+        - New CLI parameter
+        - New helper function in shared library
+        - Reporting / HTML report enhancement
+        - Remediation capability
+        - Performance / parallelization
+        - Logging / observability
+        - Caching / data sharing
+        - Cross-framework correlation
+        - Baseline / drift detection
+        - Group Policy export
+        - Rollback / safety
+        - Risk scoring
+        - Documentation
+        - CI/CD / testing
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: |
+        Describe the problem or limitation in concrete terms. What is currently impossible,
+        cumbersome, or unsafe? Who is affected?
+      placeholder: |
+        "When auditing 50+ servers in a domain, I currently have to copy reports from each
+        host manually. There's no built-in way to aggregate JSON output across multiple hosts
+        into a single roll-up report."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: |
+        Describe the feature as concretely as possible. What would the user-facing CLI / API /
+        report look like? Sketch parameters, function signatures, output samples, etc.
+      placeholder: |
+        Add a `Merge-AuditReports` cmdlet to the shared library:
+
+        ```powershell
+        Get-ChildItem -Path \\fileshare\audit-results\*.json |
+            Merge-AuditReports -OutputPath .\rollup.json -OutputFormat HTML
+        ```
+
+        The merged report would aggregate Pass/Fail counts per module across all hosts,
+        with a per-host drill-down section.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: |
+        What workarounds exist today? What other designs did you consider, and why is the
+        proposed one better?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority (your perspective)
+      description: How important is this for your work?
+      options:
+        - Critical -- I cannot use the tool effectively without this
+        - High -- This significantly improves our workflow
+        - Medium -- Nice to have, would adopt if available
+        - Low -- Curious / exploratory
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Estimated scope
+      description: Your best guess at engineering complexity (this is not binding -- maintainers will reassess)
+      options:
+        - Small (< 1 day -- e.g., new CLI flag, minor helper)
+        - Medium (1-5 days -- e.g., new output format, new helper category)
+        - Large (1-3 weeks -- e.g., new subsystem, new module)
+        - Very Large (1+ month -- e.g., legacy OS support, major refactor)
+        - Unknown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Are you willing to contribute?
+      description: Help is welcome at any level
+      options:
+        - Yes -- I will submit a pull request
+        - Yes -- I can help with testing
+        - Yes -- I can help with documentation
+        - Maybe -- with guidance from maintainers
+        - No -- requesting only
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: |
+        - Relevant standards / specifications / industry references
+        - Links to similar features in other tools
+        - Mock-ups, sketches, sample output
+        - Operational scenarios where this would apply
+    validations:
+      required: false
