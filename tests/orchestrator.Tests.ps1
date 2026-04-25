@@ -137,28 +137,37 @@ Describe 'Output File Generation' {
         New-Item -Path $script:OutDir -ItemType Directory -Force | Out-Null
     }
 
+    # NOTE: The orchestrator constructs filenames as
+    # Windows-Security-Audit-{ComputerName}-{yyyy-MM-dd_HHmmss}.{ext}
+    # and treats -OutputPath as a directory hint (parent of any path passed).
+    # Tests must look up the generated file via wildcard pattern.
+
     It 'Generates JSON output file when requested' {
-        $jsonPath = Join-Path $script:OutDir 'audit.json'
-        & $script:OrchPath -Modules core -OutputFormat JSON -OutputPath $jsonPath -Quiet 2>&1 | Out-Null
-        Test-Path $jsonPath | Should -Be $true
+        & $script:OrchPath -Modules core -OutputFormat JSON `
+            -OutputPath (Join-Path $script:OutDir 'out') -Quiet *>&1 | Out-Null
+
+        $jsonFiles = @(Get-ChildItem -Path $script:OutDir -Filter 'Windows-Security-Audit-*.json')
+        $jsonFiles.Count | Should -BeGreaterThan 0
     }
 
     It 'Generates valid JSON content' {
-        $jsonPath = Join-Path $script:OutDir 'audit.json'
-        & $script:OrchPath -Modules core -OutputFormat JSON -OutputPath $jsonPath -Quiet 2>&1 | Out-Null
+        & $script:OrchPath -Modules core -OutputFormat JSON `
+            -OutputPath (Join-Path $script:OutDir 'out') -Quiet *>&1 | Out-Null
 
-        if (Test-Path $jsonPath) {
-            $content = Get-Content -Path $jsonPath -Raw
+        $jsonFiles = @(Get-ChildItem -Path $script:OutDir -Filter 'Windows-Security-Audit-*.json')
+        if ($jsonFiles.Count -gt 0) {
+            $content = Get-Content -Path $jsonFiles[0].FullName -Raw
             { $content | ConvertFrom-Json } | Should -Not -Throw
         }
     }
 
-    It 'JSON output contains ExecutionInfo and Results' {
-        $jsonPath = Join-Path $script:OutDir 'audit.json'
-        & $script:OrchPath -Modules core -OutputFormat JSON -OutputPath $jsonPath -Quiet 2>&1 | Out-Null
+    It 'JSON output contains Results array' {
+        & $script:OrchPath -Modules core -OutputFormat JSON `
+            -OutputPath (Join-Path $script:OutDir 'out') -Quiet *>&1 | Out-Null
 
-        if (Test-Path $jsonPath) {
-            $data = Get-Content -Path $jsonPath -Raw | ConvertFrom-Json
+        $jsonFiles = @(Get-ChildItem -Path $script:OutDir -Filter 'Windows-Security-Audit-*.json')
+        if ($jsonFiles.Count -gt 0) {
+            $data = Get-Content -Path $jsonFiles[0].FullName -Raw | ConvertFrom-Json
             $data.PSObject.Properties.Name | Should -Contain 'Results'
         }
     }
@@ -171,13 +180,13 @@ Describe 'Auto-Logging Behavior (v6.1.2)' {
 
         Push-Location $tempRoot
         try {
-            $jsonPath = Join-Path $tempRoot 'audit.json'
-            & $script:OrchPath -Modules core -OutputFormat JSON -OutputPath $jsonPath -Quiet 2>&1 | Out-Null
+            & $script:OrchPath -Modules core -OutputFormat JSON `
+                -OutputPath (Join-Path $tempRoot 'out') -Quiet *>&1 | Out-Null
 
-            $logsDir = Join-Path $tempRoot 'logs'
-            # Logs may be created in script root, not invocation dir, so accept either
-            $found = (Test-Path $logsDir) -or
-                     (Test-Path (Join-Path (Split-Path $script:OrchPath -Parent) 'logs'))
+            # Auto-log is created in <ScriptRoot>\logs\, not the invocation dir
+            $scriptRoot = Split-Path $script:OrchPath -Parent
+            $logsDir = Join-Path $scriptRoot 'logs'
+            $found = (Test-Path $logsDir) -or (Test-Path (Join-Path $tempRoot 'logs'))
             $found | Should -Be $true
         }
         finally {
