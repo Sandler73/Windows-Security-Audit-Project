@@ -71,12 +71,20 @@ Describe 'Module File Encoding and Structure' {
         $nonAscii.Count | Should -Be 0
     }
 
-    It 'Module <Name> has balanced braces' -ForEach $script:ModuleTestCases {
+    It 'Module <n> parses without syntax errors' -ForEach $script:ModuleTestCases {
         param($Path, $Name)
-        $content = Get-Content -Path $Path -Raw
-        $open = ([regex]::Matches($content, '\{')).Count
-        $close = ([regex]::Matches($content, '\}')).Count
-        ($open - $close) | Should -Be 0
+        # The PowerShell AST parser definitively answers "does this file
+        # have balanced braces / parens / brackets?" If the parser produces
+        # zero errors, the file is structurally valid by definition.
+        # Manual brace counting cannot reliably distinguish structural braces
+        # from braces inside strings, comments, here-strings, or sub-expression
+        # interpolations like "$($var)" inside double-quoted strings.
+        $parseErrors = $null
+        $parseTokens = $null
+        $null = [System.Management.Automation.Language.Parser]::ParseFile(
+            $Path, [ref]$parseTokens, [ref]$parseErrors
+        )
+        $parseErrors.Count | Should -Be 0
     }
 
     It 'Module <Name> has comment-based help block' -ForEach $script:ModuleTestCases {
