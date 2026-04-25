@@ -10,8 +10,9 @@ We provide security updates for the following versions:
 
 | Version | Supported          | Notes |
 | ------- | ------------------ | ----- |
-| 6.0.x   | :white_check_mark: | Current release, actively maintained |
-| 5.x     | :x:                | Upgrade recommended |
+| 6.1.x   | :white_check_mark: | Current release, actively maintained |
+| 6.0.x   | :white_check_mark: | Maintained for security fixes only |
+| 5.x     | :x:                | Upgrade strongly recommended |
 | < 5.0   | :x:                | No longer supported |
 
 We recommend always using the latest release version for the most up-to-date security features and protections.
@@ -26,10 +27,14 @@ We recommend always using the latest release version for the most up-to-date sec
 - Review the code before execution (open source for transparency)
 
 **Understand What It Does:**
-- Script is **read-only** and makes no configuration changes
-- Accesses system configuration and security settings
+- **Audit mode (default):** Script is **read-only** when run without remediation switches. It queries system configuration but makes no changes.
+- **Remediation modes:** When `-RemediateIssues`, `-RemediateIssues_Fail`, `-RemediateIssues_Warning`, `-RemediateIssues_Info`, `-AutoRemediate`, or `-RemediationBundle` are specified, the script **modifies system configuration** (registry, services, audit policy, firewall). Always test in non-production first.
+- **Auto-remediation requires explicit `YES` confirmation** before any changes are applied; pre-confirmation impact analysis displays reboot/logoff/service/network/destructive impact summary.
+- **Rollback support:** When `-RollbackPath <path>` is specified, an inverse-script is generated alongside auto-remediation for reversal.
+- Accesses system configuration and security settings (registry, services, audit policy, WMI/CIM, certificates, etc.)
 - Generates reports containing sensitive system information
 - Requires administrator privileges for comprehensive checks
+- All remediations are logged to the audit log file
 
 **Test First:**
 - Run in test/dev environment before production
