@@ -1744,7 +1744,6 @@ try {
         }
     }
     elseif ($isDomainMember) {
-        $protectedUsers = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "AllowSecondaryAuthenticationDevices" -Default $null
         Add-Result -Category "NSA - AD Hardening" -Status "Info" `
             -Severity "Informational" `
             -Message "AD-Member: Domain membership detected, AD hardening primarily configured at DC" `
