@@ -6,16 +6,28 @@
 
 # Windows Security Audit Script
 
-<div align="center">
+<!-- ============================================================================ -->
+<!-- DYNAMIC BADGES - reflect live GitHub Actions workflow status and repo state -->
+<!-- ============================================================================ -->
 
-[![CI/CD Pipeline](https://img.shields.io/badge/CI%2FCD-passing-brightgreen?logo=githubactions&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/actions)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen?logo=pester&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/unit-tests.yml)
+[![Lint](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/lint.yml)
+[![Unit Tests](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/unit-tests.yml/badge.svg?branch=main)](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/unit-tests.yml)
+[![Integration Tests](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/integration-tests.yml/badge.svg?branch=main)](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/integration-tests.yml)
+[![Full Matrix](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/full-matrix.yml/badge.svg?branch=main)](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/full-matrix.yml)
+
+[![Latest Release](https://img.shields.io/github/v/release/Sandler73/Windows-Security-Audit-Project?logo=github&label=release)](https://github.com/Sandler73/Windows-Security-Audit-Project/releases/latest)
+[![License](https://img.shields.io/github/license/Sandler73/Windows-Security-Audit-Project?logo=opensourceinitiative&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/docs/project/LICENSE.md)
+[![Last Commit](https://img.shields.io/github/last-commit/Sandler73/Windows-Security-Audit-Project?logo=git&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/commits/main)
+[![Open Issues](https://img.shields.io/github/issues/Sandler73/Windows-Security-Audit-Project?logo=github)](https://github.com/Sandler73/Windows-Security-Audit-Project/issues)
+[![Stars](https://img.shields.io/github/stars/Sandler73/Windows-Security-Audit-Project?logo=github&style=flat)](https://github.com/Sandler73/Windows-Security-Audit-Project/stargazers)
+
+<!-- ============================================================================ -->
+<!-- STATIC BADGES - informational metadata that doesn't change without a release -->
+<!-- ============================================================================ -->
+
 [![Security: Audited](https://img.shields.io/badge/security-audited-green?logo=shieldsdotio&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/docs/project/SECURITY.md)
-
-[![PowerShell 5.1+](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%207.x-5391FE?logo=powershell&logoColor=white)](https://learn.microsoft.com/en-us/powershell/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-yellow?logo=opensourceinitiative&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/docs/project/LICENSE.md)
+[![PowerShell 5.1+ | 7.x](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%207.x-5391FE?logo=powershell&logoColor=white)](https://learn.microsoft.com/en-us/powershell/)
 [![Maintained: Yes](https://img.shields.io/badge/maintained-yes-green?logo=github&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/commits/main)
-[![Version](https://img.shields.io/badge/version-6.1.2-blue?logo=semver&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/releases)
 
 [![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows/)
 [![Shell: PowerShell](https://img.shields.io/badge/shell-PowerShell-2671BE?logo=powershell&logoColor=white)](https://learn.microsoft.com/en-us/powershell/)
@@ -35,7 +47,7 @@
 [![Server 2019](https://img.shields.io/badge/Server-2019-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows-server/)
 [![Server 2016](https://img.shields.io/badge/Server-2016-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows-server/)
 
-**Comprehensive Module-Based Multi-Framework Windows Security Assessment, Auditing, and Remediation Tool**
+**Module-Based Multi-Framework Windows Security Assessment, Auditing, and Remediation Tool**
 
 [Overview](#-overview) • [Key Features](#-key-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Remediation Capabilities](#-remediation-capabilities) • [Contributing](#-contributing)
 
