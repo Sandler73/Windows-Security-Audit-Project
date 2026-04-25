@@ -41,11 +41,13 @@ Describe 'Orchestrator File Existence' {
         $content | Should -Match '\$script:ScriptVersion\s*=\s*[''"]6\.1\.2[''"]'
     }
 
-    It 'Orchestrator brace count is balanced' {
-        $content = Get-Content -Path $script:OrchPath -Raw
-        $open = ([regex]::Matches($content, '\{')).Count
-        $close = ([regex]::Matches($content, '\}')).Count
-        ($open - $close) | Should -Be 0
+    It 'Orchestrator parses without syntax errors' {
+        $parseErrors = $null
+        $parseTokens = $null
+        $null = [System.Management.Automation.Language.Parser]::ParseFile(
+            $script:OrchPath, [ref]$parseTokens, [ref]$parseErrors
+        )
+        $parseErrors.Count | Should -Be 0
     }
 }
 
