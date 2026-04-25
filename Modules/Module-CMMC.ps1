@@ -1146,7 +1146,7 @@ try {
     Add-Result -Category "CMMC - SPRS Scoring" -Status "Info" `
         -Severity "Informational" `
         -Message "SPRS Score: $sprsScore / 110 ($sprsRating)" `
-        -Details "Calculated per NIST SP 800-171 DoD Assessment Methodology v1.2.1. Deductions: $deductions points across detected non-compliant controls. This is a self-assessment estimate; formal SPRS submission requires DoD assessment." `
+        -Details "Calculated per NIST SP 800-171 DoD Assessment Methodology v1.2.1 across all $totalControls assessed controls. Deductions: $deductions points across detected non-compliant controls. This is a self-assessment estimate; formal SPRS submission requires DoD assessment." `
         -CrossReferences @{ DFARS='252.204-7019'; DFARS2='252.204-7020' }
 
     if ($sprsScore -lt 90) {
