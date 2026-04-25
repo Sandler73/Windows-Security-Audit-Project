@@ -1,0 +1,206 @@
+name: ⚠️ False Negative (incorrect Pass)
+description: A check reports Pass when the system is actually non-compliant (more serious than a false positive)
+title: "[FN]: <module> - <check description>"
+labels: ["false-negative", "security", "bug", "high-priority", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ⚠️ This is the highest-priority bug class
+
+        A false negative — a check reporting **Pass** when the system is actually
+        non-compliant — is the most serious type of audit framework defect. Operators rely
+        on Pass results to mean their systems are configured correctly. A false negative
+        causes operators to ship insecure systems thinking they are secure.
+
+        **PLEASE DO NOT publicly disclose details that would reveal a security weakness in a
+        widely-deployed system configuration.** If the false negative implies a broadly
+        exploitable misconfiguration that this tool fails to detect, consider responsible
+        disclosure via [private Security Advisory](https://github.com/Sandler73/Windows-Security-Audit-Project/security/advisories/new) instead.
+
+        Please be precise. False negatives are triaged with high priority but require strong
+        evidence to act on.
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: I have manually verified the system is actually NON-compliant with the underlying control
+          required: true
+        - label: I have considered whether public disclosure is appropriate (vs. private security advisory)
+          required: true
+        - label: I am running the latest stable release
+          required: true
+        - label: This is a check producing wrong Pass — not a disagreement with the framework's prescription
+          required: true
+
+  - type: dropdown
+    id: disclosure-decision
+    attributes:
+      label: Disclosure consideration
+      description: Which best describes this finding?
+      options:
+        - "Narrow scope -- only affects unusual/specific configurations, public disclosure OK"
+        - "Specific to my environment -- public disclosure OK"
+        - "Could affect many users -- considered private disclosure but think this is OK to file publicly"
+        - "Should have used private Security Advisory but already started here"
+    validations:
+      required: true
+
+  - type: input
+    id: framework-control-id
+    attributes:
+      label: Framework control identifier
+      placeholder: "STIG V-220929 / CIS 2.3.1.1 / NIST AC-2(3)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: module
+    attributes:
+      label: Module
+      options:
+        - acsc
+        - cis
+        - cisa
+        - cmmc
+        - core
+        - enisa
+        - gdpr
+        - hipaa
+        - iso27001
+        - ms
+        - ms-defenderatp
+        - nist
+        - nsa
+        - pcidss
+        - soc2
+        - stig
+    validations:
+      required: true
+
+  - type: input
+    id: check-category
+    attributes:
+      label: Check Category (from result output)
+      placeholder: "STIG - V-220929 (CAT I)"
+    validations:
+      required: true
+
+  - type: input
+    id: check-message
+    attributes:
+      label: Check Message (from result output -- showing Pass)
+      placeholder: "Guest account is disabled"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity-of-miss
+    attributes:
+      label: Severity of the missed finding
+      description: How critical is the actual non-compliance that was not detected?
+      options:
+        - Critical -- system is exploitable / immediately at risk
+        - High -- significant security weakness
+        - Medium -- meaningful gap from compliance posture
+        - Low -- minor deviation
+        - Informational -- cosmetic / documentation issue
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-system-state
+    attributes:
+      label: Actual system state (proving the system is non-compliant)
+      description: |
+        Show the exact commands you ran to manually verify the system is in a non-compliant
+        state. This is critical evidence.
+      placeholder: |
+        ```powershell
+        # Audit reports Guest disabled. Manual verification:
+        PS> Get-LocalUser -Name 'Guest' | Select-Object Name, Enabled
+        Name  Enabled
+        ----  -------
+        Guest True
+
+        # Guest IS enabled, but the audit returned Pass.
+        ```
+      render: powershell
+    validations:
+      required: true
+
+  - type: textarea
+    id: how-discovered
+    attributes:
+      label: How was this false negative discovered?
+      description: |
+        Cross-checking against another audit tool? Manual review? Penetration test?
+        Knowing the discovery path helps identify systemic gaps.
+    validations:
+      required: true
+
+  - type: textarea
+    id: log-output
+    attributes:
+      label: Audit log output
+      description: |
+        Re-run with `-LogLevel Debug -Verbose -Modules <module>` and paste the relevant log
+        section showing the Pass result and the values that led to it.
+      render: text
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Audit framework version
+      placeholder: "6.1.2"
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: Windows version + build
+      placeholder: "Windows 11 24H2, build 26100"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: domain-state
+    attributes:
+      label: Domain/workgroup state
+      options:
+        - Standalone (workgroup)
+        - Domain-joined member
+        - Domain Controller
+        - Hybrid Azure AD joined
+        - Azure AD joined
+        - Other / unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: theory
+    attributes:
+      label: Theory / suggested fix (optional)
+      description: |
+        Hypothesis for why the check missed the non-compliance. Possible causes include:
+        wrong registry path, missing alternative SID lookup, missing edition handling, etc.
+    validations:
+      required: false
+
+  - type: textarea
+    id: scope-impact
+    attributes:
+      label: Scope of impact (best estimate)
+      description: |
+        Is this likely to affect a small number of unusual configurations, or many users?
+        E.g.: "Only affects systems where the Guest account has been renamed via GPO"
+        vs. "Affects all Server Core installations".
+    validations:
+      required: false
