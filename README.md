@@ -6,6 +6,8 @@
 
 # Windows Security Audit Script
 
+<div align="center">
+  
 <!-- ============================================================================ -->
 <!-- DYNAMIC BADGES - reflect live GitHub Actions workflow status and repo state -->
 <!-- ============================================================================ -->
