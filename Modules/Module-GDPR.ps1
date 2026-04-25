@@ -1,6 +1,6 @@
 # module-gdpr.ps1
 # GDPR Technical Measures Compliance Module for Windows Security Audit
-# Version: 6.0
+# Version: 6.1.2
 #
 # Evaluates Windows configuration against EU General Data Protection Regulation (2016/679)
 # with Severity ratings and cross-framework references.
@@ -31,7 +31,7 @@
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
     References: GDPR (2016/679), EDPB Guidelines, ENISA Guidance on GDPR Technical Measures
-    Version: 6.0
+    Version: 6.1.2
 
 .EXAMPLE
     $results = & .\modules\module-gdpr.ps1 -SharedData $sharedData
@@ -43,7 +43,7 @@ param(
 )
 
 $moduleName = "GDPR"
-$moduleVersion = "6.0"
+$moduleVersion = "6.1.2"
 $results = @()
 
 # ---------------------------------------------------------------------------
@@ -85,7 +85,7 @@ function Get-RegValue {
     try {
         $item = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
         if ($null -ne $item) { return $item.$Name }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
     return $Default
 }
 
@@ -317,14 +317,14 @@ Write-Host "[GDPR] Checking Article 32(1)(a) -- Encryption..." -ForegroundColor 
                 -Message "Art.32(1)(a)-1: BitLocker encryption active on system drive" `
                 -Details "Art.32(1)(a): Pseudonymisation and encryption of personal data" `
                 -Severity "High" `
-                -CrossReferences @{ GDPR='Art.32(1)(a)'; NIST='SC-28'; ISO27001='A.8.24'; PCIDSS='3.4.1' }
+                -CrossReferences @{ GDPR='Art.32(1)(a)'; NIST='SC-28'; ISO27001='A.8.24'; 'PCI-DSS'='3.4.1' }
         } else {
             Add-Result -Category "GDPR - Art.32 Encryption" -Status "Fail" `
                 -Message "Art.32(1)(a)-1: BitLocker NOT active -- personal data at rest may be unencrypted" `
                 -Details "Art.32(1)(a): Encryption is a key technical measure for GDPR compliance" `
                 -Remediation "Enable-BitLocker -MountPoint C: -EncryptionMethod XtsAes256" `
                 -Severity "High" `
-                -CrossReferences @{ GDPR='Art.32(1)(a)'; NIST='SC-28'; ISO27001='A.8.24'; PCIDSS='3.4.1' }
+                -CrossReferences @{ GDPR='Art.32(1)(a)'; NIST='SC-28'; ISO27001='A.8.24'; 'PCI-DSS'='3.4.1' }
         }
     } catch {
         Add-Result -Category "GDPR - Art.32 Encryption" -Status "Error" `
@@ -340,20 +340,20 @@ Write-Host "[GDPR] Checking Article 32(1)(a) -- Encryption..." -ForegroundColor 
                 -Message "Art.32(1)(a)-2: Encryption -- TLS 1.2 enabled -- properly configured" `
                 -Details "Art.32(1)(a): Personal data in transit must be encrypted with current protocols" `
                 -Severity "Critical" `
-                -CrossReferences @{ GDPR='Art.32(1)(a)'; NIST='SC-8'; ISO27001='A.8.24'; PCIDSS='4.2.1'; HIPAA='164.312(e)(1)' }
+                -CrossReferences @{ GDPR='Art.32(1)(a)'; NIST='SC-8'; ISO27001='A.8.24'; 'PCI-DSS'='4.2.1'; HIPAA='164.312(e)(1)' }
         } else {
             Add-Result -Category "GDPR - Art.32 Encryption" -Status "Fail" `
                 -Message "Art.32(1)(a)-2: Encryption -- TLS 1.2 enabled -- not configured (Value=$val)" `
                 -Details "Art.32(1)(a): Personal data in transit must be encrypted with current protocols" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client' -Name Enabled -Value 1" `
                 -Severity "Critical" `
-                -CrossReferences @{ GDPR='Art.32(1)(a)'; NIST='SC-8'; ISO27001='A.8.24'; PCIDSS='4.2.1'; HIPAA='164.312(e)(1)' }
+                -CrossReferences @{ GDPR='Art.32(1)(a)'; NIST='SC-8'; ISO27001='A.8.24'; 'PCI-DSS'='4.2.1'; HIPAA='164.312(e)(1)' }
         }
     } catch {
         Add-Result -Category "GDPR - Art.32 Encryption" -Status "Error" `
             -Message "Art.32(1)(a)-2: Encryption -- TLS 1.2 enabled -- check failed: $_" `
             -Severity "Critical" `
-            -CrossReferences @{ GDPR='Art.32(1)(a)'; NIST='SC-8'; ISO27001='A.8.24'; PCIDSS='4.2.1'; HIPAA='164.312(e)(1)' }
+            -CrossReferences @{ GDPR='Art.32(1)(a)'; NIST='SC-8'; ISO27001='A.8.24'; 'PCI-DSS'='4.2.1'; HIPAA='164.312(e)(1)' }
     }
     # Art.32(1)(a)-3: Encryption -- SSL 2.0 disabled
     try {
@@ -927,7 +927,7 @@ Write-Host "[GDPR] Checking Articles 33-34 -- Breach Notification Readiness..." 
                 -Message "Art.33(2): Breach notification -- time sync service -- service running" `
                 -Details "Art.33(2): Accurate timestamps enable precise breach timeline reconstruction" `
                 -Severity "Medium" `
-                -CrossReferences @{ GDPR='Art.33(2)'; NIST='AU-8'; PCIDSS='10.6.1' }
+                -CrossReferences @{ GDPR='Art.33(2)'; NIST='AU-8'; 'PCI-DSS'='10.6.1' }
         } else {
             $svcSt = if ($null -ne $svc) { $svc.Status } else { "Not Found" }
             Add-Result -Category "GDPR - Art.33-34 Breach" -Status "Fail" `
@@ -935,13 +935,13 @@ Write-Host "[GDPR] Checking Articles 33-34 -- Breach Notification Readiness..." 
                 -Details "Art.33(2): Accurate timestamps enable precise breach timeline reconstruction" `
                 -Remediation "Start-Service -Name W32Time; Set-Service -Name W32Time -StartupType Automatic" `
                 -Severity "Medium" `
-                -CrossReferences @{ GDPR='Art.33(2)'; NIST='AU-8'; PCIDSS='10.6.1' }
+                -CrossReferences @{ GDPR='Art.33(2)'; NIST='AU-8'; 'PCI-DSS'='10.6.1' }
         }
     } catch {
         Add-Result -Category "GDPR - Art.33-34 Breach" -Status "Error" `
             -Message "Art.33(2): Breach notification -- time sync service -- check failed: $_" `
             -Severity "Medium" `
-            -CrossReferences @{ GDPR='Art.33(2)'; NIST='AU-8'; PCIDSS='10.6.1' }
+            -CrossReferences @{ GDPR='Art.33(2)'; NIST='AU-8'; 'PCI-DSS'='10.6.1' }
     }
     # Art.33(3): Breach detection -- network protection
     try {
@@ -1157,6 +1157,419 @@ Write-Host "[GDPR] Checking Article 5 & 17 -- Data Processing Principles..." -Fo
             -CrossReferences @{ GDPR='Art.32(1)(b)'; NIST='AC-8'; ISO27001='A.5.10' }
     }
 
+
+# ===========================================================================
+# v6.1: ePrivacy Directive technical controls
+# ===========================================================================
+Write-Host "[GDPR] Checking ePrivacy Directive technical controls..." -ForegroundColor Yellow
+
+try {
+    $tlsv12Server = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server" -Name "Enabled" -Default $null
+    if ($null -eq $tlsv12Server -or $tlsv12Server -eq 1) {
+        Add-Result -Category "GDPR - ePrivacy Directive" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "ePrivacy Art. 5 Confidentiality of communications (TLS 1.2 available)" `
+            -Details "Directive 2002/58/EC requires confidentiality of electronic communications" `
+            -CrossReferences @{ ePrivacy='Art.5'; Directive='2002/58/EC'; NIST='SC-8' }
+    }
+    else {
+        Add-Result -Category "GDPR - ePrivacy Directive" -Status "Fail" `
+            -Severity "High" `
+            -Message "ePrivacy Art. 5 TLS 1.2 disabled (communications confidentiality at risk)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server' -Name 'Enabled' -Value 1 -Type DWord" `
+            -CrossReferences @{ ePrivacy='Art.5'; Directive='2002/58/EC' }
+    }
+
+    $smbSigning = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "RequireSecuritySignature" -Default 0
+    if ($smbSigning -eq 1) {
+        Add-Result -Category "GDPR - ePrivacy Directive" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "ePrivacy Art. 4 Communications integrity protection (SMB signing required)" `
+            -CrossReferences @{ ePrivacy='Art.4'; Directive='2002/58/EC'; NIST='SC-8(1)' }
+    }
+    else {
+        Add-Result -Category "GDPR - ePrivacy Directive" -Status "Fail" `
+            -Severity "Medium" `
+            -Message "ePrivacy Art. 4 SMB signing not required (integrity protection gap)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'RequireSecuritySignature' -Value 1 -Type DWord" `
+            -CrossReferences @{ ePrivacy='Art.4'; Directive='2002/58/EC' }
+    }
+
+    $cookiePath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
+    $defaultCookies = Get-RegValue -Path $cookiePath -Name "DefaultCookiesSetting" -Default $null
+    if ($defaultCookies -eq 4) {
+        Add-Result -Category "GDPR - ePrivacy Directive" -Status "Pass" `
+            -Severity "Low" `
+            -Message "ePrivacy Art. 5(3) Browser cookie consent enforced (session-only by default)" `
+            -CrossReferences @{ ePrivacy='Art.5(3)'; Directive='2002/58/EC' }
+    }
+    else {
+        Add-Result -Category "GDPR - ePrivacy Directive" -Status "Info" `
+            -Severity "Informational" `
+            -Message "ePrivacy Art. 5(3) Browser cookie policy at default (consent typically managed at site level)" `
+            -CrossReferences @{ ePrivacy='Art.5(3)' }
+    }
+}
+catch {
+    Add-Result -Category "GDPR - ePrivacy Directive" -Status "Error" `
+        -Severity "Medium" `
+        -Message "ePrivacy Directive control assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Schrems II / international transfer technical safeguards
+# ===========================================================================
+Write-Host "[GDPR] Checking international transfer technical safeguards..." -ForegroundColor Yellow
+
+try {
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "GDPR - International Transfers" -Status "Pass" `
+            -Severity "High" `
+            -Message "Schrems II Supplementary measure: at-rest encryption active" `
+            -Details "EDPB Recommendations 01/2020 cite encryption as a primary technical supplementary measure for international transfers" `
+            -CrossReferences @{ GDPR='Art.46'; EDPB='Rec 01/2020'; Schrems='II' }
+    }
+    else {
+        Add-Result -Category "GDPR - International Transfers" -Status "Fail" `
+            -Severity "High" `
+            -Message "Schrems II No at-rest encryption (international transfer safeguard insufficient)" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ GDPR='Art.46'; EDPB='Rec 01/2020' }
+    }
+
+    $fipsPolicy = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy" -Name "Enabled" -Default 0
+    if ($fipsPolicy -eq 1) {
+        Add-Result -Category "GDPR - International Transfers" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Schrems II FIPS-validated cryptography enforced (strong encryption supplementary measure)" `
+            -CrossReferences @{ GDPR='Art.46'; EDPB='Rec 01/2020' }
+    }
+    else {
+        Add-Result -Category "GDPR - International Transfers" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Schrems II FIPS-only mode not enforced" `
+            -Details "FIPS-validated cryptography strengthens encryption-as-supplementary-measure for international transfers" `
+            -CrossReferences @{ GDPR='Art.46'; EDPB='Rec 01/2020' }
+    }
+
+    $tls10 = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server" -Name "Enabled" -Default $null
+    $tls11 = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server" -Name "Enabled" -Default $null
+    if (($null -eq $tls10 -or $tls10 -eq 0) -and ($null -eq $tls11 -or $tls11 -eq 0)) {
+        Add-Result -Category "GDPR - International Transfers" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Schrems II Legacy TLS protocols disabled (transit encryption strengthened)" `
+            -CrossReferences @{ GDPR='Art.46'; EDPB='Rec 01/2020' }
+    }
+    else {
+        Add-Result -Category "GDPR - International Transfers" -Status "Fail" `
+            -Severity "High" `
+            -Message "Schrems II Legacy TLS enabled (TLS 1.0=$tls10 TLS 1.1=$tls11)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server' -Name 'Enabled' -Value 0 -Type DWord; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server' -Name 'Enabled' -Value 0 -Type DWord" `
+            -CrossReferences @{ GDPR='Art.46'; EDPB='Rec 01/2020' }
+    }
+}
+catch {
+    Add-Result -Category "GDPR - International Transfers" -Status "Error" `
+        -Severity "Medium" `
+        -Message "International transfer safeguard assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Data subject rights enabling technical controls
+# ===========================================================================
+Write-Host "[GDPR] Checking data subject rights enabling controls..." -ForegroundColor Yellow
+
+try {
+    $auditFileAccess = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -like '*File System*' }
+    if ($auditFileAccess -and $auditFileAccess.Setting -ne 'No Auditing') {
+        Add-Result -Category "GDPR - Data Subject Rights" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Art. 15 Right of access enabled by file system audit logging" `
+            -Details "Audit logging supports identification of personal data processing activities for access requests" `
+            -CrossReferences @{ GDPR='Art.15'; NIST='AU-3' }
+    }
+    else {
+        Add-Result -Category "GDPR - Data Subject Rights" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Art. 15 File system auditing not active" `
+            -Remediation "auditpol /set /subcategory:'File System' /success:enable /failure:enable" `
+            -CrossReferences @{ GDPR='Art.15' }
+    }
+
+    $vssService = Get-Service -Name 'VSS' -ErrorAction SilentlyContinue
+    if ($vssService -and $vssService.StartType -in @('Manual','Automatic')) {
+        Add-Result -Category "GDPR - Data Subject Rights" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Art. 16 Right to rectification supported (VSS available for point-in-time recovery)" `
+            -CrossReferences @{ GDPR='Art.16'; NIST='CP-9' }
+    }
+    else {
+        Add-Result -Category "GDPR - Data Subject Rights" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Art. 16 Volume Shadow Copy service disabled (rectification audit trail limited)" `
+            -Remediation "Set-Service -Name VSS -StartupType Manual" `
+            -CrossReferences @{ GDPR='Art.16' }
+    }
+
+    $rbActive = Test-Path "HKLM:\SYSTEM\CurrentControlSet\Services\bam" -ErrorAction SilentlyContinue
+    if ($rbActive) {
+        Add-Result -Category "GDPR - Data Subject Rights" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Art. 17 Right to erasure: Background Activity Moderator tracks process execution for evidence of completion" `
+            -CrossReferences @{ GDPR='Art.17' }
+    }
+    else {
+        Add-Result -Category "GDPR - Data Subject Rights" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Art. 17 BAM service registry not present (typical on Server SKUs)" `
+            -CrossReferences @{ GDPR='Art.17' }
+    }
+
+    $jsonExport = Get-Command 'ConvertTo-Json' -ErrorAction SilentlyContinue
+    $csvExport = Get-Command 'Export-Csv' -ErrorAction SilentlyContinue
+    if ($jsonExport -and $csvExport) {
+        Add-Result -Category "GDPR - Data Subject Rights" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Art. 20 Right to data portability: standard export cmdlets available (JSON, CSV)" `
+            -Details "Native PowerShell export to machine-readable formats supports portability requests" `
+            -CrossReferences @{ GDPR='Art.20' }
+    }
+
+    $userAccountAudit = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'User Account Management' }
+    if ($userAccountAudit -and $userAccountAudit.Setting -ne 'No Auditing') {
+        Add-Result -Category "GDPR - Data Subject Rights" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Art. 21 Right to object: account management auditing tracks consent withdrawals" `
+            -CrossReferences @{ GDPR='Art.21'; NIST='AC-2(4)' }
+    }
+    else {
+        Add-Result -Category "GDPR - Data Subject Rights" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Art. 21 User account management auditing not active" `
+            -Remediation "auditpol /set /subcategory:'User Account Management' /success:enable /failure:enable" `
+            -CrossReferences @{ GDPR='Art.21' }
+    }
+}
+catch {
+    Add-Result -Category "GDPR - Data Subject Rights" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Data subject rights assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Article 28 (Processor) technical safeguards
+# ===========================================================================
+Write-Host "[GDPR] Checking Article 28 processor technical safeguards..." -ForegroundColor Yellow
+
+try {
+    $auditObjAccess = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -like '*File System*' }
+    if ($auditObjAccess -and $auditObjAccess.Setting -ne 'No Auditing') {
+        Add-Result -Category "GDPR - Art. 28 Processor" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Art. 28(3)(h) Processor obligation: audit information availability" `
+            -Details "File system auditing produces evidence required for Art. 28 processor inspections" `
+            -CrossReferences @{ GDPR='Art.28(3)(h)'; NIST='AU-2' }
+    }
+    else {
+        Add-Result -Category "GDPR - Art. 28 Processor" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Art. 28(3)(h) Processor cannot demonstrate audit availability without logging" `
+            -Remediation "auditpol /set /subcategory:'File System' /success:enable /failure:enable" `
+            -CrossReferences @{ GDPR='Art.28(3)(h)' }
+    }
+
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "GDPR - Art. 28 Processor" -Status "Pass" `
+            -Severity "High" `
+            -Message "Art. 28(3)(c) Processor confidentiality obligation supported by drive encryption" `
+            -CrossReferences @{ GDPR='Art.28(3)(c)'; NIST='SC-28' }
+    }
+    else {
+        Add-Result -Category "GDPR - Art. 28 Processor" -Status "Fail" `
+            -Severity "High" `
+            -Message "Art. 28(3)(c) Processor lacks drive encryption for confidentiality obligation" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ GDPR='Art.28(3)(c)' }
+    }
+}
+catch {
+    Add-Result -Category "GDPR - Art. 28 Processor" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Article 28 processor assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Article 32(1)(b) ongoing CIA + resilience
+# ===========================================================================
+Write-Host "[GDPR] Checking Article 32(1)(b) ongoing CIA + resilience..." -ForegroundColor Yellow
+
+try {
+    $defenderStatus = Get-DefenderStatus -Cache $SharedData.Cache
+    if ($defenderStatus -and $defenderStatus.RealTimeProtectionEnabled) {
+        Add-Result -Category "GDPR - Art. 32(1)(b) CIA + Resilience" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Confidentiality + integrity: real-time malware protection active" `
+            -CrossReferences @{ GDPR='Art.32(1)(b)'; NIST='SI-3' }
+    }
+    else {
+        Add-Result -Category "GDPR - Art. 32(1)(b) CIA + Resilience" -Status "Fail" `
+            -Severity "High" `
+            -Message "Confidentiality + integrity weakened: no real-time malware protection" `
+            -CrossReferences @{ GDPR='Art.32(1)(b)' }
+    }
+
+    $vssService = Get-Service -Name 'VSS' -ErrorAction SilentlyContinue
+    $bitsService = Get-Service -Name 'BITS' -ErrorAction SilentlyContinue
+    if ($vssService -and $bitsService -and ($vssService.StartType -in @('Manual','Automatic')) -and ($bitsService.StartType -in @('Manual','Automatic'))) {
+        Add-Result -Category "GDPR - Art. 32(1)(b) CIA + Resilience" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Resilience: backup and update infrastructure available (VSS + BITS)" `
+            -CrossReferences @{ GDPR='Art.32(1)(b)'; NIST='CP-9' }
+    }
+    else {
+        Add-Result -Category "GDPR - Art. 32(1)(b) CIA + Resilience" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Resilience infrastructure incomplete (VSS or BITS disabled)" `
+            -CrossReferences @{ GDPR='Art.32(1)(b)' }
+    }
+
+    $sysRestore = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" -Name "DisableSR" -Default 0
+    if ($sysRestore -eq 0) {
+        Add-Result -Category "GDPR - Art. 32(1)(b) CIA + Resilience" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Availability: System Restore enabled for incident recovery" `
+            -CrossReferences @{ GDPR='Art.32(1)(c)'; NIST='CP-10' }
+    }
+    else {
+        Add-Result -Category "GDPR - Art. 32(1)(b) CIA + Resilience" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Availability: System Restore disabled" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore' -Name 'DisableSR' -Value 0 -Type DWord; Enable-ComputerRestore -Drive 'C:\\'" `
+            -CrossReferences @{ GDPR='Art.32(1)(c)' }
+    }
+}
+catch {
+    Add-Result -Category "GDPR - Art. 32(1)(b) CIA + Resilience" -Status "Error" `
+        -Severity "Medium" `
+        -Message "CIA + resilience assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Article 35 DPIA-related technical evidence
+# ===========================================================================
+Write-Host "[GDPR] Checking Article 35 DPIA evidence indicators..." -ForegroundColor Yellow
+
+try {
+    $sysmonService = Get-Service -Name 'Sysmon*' -ErrorAction SilentlyContinue
+    if ($sysmonService) {
+        Add-Result -Category "GDPR - Art. 35 DPIA Evidence" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Art. 35 DPIA Risk monitoring infrastructure present (Sysmon detected)" `
+            -Details "Sysmon supports detailed system activity monitoring for high-risk processing assessment" `
+            -CrossReferences @{ GDPR='Art.35'; NIST='RA-3' }
+    }
+    else {
+        Add-Result -Category "GDPR - Art. 35 DPIA Evidence" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Art. 35 No Sysmon monitoring detected (alternate monitoring may exist)" `
+            -CrossReferences @{ GDPR='Art.35' }
+    }
+
+    $secLogSize = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Security" -Name "MaxSize" -Default 0
+    if ($secLogSize -ge 268435456) {
+        $secLogMB = [Math]::Round($secLogSize / 1MB, 0)
+        Add-Result -Category "GDPR - Art. 35 DPIA Evidence" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Art. 35 Audit retention adequate for DPIA evidence (${secLogMB} MB)" `
+            -CrossReferences @{ GDPR='Art.35'; NIST='AU-11' }
+    }
+    else {
+        Add-Result -Category "GDPR - Art. 35 DPIA Evidence" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Art. 35 Security log undersized for DPIA evidence retention" `
+            -Remediation "wevtutil sl Security /ms:268435456" `
+            -CrossReferences @{ GDPR='Art.35' }
+    }
+
+    $eventLogService = Get-Service -Name 'EventLog' -ErrorAction SilentlyContinue
+    if ($eventLogService -and $eventLogService.Status -eq 'Running') {
+        Add-Result -Category "GDPR - Art. 35 DPIA Evidence" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Art. 35 Event log infrastructure operational for ongoing risk assessment" `
+            -CrossReferences @{ GDPR='Art.35'; NIST='AU-2' }
+    }
+    else {
+        Add-Result -Category "GDPR - Art. 35 DPIA Evidence" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "Art. 35 Event log service not running (no audit trail collection)" `
+            -CrossReferences @{ GDPR='Art.35' }
+    }
+}
+catch {
+    Add-Result -Category "GDPR - Art. 35 DPIA Evidence" -Status "Error" `
+        -Severity "Medium" `
+        -Message "DPIA evidence assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Pseudonymisation and data minimisation indicators
+# ===========================================================================
+Write-Host "[GDPR] Checking pseudonymisation and data minimisation..." -ForegroundColor Yellow
+
+try {
+    $cgEnabled = Test-CredentialGuardEnabled
+    if ($cgEnabled) {
+        Add-Result -Category "GDPR - Pseudonymisation" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Pseudonymisation: credential isolation prevents re-identification through credential theft" `
+            -Details "Credential Guard separates secrets from re-identification attack vectors" `
+            -CrossReferences @{ GDPR='Art.32(1)(a)'; NIST='IA-5(1)' }
+    }
+    else {
+        Add-Result -Category "GDPR - Pseudonymisation" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Pseudonymisation: Credential Guard not active (re-identification risk via credential theft)" `
+            -CrossReferences @{ GDPR='Art.32(1)(a)' }
+    }
+
+    $userListPolicy = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "DontDisplayLastUserName" -Default 0
+    if ($userListPolicy -eq 1) {
+        Add-Result -Category "GDPR - Pseudonymisation" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Data minimisation: last logged-on user not displayed at sign-in" `
+            -CrossReferences @{ GDPR='Art.5(1)(c)' }
+    }
+    else {
+        Add-Result -Category "GDPR - Pseudonymisation" -Status "Warning" `
+            -Severity "Low" `
+            -Message "Data minimisation: previous user identity displayed at sign-in screen" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'DontDisplayLastUserName' -Value 1 -Type DWord" `
+            -CrossReferences @{ GDPR='Art.5(1)(c)' }
+    }
+
+    $telemetryLevel = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Name "AllowTelemetry" -Default 3
+    if ($telemetryLevel -le 1) {
+        Add-Result -Category "GDPR - Pseudonymisation" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Data minimisation: telemetry restricted to Security/Required level ($telemetryLevel)" `
+            -CrossReferences @{ GDPR='Art.5(1)(c)' }
+    }
+    else {
+        Add-Result -Category "GDPR - Pseudonymisation" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Data minimisation: telemetry level permits enhanced/optional data collection (level $telemetryLevel)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' -Name 'AllowTelemetry' -Value 1 -Type DWord" `
+            -CrossReferences @{ GDPR='Art.5(1)(c)' }
+    }
+}
+catch {
+    Add-Result -Category "GDPR - Pseudonymisation" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Pseudonymisation assessment failed: $($_.Exception.Message)"
+}
+
 # ===========================================================================
 # Module Summary
 # ===========================================================================
@@ -1187,15 +1600,11 @@ foreach ($cat in ($catGroups.Keys | Sort-Object)) {
 
 # Severity distribution for failures
 $failResults = @($results | Where-Object { $_.Status -eq "Fail" })
-if ($failResults.Count -gt 0) {
-    Write-Host "`n  Failed Check Severity Distribution:" -ForegroundColor Yellow
-    foreach ($sev in @("Critical","High","Medium","Low")) {
-        $sevCount = @($failResults | Where-Object { $_.Severity -eq $sev }).Count
-        if ($sevCount -gt 0) {
-            $color = switch ($sev) { "Critical" { "Red" }; "High" { "Red" }; "Medium" { "Yellow" }; default { "White" } }
-            Write-Host "    $($sev.PadRight(12)): $sevCount" -ForegroundColor $color
-        }
-    }
+Write-Host "`n  Failed Check Severity Distribution:" -ForegroundColor Yellow
+foreach ($sev in @("Critical","High","Medium","Low")) {
+    $sevCount = @($failResults | Where-Object { $_.Severity -eq $sev }).Count
+    $color = switch ($sev) { "Critical" { "Red" }; "High" { "Red" }; "Medium" { "Yellow" }; default { "White" } }
+    Write-Host "    $($sev.PadRight(12)): $sevCount" -ForegroundColor $color
 }
 Write-Host "$("=" * 80)`n" -ForegroundColor White
 
@@ -1282,7 +1691,3 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
-
-# ============================================================================
-# End of GDPR Technical Measures Module (Module-GDPR.ps1)
-# ============================================================================
