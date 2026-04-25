@@ -58,7 +58,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Verify environment
         run: |
@@ -104,7 +104,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: unit-test-results-${{ matrix.os }}-ps7
           path: test-results-${{ matrix.os }}-ps7.xml
@@ -129,7 +129,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Verify environment
         run: |
@@ -174,7 +174,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: unit-test-results-${{ matrix.os }}-ps51
           path: test-results-${{ matrix.os }}-ps51.xml
@@ -213,7 +213,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Verify runner identity
         run: |
@@ -248,7 +248,7 @@ jobs:
 
       - name: Upload self-hosted test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: unit-test-results-${{ matrix.runner.label }}-ps7
           path: test-results-${{ matrix.runner.label }}-ps7.xml
@@ -284,7 +284,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Verify runner identity
         run: |
@@ -319,7 +319,7 @@ jobs:
 
       - name: Upload self-hosted test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: unit-test-results-${{ matrix.runner.label }}-ps51
           path: test-results-${{ matrix.runner.label }}-ps51.xml
@@ -335,7 +335,7 @@ jobs:
     if: always()
     steps:
       - name: Download all test results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           path: test-results
 
