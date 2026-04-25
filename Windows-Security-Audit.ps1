@@ -5,7 +5,7 @@
 
 <#
 .SYNOPSIS
-    Comprehensive module-based Windows security audit script supporting multiple
+    Module-based Windows security audit script supporting multiple
     compliance frameworks with parallel execution, caching, structured logging,
     and compliance scoring.
 
@@ -104,7 +104,7 @@
     where a passing related control may mitigate the risk.
 
 .PARAMETER ShowHelp
-    Display the comprehensive help screen and exit. Aliases: -Help, -H, -?
+    Display the detailed help screen and exit. Aliases: -Help, -H, -?
     The script also recognizes the following non-standard invocation forms via
     its remaining-arguments catch-all: 'help', '-help', '--help', '--h'.
 
@@ -134,7 +134,7 @@
     Apply remediation for failed checks and generate inverse-script for rollback
 .EXAMPLE
     .\Windows-Security-Audit.ps1 -Help
-    Display comprehensive help. Equivalent forms: -H, -?, help, -help, --help, --h
+    Display detailed help. Equivalent forms: -H, -?, help, -help, --help, --h
 
 .NOTES
     Requires: Windows 10/11 or Windows Server 2016+, PowerShell 5.1+
@@ -344,8 +344,8 @@ if (-not (Get-Command 'Initialize-AuditLogging' -ErrorAction SilentlyContinue)) 
 # ============================================================================
 function Show-Banner {
     Write-Host "`n========================================================================================================" -ForegroundColor Cyan
-    Write-Host "                        Windows Security Audit Script v$script:ScriptVersion" -ForegroundColor Cyan
-    Write-Host "                   Comprehensive Multi-Framework Security Assessment" -ForegroundColor Cyan
+    Write-Host "                        Windows Security Audit Project v$script:ScriptVersion" -ForegroundColor Cyan
+    Write-Host "                   Module-based Multi-Framework Security Assessment" -ForegroundColor Cyan
     Write-Host "========================================================================================================" -ForegroundColor Cyan
     Write-Host "`nSupported Frameworks:" -ForegroundColor White
     Write-Host "  - ACSC Essential Eight              - HIPAA Security Rule" -ForegroundColor Gray
@@ -522,7 +522,7 @@ function Get-AvailableModules {
 function Show-DetailedHelp {
     <#
     .SYNOPSIS
-        Display comprehensive interactive help for the Windows Security Audit Script.
+        Display detailed interactive help for the Windows Security Audit Script.
     .DESCRIPTION
         Renders a multi-section help screen covering overview, frameworks, parameters
         (grouped by purpose), examples, v6.1 capabilities, and quick reference. This
@@ -578,11 +578,11 @@ function Show-DetailedHelp {
 
     # ---- Description ----
     Write-Section "DESCRIPTION"
-    Write-Host "    Comprehensive Windows security compliance audit tool that evaluates the system" -ForegroundColor White
-    Write-Host "    against multiple industry-standard frameworks. Each module performs hundreds" -ForegroundColor White
-    Write-Host "    of registry, service, audit-policy, and configuration checks, classifies" -ForegroundColor White
-    Write-Host "    results by severity, and maps findings to equivalent controls across other" -ForegroundColor White
-    Write-Host "    frameworks. Generates HTML, JSON, CSV, and XML reports." -ForegroundColor White
+    Write-Host "    Module-based Windows security compliance audit utility and framework that evaluates the" -ForegroundColor White
+    Write-Host "    systemagainst multiple industry-standard frameworks. Each module performs hundreds" -ForegroundColor White
+    Write-Host "    of registry, service, audit-policy, and configuration checks, classifies results" -ForegroundColor White
+    Write-Host "    by severity, and maps findings to equivalent controls across other frameworks." -ForegroundColor White
+    Write-Host "    Generates HTML, JSON, CSV, and XML reports." -ForegroundColor White
 
     # ---- Frameworks ----
     Write-Section "SUPPORTED FRAMEWORKS (16 modules)"
