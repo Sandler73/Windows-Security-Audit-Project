@@ -1849,7 +1849,6 @@ function Export-RegistryPolicyFile {
         $regValue = $match.Groups[3].Value
         $regTypeName = if ($match.Groups[4].Success) { $match.Groups[4].Value } else { 'DWord' }
 
-        $hivePrefix = ''
         if ($regPath -match '^HKLM:\\(.+)$') {
             $relativePath = $matches[1]
         }
