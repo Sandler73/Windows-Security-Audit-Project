@@ -1,0 +1,126 @@
+name: 📖 Documentation Issue
+description: Typo, error, missing content, or unclear wording in the wiki, README, or other docs
+title: "[Docs]: <doc page or section>"
+labels: ["documentation", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Documentation matters as much as code. Reports of typos, errors, omissions, and
+        unclear wording are always welcome.
+
+        **For substantive feedback** (e.g., "the Architecture page should explain X better"),
+        please be specific about what should change. Vague "this section confused me" reports
+        are still useful but harder to act on.
+
+  - type: dropdown
+    id: doc-location
+    attributes:
+      label: Documentation location
+      description: Where does the issue appear?
+      options:
+        - "README.md (project root)"
+        - "USAGE_GUIDE.md (project root)"
+        - "RELEASE-NOTES (project root)"
+        - "docs/project/README.md"
+        - "docs/project/CHANGELOG.md"
+        - "docs/project/CONTRIBUTING.md"
+        - "docs/project/LICENSE.md"
+        - "docs/project/SECURITY.md"
+        - "wiki - Home"
+        - "wiki - Quick Start Guide"
+        - "wiki - Usage Guide"
+        - "wiki - Module Documentation"
+        - "wiki - Framework Reference"
+        - "wiki - Output Reference"
+        - "wiki - Architecture and Design"
+        - "wiki - Development Guide"
+        - "wiki - Future Compatibility and Testing"
+        - "wiki - FAQ"
+        - "wiki - Troubleshooting Guide"
+        - "wiki - Contributing"
+        - "wiki - Security Policy"
+        - "wiki - Changelog"
+        - "wiki - License"
+        - "wiki - _Sidebar / _Footer"
+        - "Code comments / inline docstrings"
+        - "Issue / PR template itself"
+        - "Other (specify in description)"
+    validations:
+      required: true
+
+  - type: input
+    id: section
+    attributes:
+      label: Section / heading
+      description: Which heading or section within the doc?
+      placeholder: "## Common First-Run Scenarios → Scenario 3"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Issue type
+      options:
+        - Typo / spelling / grammar
+        - Factually incorrect statement
+        - Outdated information (refers to old version / removed feature)
+        - Missing content / topic not covered
+        - Unclear wording / hard to follow
+        - Broken link
+        - Wrong / missing screenshot or diagram
+        - Code example does not work
+        - Inconsistent terminology
+        - Formatting / rendering problem
+        - Translation / accessibility issue
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current content (the problem)
+      description: Quote what's currently written
+      placeholder: "From the Quick Start: 'Script automatically opens report in default browser'"
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed correction
+      description: |
+        What should it say instead? Provide exact wording if you can — this makes it much
+        easier for a maintainer to merge a fix.
+      placeholder: |
+        Suggest replacing with:
+
+        "The HTML report is saved to `.\reports\audit-yyyyMMdd-HHmmss.html`. The script does
+        not open the report automatically — open it manually with `Start-Process .\reports\audit-*.html`
+        or by double-clicking in File Explorer."
+    validations:
+      required: true
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Rationale / evidence
+      description: |
+        Why is the current wording wrong, or why would your proposal be better?
+        For factual corrections: link to authoritative source, or describe how you verified.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Are you willing to submit a PR?
+      options:
+        - "Yes -- I will submit a PR with the fix"
+        - "No -- reporting only"
+    validations:
+      required: true
