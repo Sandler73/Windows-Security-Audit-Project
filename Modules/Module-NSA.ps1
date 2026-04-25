@@ -1,6 +1,6 @@
 # Module-NSA.ps1
 # NSA Cybersecurity Guidance Compliance Module for Windows Security Audit
-# Version: 6.0
+# Version: 6.1.2
 #
 # Evaluates Windows configuration against NSA Cybersecurity Information
 # Sheets, technical reports, and hardening guidance across 14 categories.
@@ -37,7 +37,7 @@
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
     References: NSA Cybersecurity Information Sheets (CIS), NSA IAM/IAD guidance
-    Version: 6.0
+    Version: 6.1.2
 
 .EXAMPLE
     $results = & .\modules\module-nsa.ps1 -SharedData $sharedData
@@ -49,7 +49,7 @@ param(
 )
 
 $moduleName = "NSA"
-$moduleVersion = "6.0"
+$moduleVersion = "6.1.2"
 $results = @()
 
 # ---------------------------------------------------------------------------
@@ -62,6 +62,7 @@ function Add-Result {
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
+        [ValidateSet("Critical","High","Medium","Low","Informational")]
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
@@ -90,7 +91,7 @@ function Get-RegValue {
     try {
         $item = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
         if ($item) { return $item.$Name }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
     return $Default
 }
 
@@ -1159,7 +1160,7 @@ try {
                 -Remediation "Remove unnecessary accounts from the local Administrators group" `
                 -CrossReferences @{ NIST="AC-6(5)"; NSA="IAM Guidance"; CIS="1.1.1" }
         }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
 
     # SID History injection protection
     $sidHistory = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "TurnOffSIDFilteringForForestTrusts" -Default $null
@@ -1527,7 +1528,7 @@ try {
 
         # Check if connected to any wireless network
         $wifiProfiles = @()
-        try { $wifiProfiles = @(netsh wlan show profiles 2>&1 | Select-String "All User Profile\s*:\s*(.+)" | ForEach-Object { $_.Matches.Groups[1].Value.Trim() }) } catch { }
+        try { $wifiProfiles = @(netsh wlan show profiles 2>&1 | Select-String "All User Profile\s*:\s*(.+)" | ForEach-Object { $_.Matches.Groups[1].Value.Trim() }) } catch { <# Expected: item may not exist #> }
 
         if ($wifiProfiles.Count -gt 0) {
             Add-Result -Category "NSA - Wireless Security" -Status "Info" `
@@ -1565,7 +1566,7 @@ try {
                             -Remediation "Remove insecure Wi-Fi profile: netsh wlan delete profile name=`"$wifiProfileName`"" `
                             -CrossReferences @{ NIST="AC-18(1)"; NSA="Wireless Security Guidance"; CISA="Wireless Security" }
                     }
-                } catch { }
+                } catch { <# Expected: item may not exist #> }
             }
         }
 
@@ -1642,6 +1643,435 @@ try {
         -Severity "Medium"
 }
 
+
+# ============================================================================
+# v6.1: NSA Cybersecurity Information Sheet (CSI) coverage expansion
+# ============================================================================
+Write-Host "[NSA] Checking expanded NSA CSI guidance..." -ForegroundColor Yellow
+
+try {
+    $cgEnabled = Test-CredentialGuardEnabled
+    if ($cgEnabled) {
+        Add-Result -Category "NSA - CSI Expanded" -Status "Pass" `
+            -Severity "High" `
+            -Message "CSI: Credential Guard active (Defending Against Credential Theft)" `
+            -Details "NSA CSI U/OO/127649-22 recommends Credential Guard for credential isolation" `
+            -CrossReferences @{ NSA='CSI-CredGuard'; CSI='U/OO/127649-22' }
+    }
+    else {
+        Add-Result -Category "NSA - CSI Expanded" -Status "Fail" `
+            -Severity "High" `
+            -Message "CSI: Credential Guard not active (credential theft exposure)" `
+            -CrossReferences @{ NSA='CSI-CredGuard' }
+    }
+
+    $appLockerService = Get-Service -Name 'AppIDSvc' -ErrorAction SilentlyContinue
+    if ($appLockerService -and $appLockerService.Status -eq 'Running') {
+        Add-Result -Category "NSA - CSI Expanded" -Status "Pass" `
+            -Severity "High" `
+            -Message "CSI: Application Identity service running (AppLocker prerequisite)" `
+            -Details "NSA Application Whitelisting CSI requires the AppIDSvc to enforce policies" `
+            -CrossReferences @{ NSA='CSI-AppWhitelist' }
+    }
+    else {
+        Add-Result -Category "NSA - CSI Expanded" -Status "Warning" `
+            -Severity "High" `
+            -Message "CSI: AppIDSvc not running (AppLocker policies cannot enforce)" `
+            -Remediation "Set-Service -Name AppIDSvc -StartupType Automatic; Start-Service -Name AppIDSvc" `
+            -CrossReferences @{ NSA='CSI-AppWhitelist' }
+    }
+
+    $vbsEnabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" -Name "EnableVirtualizationBasedSecurity" -Default 0
+    $hvciEnabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" -Name "Enabled" -Default 0
+    if ($vbsEnabled -eq 1 -and $hvciEnabled -eq 1) {
+        Add-Result -Category "NSA - CSI Expanded" -Status "Pass" `
+            -Severity "High" `
+            -Message "CSI: VBS + HVCI active (Hardware-Enforced Stack Protection)" `
+            -CrossReferences @{ NSA='CSI-HVCI' }
+    }
+    else {
+        Add-Result -Category "NSA - CSI Expanded" -Status "Fail" `
+            -Severity "High" `
+            -Message "CSI: VBS or HVCI not active (kernel exploit exposure)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard' -Name 'EnableVirtualizationBasedSecurity' -Value 1 -Type DWord; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity' -Name 'Enabled' -Value 1 -Type DWord; Restart-Computer" `
+            -CrossReferences @{ NSA='CSI-HVCI' }
+    }
+}
+catch {
+    Add-Result -Category "NSA - CSI Expanded" -Status "Error" `
+        -Severity "Medium" `
+        -Message "CSI expansion assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: NSA Active Directory hardening guidance
+# ============================================================================
+Write-Host "[NSA] Checking NSA AD hardening recommendations..." -ForegroundColor Yellow
+
+try {
+    $cs = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction SilentlyContinue
+    $isDC = ($cs -and $cs.DomainRole -in @(4,5))
+    $isDomainMember = ($cs -and $cs.PartOfDomain -and -not $isDC)
+
+    if ($isDC) {
+        $smbSigning = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "RequireSecuritySignature" -Default 0
+        if ($smbSigning -eq 1) {
+            Add-Result -Category "NSA - AD Hardening" -Status "Pass" `
+                -Severity "High" `
+                -Message "AD-DC: SMB signing required on domain controller" `
+                -CrossReferences @{ NSA='AD Hardening'; CSI='U/OO/172405-23' }
+        }
+        else {
+            Add-Result -Category "NSA - AD Hardening" -Status "Fail" `
+                -Severity "Critical" `
+                -Message "AD-DC: SMB signing not required on domain controller" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'RequireSecuritySignature' -Value 1 -Type DWord" `
+                -CrossReferences @{ NSA='AD Hardening' }
+        }
+
+        $netlogon = Get-Service -Name 'Netlogon' -ErrorAction SilentlyContinue
+        if ($netlogon -and $netlogon.Status -eq 'Running') {
+            Add-Result -Category "NSA - AD Hardening" -Status "Pass" `
+                -Severity "Medium" `
+                -Message "AD-DC: Netlogon service operational" `
+                -CrossReferences @{ NSA='AD Hardening' }
+        }
+        else {
+            Add-Result -Category "NSA - AD Hardening" -Status "Fail" `
+                -Severity "Critical" `
+                -Message "AD-DC: Netlogon service not running on domain controller" `
+                -CrossReferences @{ NSA='AD Hardening' }
+        }
+    }
+    elseif ($isDomainMember) {
+        $protectedUsers = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "AllowSecondaryAuthenticationDevices" -Default $null
+        Add-Result -Category "NSA - AD Hardening" -Status "Info" `
+            -Severity "Informational" `
+            -Message "AD-Member: Domain membership detected, AD hardening primarily configured at DC" `
+            -CrossReferences @{ NSA='AD Hardening' }
+
+        $cachedLogons = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "CachedLogonsCount" -Default "10"
+        if ([int]$cachedLogons -le 4) {
+            Add-Result -Category "NSA - AD Hardening" -Status "Pass" `
+                -Severity "Medium" `
+                -Message "AD-Member: Cached logon count restricted ($cachedLogons)" `
+                -CrossReferences @{ NSA='AD Hardening' }
+        }
+        else {
+            Add-Result -Category "NSA - AD Hardening" -Status "Warning" `
+                -Severity "Medium" `
+                -Message "AD-Member: Cached logon count permits offline credential exposure ($cachedLogons)" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name 'CachedLogonsCount' -Value '4' -Type String" `
+                -CrossReferences @{ NSA='AD Hardening' }
+        }
+    }
+    else {
+        Add-Result -Category "NSA - AD Hardening" -Status "Info" `
+            -Severity "Informational" `
+            -Message "AD: Standalone host (not domain-joined); AD hardening checks not applicable" `
+            -CrossReferences @{ NSA='AD Hardening' }
+    }
+
+    $lmCompat = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LmCompatibilityLevel" -Default 3
+    if ($lmCompat -ge 5) {
+        Add-Result -Category "NSA - AD Hardening" -Status "Pass" `
+            -Severity "High" `
+            -Message "LM compatibility set to NTLMv2 only (level $lmCompat)" `
+            -CrossReferences @{ NSA='AD Hardening'; NIST='IA-2' }
+    }
+    else {
+        Add-Result -Category "NSA - AD Hardening" -Status "Fail" `
+            -Severity "High" `
+            -Message "LM compatibility permits NTLMv1 or LM (level $lmCompat)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name 'LmCompatibilityLevel' -Value 5 -Type DWord" `
+            -CrossReferences @{ NSA='AD Hardening' }
+    }
+}
+catch {
+    Add-Result -Category "NSA - AD Hardening" -Status "Error" `
+        -Severity "Medium" `
+        -Message "AD hardening assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: NSA Top 10 Cybersecurity Mitigation Strategies
+# ============================================================================
+Write-Host "[NSA] Checking NSA Top 10 Mitigation Strategies..." -ForegroundColor Yellow
+
+try {
+    $autoUpdate = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "NoAutoUpdate" -Default 0
+    if ($autoUpdate -eq 0) {
+        Add-Result -Category "NSA - Top 10 Mitigations" -Status "Pass" `
+            -Severity "High" `
+            -Message "Top 10 #1: Update and patch software (automatic updates enabled)" `
+            -CrossReferences @{ NSA='Top10-1' }
+    }
+    else {
+        Add-Result -Category "NSA - Top 10 Mitigations" -Status "Fail" `
+            -Severity "High" `
+            -Message "Top 10 #1: Automatic updates disabled" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name 'NoAutoUpdate' -Value 0 -Type DWord" `
+            -CrossReferences @{ NSA='Top10-1' }
+    }
+
+    $defenderStatus = Get-DefenderStatus -Cache $SharedData.Cache
+    if ($defenderStatus -and $defenderStatus.AntivirusEnabled) {
+        Add-Result -Category "NSA - Top 10 Mitigations" -Status "Pass" `
+            -Severity "High" `
+            -Message "Top 10 #2: Defend against malicious code (AV active)" `
+            -CrossReferences @{ NSA='Top10-2' }
+    }
+    else {
+        Add-Result -Category "NSA - Top 10 Mitigations" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "Top 10 #2: AV not active" `
+            -CrossReferences @{ NSA='Top10-2' }
+    }
+
+    $admins = Get-LocalAdministrators -Cache $SharedData.Cache
+    $localAdminCount = if ($admins) { @($admins).Count } else { 0 }
+    if ($localAdminCount -le 3) {
+        Add-Result -Category "NSA - Top 10 Mitigations" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Top 10 #3: Limit administrative privileges ($localAdminCount local admins)" `
+            -CrossReferences @{ NSA='Top10-3' }
+    }
+    else {
+        Add-Result -Category "NSA - Top 10 Mitigations" -Status "Warning" `
+            -Severity "High" `
+            -Message "Top 10 #3: Excessive local administrators ($localAdminCount)" `
+            -Details "NSA recommends minimizing local administrator membership; review the BUILTIN\Administrators group" `
+            -CrossReferences @{ NSA='Top10-3' }
+    }
+
+    $rdpEnabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Default 1
+    if ($rdpEnabled -eq 1) {
+        Add-Result -Category "NSA - Top 10 Mitigations" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Top 10 #4: Restrict remote services (RDP disabled)" `
+            -CrossReferences @{ NSA='Top10-4' }
+    }
+    else {
+        $rdpNla = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "UserAuthentication" -Default 0
+        if ($rdpNla -eq 1) {
+            Add-Result -Category "NSA - Top 10 Mitigations" -Status "Pass" `
+                -Severity "Medium" `
+                -Message "Top 10 #4: RDP enabled with NLA enforced" `
+                -CrossReferences @{ NSA='Top10-4' }
+        }
+        else {
+            Add-Result -Category "NSA - Top 10 Mitigations" -Status "Fail" `
+                -Severity "High" `
+                -Message "Top 10 #4: RDP enabled without NLA" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name 'UserAuthentication' -Value 1 -Type DWord" `
+                -CrossReferences @{ NSA='Top10-4' }
+        }
+    }
+
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "NSA - Top 10 Mitigations" -Status "Pass" `
+            -Severity "High" `
+            -Message "Top 10 #5: Apply data security baseline (encryption active)" `
+            -CrossReferences @{ NSA='Top10-5' }
+    }
+    else {
+        Add-Result -Category "NSA - Top 10 Mitigations" -Status "Fail" `
+            -Severity "High" `
+            -Message "Top 10 #5: Drive encryption not active" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ NSA='Top10-5' }
+    }
+
+    $sbomCount = (Get-CimInstance -ClassName Win32_QuickFixEngineering -ErrorAction SilentlyContinue | Measure-Object).Count
+    if ($sbomCount -gt 0) {
+        Add-Result -Category "NSA - Top 10 Mitigations" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Top 10 #6: Maintain software inventory ($sbomCount hotfixes catalogued)" `
+            -CrossReferences @{ NSA='Top10-6' }
+    }
+}
+catch {
+    Add-Result -Category "NSA - Top 10 Mitigations" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Top 10 Mitigations assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: BlackLotus mitigation checks
+# ============================================================================
+Write-Host "[NSA] Checking BlackLotus mitigation status..." -ForegroundColor Yellow
+
+try {
+    $sbEnabled = Test-SecureBootEnabled
+    if ($sbEnabled) {
+        Add-Result -Category "NSA - BlackLotus Mitigation" -Status "Pass" `
+            -Severity "High" `
+            -Message "BlackLotus: Secure Boot enabled (foundation for DBX revocation)" `
+            -Details "NSA CSI U/OO/188094-23 covers BlackLotus mitigation; KB5025885 deploys revocation entries" `
+            -CrossReferences @{ NSA='BlackLotus'; CVE='CVE-2023-24932'; KB='5025885' }
+    }
+    else {
+        Add-Result -Category "NSA - BlackLotus Mitigation" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "BlackLotus: Secure Boot disabled (cannot enforce DBX revocations)" `
+            -CrossReferences @{ NSA='BlackLotus'; CVE='CVE-2023-24932' }
+    }
+
+    $blDeploymentPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Secureboot"
+    $blMitigationFlag = Get-RegValue -Path $blDeploymentPath -Name "AvailableUpdates" -Default 0
+    if ($blMitigationFlag -eq 0x10) {
+        Add-Result -Category "NSA - BlackLotus Mitigation" -Status "Pass" `
+            -Severity "High" `
+            -Message "BlackLotus: KB5025885 mitigation deployed (DBX updated)" `
+            -CrossReferences @{ NSA='BlackLotus'; KB='5025885' }
+    }
+    else {
+        Add-Result -Category "NSA - BlackLotus Mitigation" -Status "Warning" `
+            -Severity "High" `
+            -Message "BlackLotus: KB5025885 mitigation flag not set (manual mitigation may be required)" `
+            -Details "Refer to KB5025885 for guided deployment of bootloader revocations" `
+            -CrossReferences @{ NSA='BlackLotus'; KB='5025885' }
+    }
+}
+catch {
+    Add-Result -Category "NSA - BlackLotus Mitigation" -Status "Error" `
+        -Severity "Medium" `
+        -Message "BlackLotus mitigation assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: NSA CSfC prerequisites and Network Infrastructure Security
+# ============================================================================
+Write-Host "[NSA] Checking CSfC prerequisites and network infrastructure security..." -ForegroundColor Yellow
+
+try {
+    $fipsPolicy = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy" -Name "Enabled" -Default 0
+    if ($fipsPolicy -eq 1) {
+        Add-Result -Category "NSA - CSfC Prerequisites" -Status "Pass" `
+            -Severity "High" `
+            -Message "CSfC: FIPS-validated cryptography enforced" `
+            -Details "Commercial Solutions for Classified requires FIPS 140-3 validated cryptographic modules" `
+            -CrossReferences @{ NSA='CSfC'; FIPS='140-3' }
+    }
+    else {
+        Add-Result -Category "NSA - CSfC Prerequisites" -Status "Fail" `
+            -Severity "High" `
+            -Message "CSfC: FIPS-only mode not enforced" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy' -Name 'Enabled' -Value 1 -Type DWord; Restart-Computer" `
+            -CrossReferences @{ NSA='CSfC' }
+    }
+
+    $tpm = Get-CimInstance -Namespace 'root\CIMv2\Security\MicrosoftTpm' -ClassName Win32_Tpm -ErrorAction SilentlyContinue
+    if ($tpm -and $tpm.IsActivated_InitialValue) {
+        Add-Result -Category "NSA - CSfC Prerequisites" -Status "Pass" `
+            -Severity "High" `
+            -Message "CSfC: TPM activated (hardware key storage available)" `
+            -CrossReferences @{ NSA='CSfC' }
+    }
+    else {
+        Add-Result -Category "NSA - CSfC Prerequisites" -Status "Fail" `
+            -Severity "High" `
+            -Message "CSfC: TPM not activated" `
+            -CrossReferences @{ NSA='CSfC' }
+    }
+
+    $llmnr = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient" -Name "EnableMulticast" -Default 1
+    if ($llmnr -eq 0) {
+        Add-Result -Category "NSA - Network Infrastructure" -Status "Pass" `
+            -Severity "High" `
+            -Message "Network Infrastructure: LLMNR disabled (name spoofing mitigation)" `
+            -CrossReferences @{ NSA='Network Infrastructure'; CSI='U/OO/130195-22' }
+    }
+    else {
+        Add-Result -Category "NSA - Network Infrastructure" -Status "Fail" `
+            -Severity "High" `
+            -Message "Network Infrastructure: LLMNR enabled (susceptible to spoofing)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient' -Name 'EnableMulticast' -Value 0 -Type DWord" `
+            -CrossReferences @{ NSA='Network Infrastructure' }
+    }
+
+    $netbtNode = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters" -Name "NodeType" -Default 1
+    if ($netbtNode -eq 2) {
+        Add-Result -Category "NSA - Network Infrastructure" -Status "Pass" `
+            -Severity "High" `
+            -Message "Network Infrastructure: NetBIOS in P-node mode (broadcast disabled)" `
+            -CrossReferences @{ NSA='Network Infrastructure' }
+    }
+    else {
+        Add-Result -Category "NSA - Network Infrastructure" -Status "Warning" `
+            -Severity "High" `
+            -Message "Network Infrastructure: NetBIOS broadcast permitted (NodeType: $netbtNode)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters' -Name 'NodeType' -Value 2 -Type DWord" `
+            -CrossReferences @{ NSA='Network Infrastructure' }
+    }
+}
+catch {
+    Add-Result -Category "NSA - CSfC Prerequisites" -Status "Error" `
+        -Severity "Medium" `
+        -Message "CSfC and Network Infrastructure assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: IPv6 hardening recommendations
+# ============================================================================
+Write-Host "[NSA] Checking IPv6 hardening recommendations..." -ForegroundColor Yellow
+
+try {
+    $ipv6Components = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters" -Name "DisabledComponents" -Default $null
+    if ($null -ne $ipv6Components -and $ipv6Components -ne 0) {
+        Add-Result -Category "NSA - IPv6 Hardening" -Status "Info" `
+            -Severity "Informational" `
+            -Message "IPv6 Hardening: DisabledComponents = $ipv6Components (partial or full IPv6 disable)" `
+            -Details "NSA IPv6 guidance recommends careful disable rather than blanket disable; verify configuration matches policy" `
+            -CrossReferences @{ NSA='IPv6 Hardening'; CSI='U/OO/200012-23' }
+    }
+    else {
+        Add-Result -Category "NSA - IPv6 Hardening" -Status "Info" `
+            -Severity "Informational" `
+            -Message "IPv6 Hardening: All IPv6 components active (default)" `
+            -Details "When IPv6 is required, ensure firewall rules cover IPv6 traffic and ICMPv6 is appropriately filtered" `
+            -CrossReferences @{ NSA='IPv6 Hardening' }
+    }
+
+    $teredo = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters" -Name "DisabledComponents" -Default 0
+    if (($teredo -band 0x8) -eq 0x8) {
+        Add-Result -Category "NSA - IPv6 Hardening" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "IPv6: Teredo tunneling disabled" `
+            -CrossReferences @{ NSA='IPv6 Hardening' }
+    }
+    else {
+        Add-Result -Category "NSA - IPv6 Hardening" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "IPv6: Teredo tunneling not explicitly disabled" `
+            -Details "Teredo provides IPv6 connectivity through NAT and may bypass perimeter controls" `
+            -Remediation "netsh interface teredo set state disabled" `
+            -CrossReferences @{ NSA='IPv6 Hardening' }
+    }
+
+    $isatap = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters" -Name "DisabledComponents" -Default 0
+    if (($isatap -band 0x2) -eq 0x2) {
+        Add-Result -Category "NSA - IPv6 Hardening" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "IPv6: ISATAP disabled" `
+            -CrossReferences @{ NSA='IPv6 Hardening' }
+    }
+    else {
+        Add-Result -Category "NSA - IPv6 Hardening" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "IPv6: ISATAP not explicitly disabled" `
+            -Details "ISATAP transition technology may be unnecessary in modern networks" `
+            -Remediation "netsh interface isatap set state disabled" `
+            -CrossReferences @{ NSA='IPv6 Hardening' }
+    }
+}
+catch {
+    Add-Result -Category "NSA - IPv6 Hardening" -Status "Error" `
+        -Severity "Medium" `
+        -Message "IPv6 hardening assessment failed: $($_.Exception.Message)"
+}
+
 # ============================================================================
 # Module Summary
 # ============================================================================
@@ -1683,15 +2113,11 @@ Write-Host "[NSA] Check Categories:" -ForegroundColor Cyan
 foreach ($cat in ($categoryStats.Keys | Sort-Object)) {
     Write-Host "[NSA]   $($cat.PadRight(45)): $($categoryStats[$cat].ToString().PadLeft(3)) checks" -ForegroundColor Gray
 }
-if ($failCount -gt 0) {
-    Write-Host "[NSA]" -ForegroundColor Cyan
-    Write-Host "[NSA] Failed Check Severity:" -ForegroundColor Cyan
-    foreach ($sev in @('Critical', 'High', 'Medium', 'Low', 'Informational')) {
-        if ($severityStats[$sev] -gt 0) {
-            $sevColor = switch ($sev) { 'Critical' { 'Red' }; 'High' { 'DarkYellow' }; 'Medium' { 'Yellow' }; 'Low' { 'Cyan' }; default { 'Gray' } }
-            Write-Host "[NSA]   $($sev.PadRight(15)): $($severityStats[$sev])" -ForegroundColor $sevColor
-        }
-    }
+Write-Host "[NSA]" -ForegroundColor Cyan
+Write-Host "[NSA] Failed Check Severity:" -ForegroundColor Cyan
+foreach ($sev in @('Critical', 'High', 'Medium', 'Low', 'Informational')) {
+    $sevColor = switch ($sev) { 'Critical' { 'Red' }; 'High' { 'DarkYellow' }; 'Medium' { 'Yellow' }; 'Low' { 'Cyan' }; default { 'Gray' } }
+    Write-Host "[NSA]   $($sev.PadRight(15)): $($severityStats[$sev])" -ForegroundColor $sevColor
 }
 Write-Host "[NSA] ======================================================================`n" -ForegroundColor Cyan
 
@@ -1822,7 +2248,3 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
-
-# ============================================================================
-# End of NSA Windows Security Baseline Module (Module-NSA.ps1)
-# ============================================================================
