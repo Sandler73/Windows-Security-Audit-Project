@@ -1,22 +1,25 @@
-# module-iso27001.ps1
-# ISO/IEC 27001:2022 Compliance Module for Windows Security Audit
+# module-hipaa.ps1
+# HIPAA Security Rule Compliance Module for Windows Security Audit
 # Version: 6.1.2
 #
-# Evaluates Windows configuration against ISO/IEC 27001:2022 Annex A controls
+# Evaluates Windows configuration against HIPAA Security Rule (45 CFR Part 164 Subpart C)
 # with Severity ratings and cross-framework references.
 
 <#
 .SYNOPSIS
-    ISO/IEC 27001:2022 compliance checks for Windows systems.
+    HIPAA Security Rule compliance checks for Windows systems.
 
 .DESCRIPTION
-    This module assesses alignment with ISO/IEC 27001:2022 Annex A controls including:
-    - A.5 Organizational Controls (policies, access, asset management, incidents)
-    - A.6 People Controls (screening, awareness, remote working)
-    - A.7 Physical Controls (equipment security, clear desk, media)
-    - A.8 Technological Controls (endpoints, privileged access, authentication,
-    -     malware, vulnerabilities, configuration, backup, logging, monitoring,
-    -     network security, cryptography, secure development lifecycle)
+    This module assesses alignment with HIPAA Security Rule (45 CFR Part 164 Subpart C) including:
+    - 164.312(a) Access Control (unique user ID, emergency access, automatic logoff, encryption)
+    - 164.312(b) Audit Controls (event logging, monitoring, log retention, integrity)
+    - 164.312(c) Integrity Controls (data integrity, hash validation, tamper evidence)
+    - 164.312(d) Person or Entity Authentication (MFA, credentials, session controls)
+    - 164.312(e) Transmission Security (encryption in transit, TLS, integrity controls)
+    - 164.310 Physical Safeguards -- Technical (workstation security, media, screen lock)
+    - 164.308 Administrative Safeguards -- Technical (risk assessment, backup, audit review)
+    - HITECH Act Breach Readiness (encryption status, breach detection, data at rest)
+    - ePHI Protection Controls (data classification readiness, minimum necessary, disposal)
 
     Each result includes Severity (Critical/High/Medium/Low/Informational)
     and CrossReferences mapping to related frameworks.
@@ -28,11 +31,11 @@
 .NOTES
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
-    References: ISO/IEC 27001:2022, ISO/IEC 27002:2022
+    References: HIPAA Security Rule (45 CFR 164.302-318), HITECH Act, HHS Guidance on Risk Analysis
     Version: 6.1.2
 
 .EXAMPLE
-    $results = & .\modules\module-iso27001.ps1 -SharedData $sharedData
+    $results = & .\modules\module-hipaa.ps1 -SharedData $sharedData
 #>
 
 param(
@@ -40,7 +43,7 @@ param(
     [hashtable]$SharedData = @{}
 )
 
-$moduleName = "ISO27001"
+$moduleName = "HIPAA"
 $moduleVersion = "6.1.2"
 $results = @()
 
@@ -87,2314 +90,1917 @@ function Get-RegValue {
     return $Default
 }
 
-Write-Host "`n[$moduleName] Starting ISO/IEC 27001:2022 compliance checks (v$moduleVersion)..." -ForegroundColor Cyan
+Write-Host "`n[$moduleName] Starting HIPAA Security Rule compliance checks (v$moduleVersion)..." -ForegroundColor Cyan
 
 # ===========================================================================
-# A.5 Organizational Controls
+# 164.312(a) Access Control
 # ===========================================================================
-Write-Host "[ISO27001] Checking A.5 Organizational Controls..." -ForegroundColor Yellow
+Write-Host "[HIPAA] Checking 164.312(a) Access Control..." -ForegroundColor Yellow
 
-    # A.5.1: Policies for information security
+    # 164.312(a)(1): Access control -- UAC enforcement
     try {
-        $gpoApplied = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\History" -Name "DCName" -Default $null
-        if ($null -ne $gpoApplied) {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Pass" `
-                -Message "A.5.1: Group Policy actively applied from domain controller" `
-                -Details "A.5.1 Policies for information security: Centralized policy management detected" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.5.1'; NIST='PL-1'; SOC2='CC1.1' }
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "EnableLUA" -Default $null
+        if ($null -ne $val -and $val -eq 1) {
+            Add-Result -Category "HIPAA - Access Control" -Status "Pass" `
+                -Message "164.312(a)(1): Access control -- UAC enforcement -- properly configured" `
+                -Details "164.312(a)(1): Access control mechanisms must enforce authorized access to ePHI" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.312(a)(1)'; NIST='AC-3'; ISO27001='A.5.15'; 'PCI-DSS'='2.2.1' }
         } else {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Info" `
-                -Message "A.5.1: No domain Group Policy detected (standalone system)" `
-                -Details "A.5.1 Policies for information security: Consider centralized policy management" `
-                -Severity "Low" `
-                -CrossReferences @{ ISO27001='A.5.1'; NIST='PL-1'; SOC2='CC1.1' }
+            Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
+                -Message "164.312(a)(1): Access control -- UAC enforcement -- not configured (Value=$val)" `
+                -Details "164.312(a)(1): Access control mechanisms must enforce authorized access to ePHI" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.312(a)(1)'; NIST='AC-3'; ISO27001='A.5.15'; 'PCI-DSS'='2.2.1' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Error" `
-            -Message "A.5.1: Policies for information security -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.5.1'; NIST='PL-1' }
+        Add-Result -Category "HIPAA - Access Control" -Status "Error" `
+            -Message "164.312(a)(1): Access control -- UAC enforcement -- check failed: $_" `
+            -Severity "Critical" `
+            -CrossReferences @{ HIPAA='164.312(a)(1)'; NIST='AC-3'; ISO27001='A.5.15'; 'PCI-DSS'='2.2.1' }
     }
-    # A.5.2: Information security roles and responsibilities
+    # 164.312(a)(2)(i): Unique user identification -- local account inventory
+    try {
+        $localUsers = @(Get-LocalUser -ErrorAction SilentlyContinue | Where-Object { $_.Enabled -eq $true })
+        $userCount = $localUsers.Count
+        Add-Result -Category "HIPAA - Access Control" -Status "Info" `
+            -Message "164.312(a)(2)(i): $userCount enabled local user accounts found" `
+            -Details "164.312(a)(2)(i) Unique User Identification: Each user accessing ePHI must have a unique ID" `
+            -Severity "Informational" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(i)'; NIST='IA-2'; 'PCI-DSS'='8.1.1' }
+    } catch {
+        Add-Result -Category "HIPAA - Access Control" -Status "Error" `
+            -Message "164.312(a)(2)(i): Unique user identification -- local account inventory -- check failed: $_" `
+            -Severity "Informational" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(i)'; NIST='IA-2' }
+    }
+    # 164.312(a)(2)(i)b: Unique user identification -- Guest account disabled
+    try {
+        $guestAcct = Get-LocalUser -Name "Guest" -ErrorAction SilentlyContinue
+        if ($null -ne $guestAcct -and $guestAcct.Enabled -eq $false) {
+            Add-Result -Category "HIPAA - Access Control" -Status "Pass" `
+                -Message "164.312(a)(2)(i)b: Guest account is disabled" `
+                -Details "164.312(a)(2)(i): Shared/anonymous accounts violate unique user identification" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(a)(2)(i)'; NIST='AC-2'; ISO27001='A.5.18' }
+        } else {
+            Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
+                -Message "164.312(a)(2)(i)b: Guest account is ENABLED" `
+                -Details "164.312(a)(2)(i): Guest account allows anonymous access to ePHI systems" `
+                -Remediation "Disable-LocalUser -Name Guest" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(a)(2)(i)'; NIST='AC-2'; ISO27001='A.5.18' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Access Control" -Status "Error" `
+            -Message "164.312(a)(2)(i)b: Unique user identification -- Guest account disabled -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(i)'; NIST='AC-2' }
+    }
+    # 164.312(a)(2)(i)c: Unique user identification -- admin account count
     try {
         $localAdmins = Get-LocalGroupMember -Group "Administrators" -ErrorAction SilentlyContinue
         $adminCount = if ($null -ne $localAdmins) { @($localAdmins).Count } else { 0 }
         if ($adminCount -le 3) {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Pass" `
-                -Message "A.5.2: Local administrator group has $adminCount members (appropriate)" `
-                -Details "A.5.2 Roles and responsibilities: Limited admin membership supports segregation of duties" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.5.2'; NIST='AC-6'; CIS='1.1' }
-        } else {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Warning" `
-                -Message "A.5.2: Local administrator group has $adminCount members (excessive)" `
-                -Details "A.5.2 Roles and responsibilities: Too many administrators weakens role segregation" `
-                -Remediation "Review and remove unnecessary members from local Administrators group" `
+            Add-Result -Category "HIPAA - Access Control" -Status "Pass" `
+                -Message "164.312(a)(2)(i)c: $adminCount local administrator accounts (appropriate)" `
+                -Details "164.312(a)(2)(i): Administrative access to ePHI systems is limited" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.5.2'; NIST='AC-6'; CIS='1.1' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Error" `
-            -Message "A.5.2: Information security roles and responsibilities -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.5.2'; NIST='AC-6' }
-    }
-    # A.5.9: Inventory of information and other associated assets
-    try {
-        $swCount = @(Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue).Count
-        Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Info" `
-            -Message "A.5.9: Software inventory contains $swCount items" `
-            -Details "A.5.9 Inventory of assets: Registry-based software inventory is available" `
-            -Severity "Informational" `
-            -CrossReferences @{ ISO27001='A.5.9'; NIST='CM-8'; CIS='2.1' }
-    } catch {
-        Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Error" `
-            -Message "A.5.9: Inventory of information and other associated assets -- check failed: $_" `
-            -Severity "Informational" `
-            -CrossReferences @{ ISO27001='A.5.9'; NIST='CM-8' }
-    }
-    # A.5.10: Acceptable use -- login banner
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "LegalNoticeText" -Default $null
-        if ($null -ne $val -and $val -ne "") {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Pass" `
-                -Message "A.5.10: Acceptable use -- login banner -- properly configured" `
-                -Details "A.5.10 Acceptable use: Login banner must display acceptable use policy" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.5.10'; NIST='AC-8'; STIG='V-220858'; CIS='2.3.7.4' }
+                -CrossReferences @{ HIPAA='164.312(a)(2)(i)'; NIST='AC-6'; 'PCI-DSS'='7.1.1' }
         } else {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Fail" `
-                -Message "A.5.10: Acceptable use -- login banner -- not configured (Value=$val)" `
-                -Details "A.5.10 Acceptable use: Login banner must display acceptable use policy" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name LegalNoticeText -Value 'Authorized use only'" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.5.10'; NIST='AC-8'; STIG='V-220858'; CIS='2.3.7.4' }
+            Add-Result -Category "HIPAA - Access Control" -Status "Warning" `
+                -Message "164.312(a)(2)(i)c: $adminCount local administrator accounts (review needed)" `
+                -Details "164.312(a)(2)(i): Excessive admin accounts increase ePHI exposure risk" `
+                -Remediation "Review and minimize administrator group membership" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(a)(2)(i)'; NIST='AC-6'; 'PCI-DSS'='7.1.1' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Error" `
-            -Message "A.5.10: Acceptable use -- login banner -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.5.10'; NIST='AC-8'; STIG='V-220858'; CIS='2.3.7.4' }
+        Add-Result -Category "HIPAA - Access Control" -Status "Error" `
+            -Message "164.312(a)(2)(i)c: Unique user identification -- admin account count -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(i)'; NIST='AC-6' }
     }
-    # A.5.15: Access control -- UAC enabled
+    # 164.312(a)(2)(iii): Automatic logoff -- inactivity timeout
     try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "EnableLUA" -Default $null
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "InactivityTimeoutSecs" -Default $null
+        if ($null -ne $val -and $val -le 900) {
+            Add-Result -Category "HIPAA - Access Control" -Status "Pass" `
+                -Message "164.312(a)(2)(iii): Automatic logoff -- inactivity timeout -- properly configured" `
+                -Details "164.312(a)(2)(iii): Automatic logoff protects ePHI on unattended workstations" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(a)(2)(iii)'; NIST='AC-11'; 'PCI-DSS'='8.3.9'; CIS='2.3.7.3' }
+        } else {
+            Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
+                -Message "164.312(a)(2)(iii): Automatic logoff -- inactivity timeout -- not configured (Value=$val)" `
+                -Details "164.312(a)(2)(iii): Automatic logoff protects ePHI on unattended workstations" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name InactivityTimeoutSecs -Value 900" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(a)(2)(iii)'; NIST='AC-11'; 'PCI-DSS'='8.3.9'; CIS='2.3.7.3' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Access Control" -Status "Error" `
+            -Message "164.312(a)(2)(iii): Automatic logoff -- inactivity timeout -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(iii)'; NIST='AC-11'; 'PCI-DSS'='8.3.9'; CIS='2.3.7.3' }
+    }
+    # 164.312(a)(2)(iii)b: Automatic logoff -- screen saver lock
+    try {
+        $val = Get-RegValue -Path "HKCU:\Control Panel\Desktop" -Name "ScreenSaverIsSecure" -Default $null
+        if ($null -ne $val -and $val -eq "1") {
+            Add-Result -Category "HIPAA - Access Control" -Status "Pass" `
+                -Message "164.312(a)(2)(iii)b: Automatic logoff -- screen saver lock -- properly configured" `
+                -Details "164.312(a)(2)(iii): Screen saver must require authentication to unlock" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(a)(2)(iii)'; NIST='AC-11(1)'; CIS='2.3.1.2' }
+        } else {
+            Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
+                -Message "164.312(a)(2)(iii)b: Automatic logoff -- screen saver lock -- not configured (Value=$val)" `
+                -Details "164.312(a)(2)(iii): Screen saver must require authentication to unlock" `
+                -Remediation "Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name ScreenSaverIsSecure -Value 1" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(a)(2)(iii)'; NIST='AC-11(1)'; CIS='2.3.1.2' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Access Control" -Status "Error" `
+            -Message "164.312(a)(2)(iii)b: Automatic logoff -- screen saver lock -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(iii)'; NIST='AC-11(1)'; CIS='2.3.1.2' }
+    }
+    # 164.312(a)(2)(iii)c: Automatic logoff -- RDP idle disconnect
+    try {
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "MaxIdleTime" -Default $null
+        if ($null -ne $val -and $val -le 900000) {
+            Add-Result -Category "HIPAA - Access Control" -Status "Pass" `
+                -Message "164.312(a)(2)(iii)c: Automatic logoff -- RDP idle disconnect -- properly configured" `
+                -Details "164.312(a)(2)(iii): Remote sessions accessing ePHI must auto-disconnect when idle" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(a)(2)(iii)'; NIST='AC-12'; CIS='18.9.65.3.10.1' }
+        } else {
+            Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
+                -Message "164.312(a)(2)(iii)c: Automatic logoff -- RDP idle disconnect -- not configured (Value=$val)" `
+                -Details "164.312(a)(2)(iii): Remote sessions accessing ePHI must auto-disconnect when idle" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name MaxIdleTime -Value 900000" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(a)(2)(iii)'; NIST='AC-12'; CIS='18.9.65.3.10.1' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Access Control" -Status "Error" `
+            -Message "164.312(a)(2)(iii)c: Automatic logoff -- RDP idle disconnect -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(iii)'; NIST='AC-12'; CIS='18.9.65.3.10.1' }
+    }
+    # 164.312(a)(2)(iv): Encryption of ePHI -- BitLocker status
+    try {
+        $blStatus = Get-BitLockerVolume -MountPoint "C:" -ErrorAction SilentlyContinue
+        if ($null -ne $blStatus -and $blStatus.ProtectionStatus -eq "On") {
+            Add-Result -Category "HIPAA - Access Control" -Status "Pass" `
+                -Message "164.312(a)(2)(iv): BitLocker encryption active on system drive" `
+                -Details "164.312(a)(2)(iv) Encryption/Decryption: ePHI at rest is encrypted" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-28'; 'PCI-DSS'='3.4.1'; ISO27001='A.8.24' }
+        } else {
+            Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
+                -Message "164.312(a)(2)(iv): BitLocker NOT active -- ePHI at rest may be unencrypted" `
+                -Details "164.312(a)(2)(iv) Encryption/Decryption: Addressable but strongly recommended" `
+                -Remediation "Enable-BitLocker -MountPoint C: -EncryptionMethod XtsAes256" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-28'; 'PCI-DSS'='3.4.1'; ISO27001='A.8.24' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Access Control" -Status "Error" `
+            -Message "164.312(a)(2)(iv): Encryption of ePHI -- BitLocker status -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-28' }
+    }
+    # 164.312(a)(2)(iv)b: Encryption of ePHI -- BitLocker encryption method
+    try {
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\FVE" -Name "EncryptionMethodWithXtsOs" -Default $null
+        if ($null -ne $val -and $val -ge 7) {
+            Add-Result -Category "HIPAA - Access Control" -Status "Pass" `
+                -Message "164.312(a)(2)(iv)b: Encryption of ePHI -- BitLocker encryption method -- properly configured" `
+                -Details "164.312(a)(2)(iv): Encryption must use AES-256 or equivalent for ePHI protection" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-13'; 'PCI-DSS'='3.4.2' }
+        } else {
+            Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
+                -Message "164.312(a)(2)(iv)b: Encryption of ePHI -- BitLocker encryption method -- not configured (Value=$val)" `
+                -Details "164.312(a)(2)(iv): Encryption must use AES-256 or equivalent for ePHI protection" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\FVE' -Name EncryptionMethodWithXtsOs -Value 7" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-13'; 'PCI-DSS'='3.4.2' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Access Control" -Status "Error" `
+            -Message "164.312(a)(2)(iv)b: Encryption of ePHI -- BitLocker encryption method -- check failed: $_" `
+            -Severity "Medium" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-13'; 'PCI-DSS'='3.4.2' }
+    }
+    # 164.312(a)(3): Access control -- anonymous enumeration restricted
+    try {
+        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "RestrictAnonymous" -Default $null
+        if ($null -ne $val -and $val -ge 1) {
+            Add-Result -Category "HIPAA - Access Control" -Status "Pass" `
+                -Message "164.312(a)(3): Access control -- anonymous enumeration restricted -- properly configured" `
+                -Details "164.312(a): Anonymous enumeration of system resources must be restricted" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(a)'; NIST='AC-14'; CIS='2.3.10.6' }
+        } else {
+            Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
+                -Message "164.312(a)(3): Access control -- anonymous enumeration restricted -- not configured (Value=$val)" `
+                -Details "164.312(a): Anonymous enumeration of system resources must be restricted" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RestrictAnonymous -Value 1" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(a)'; NIST='AC-14'; CIS='2.3.10.6' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Access Control" -Status "Error" `
+            -Message "164.312(a)(3): Access control -- anonymous enumeration restricted -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(a)'; NIST='AC-14'; CIS='2.3.10.6' }
+    }
+    # 164.312(a)(4): Access control -- UAC admin approval mode
+    try {
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "ConsentPromptBehaviorAdmin" -Default $null
+        if ($null -ne $val -and $val -eq 2) {
+            Add-Result -Category "HIPAA - Access Control" -Status "Pass" `
+                -Message "164.312(a)(4): Access control -- UAC admin approval mode -- properly configured" `
+                -Details "164.312(a): Administrative access must require explicit consent for elevation" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(a)'; NIST='AC-6'; CIS='2.3.17.3' }
+        } else {
+            Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
+                -Message "164.312(a)(4): Access control -- UAC admin approval mode -- not configured (Value=$val)" `
+                -Details "164.312(a): Administrative access must require explicit consent for elevation" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name ConsentPromptBehaviorAdmin -Value 2" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(a)'; NIST='AC-6'; CIS='2.3.17.3' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Access Control" -Status "Error" `
+            -Message "164.312(a)(4): Access control -- UAC admin approval mode -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(a)'; NIST='AC-6'; CIS='2.3.17.3' }
+    }
+    # 164.312(a)(5): Access control -- LSASS protection
+    try {
+        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "RunAsPPL" -Default $null
         if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Pass" `
-                -Message "A.5.15: Access control -- UAC enabled -- properly configured" `
-                -Details "A.5.15 Access control: UAC enforces least-privilege access control policy" `
+            Add-Result -Category "HIPAA - Access Control" -Status "Pass" `
+                -Message "164.312(a)(5): Access control -- LSASS protection -- properly configured" `
+                -Details "164.312(a): Credential store must be protected against unauthorized extraction" `
                 -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.5.15'; NIST='AC-3'; CIS='2.3.17.1'; STIG='V-220926' }
+                -CrossReferences @{ HIPAA='164.312(a)'; NIST='IA-5(13)'; CIS='18.3.1' }
         } else {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Fail" `
-                -Message "A.5.15: Access control -- UAC enabled -- not configured (Value=$val)" `
-                -Details "A.5.15 Access control: UAC enforces least-privilege access control policy" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1" `
+            Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
+                -Message "164.312(a)(5): Access control -- LSASS protection -- not configured (Value=$val)" `
+                -Details "164.312(a): Credential store must be protected against unauthorized extraction" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RunAsPPL -Value 1" `
                 -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.5.15'; NIST='AC-3'; CIS='2.3.17.1'; STIG='V-220926' }
+                -CrossReferences @{ HIPAA='164.312(a)'; NIST='IA-5(13)'; CIS='18.3.1' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Error" `
-            -Message "A.5.15: Access control -- UAC enabled -- check failed: $_" `
+        Add-Result -Category "HIPAA - Access Control" -Status "Error" `
+            -Message "164.312(a)(5): Access control -- LSASS protection -- check failed: $_" `
             -Severity "Critical" `
-            -CrossReferences @{ ISO27001='A.5.15'; NIST='AC-3'; CIS='2.3.17.1'; STIG='V-220926' }
+            -CrossReferences @{ HIPAA='164.312(a)'; NIST='IA-5(13)'; CIS='18.3.1' }
     }
-    # A.5.17: Authentication information -- password length
+    # 164.312(a)(6): Access control -- WDigest disabled
+    try {
+        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest" -Name "UseLogonCredential" -Default $null
+        if ($null -ne $val -and $val -eq 0) {
+            Add-Result -Category "HIPAA - Access Control" -Status "Pass" `
+                -Message "164.312(a)(6): Access control -- WDigest disabled -- properly configured" `
+                -Details "164.312(a): Plaintext credential caching must be disabled to protect user authentication" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.312(a)'; NIST='IA-5(13)'; CIS='18.3.6' }
+        } else {
+            Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
+                -Message "164.312(a)(6): Access control -- WDigest disabled -- not configured (Value=$val)" `
+                -Details "164.312(a): Plaintext credential caching must be disabled to protect user authentication" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' -Name UseLogonCredential -Value 0" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.312(a)'; NIST='IA-5(13)'; CIS='18.3.6' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Access Control" -Status "Error" `
+            -Message "164.312(a)(6): Access control -- WDigest disabled -- check failed: $_" `
+            -Severity "Critical" `
+            -CrossReferences @{ HIPAA='164.312(a)'; NIST='IA-5(13)'; CIS='18.3.6' }
+    }
+    # 164.312(a)(7): Access control -- NTLMv2 only
+    try {
+        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LmCompatibilityLevel" -Default $null
+        if ($null -ne $val -and $val -ge 5) {
+            Add-Result -Category "HIPAA - Access Control" -Status "Pass" `
+                -Message "164.312(a)(7): Access control -- NTLMv2 only -- properly configured" `
+                -Details "164.312(a): Only strong authentication protocols permitted for ePHI access" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.312(a)'; NIST='IA-2'; CIS='2.3.11.7' }
+        } else {
+            Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
+                -Message "164.312(a)(7): Access control -- NTLMv2 only -- not configured (Value=$val)" `
+                -Details "164.312(a): Only strong authentication protocols permitted for ePHI access" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name LmCompatibilityLevel -Value 5" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.312(a)'; NIST='IA-2'; CIS='2.3.11.7' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Access Control" -Status "Error" `
+            -Message "164.312(a)(7): Access control -- NTLMv2 only -- check failed: $_" `
+            -Severity "Critical" `
+            -CrossReferences @{ HIPAA='164.312(a)'; NIST='IA-2'; CIS='2.3.11.7' }
+    }
+    # 164.312(a)(8): Access control -- LM hash storage disabled
+    try {
+        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "NoLMHash" -Default $null
+        if ($null -ne $val -and $val -eq 1) {
+            Add-Result -Category "HIPAA - Access Control" -Status "Pass" `
+                -Message "164.312(a)(8): Access control -- LM hash storage disabled -- properly configured" `
+                -Details "164.312(a): Weak credential storage enables unauthorized ePHI access" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.312(a)'; NIST='IA-5'; CIS='2.3.11.5' }
+        } else {
+            Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
+                -Message "164.312(a)(8): Access control -- LM hash storage disabled -- not configured (Value=$val)" `
+                -Details "164.312(a): Weak credential storage enables unauthorized ePHI access" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name NoLMHash -Value 1" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.312(a)'; NIST='IA-5'; CIS='2.3.11.5' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Access Control" -Status "Error" `
+            -Message "164.312(a)(8): Access control -- LM hash storage disabled -- check failed: $_" `
+            -Severity "Critical" `
+            -CrossReferences @{ HIPAA='164.312(a)'; NIST='IA-5'; CIS='2.3.11.5' }
+    }
+
+# ===========================================================================
+# 164.312(b) Audit Controls
+# ===========================================================================
+Write-Host "[HIPAA] Checking 164.312(b) Audit Controls..." -ForegroundColor Yellow
+
+    # 164.312(b)(1): Audit controls -- Event Log service
+    try {
+        $svc = Get-Service -Name "EventLog" -ErrorAction SilentlyContinue
+        if ($null -ne $svc -and $svc.Status -eq "Running") {
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Pass" `
+                -Message "164.312(b)(1): Audit controls -- Event Log service -- service running" `
+                -Details "164.312(b): Hardware/software/procedural mechanisms to record ePHI access" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; ISO27001='A.8.15'; 'PCI-DSS'='10.2.1' }
+        } else {
+            $svcSt = if ($null -ne $svc) { $svc.Status } else { "Not Found" }
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Fail" `
+                -Message "164.312(b)(1): Audit controls -- Event Log service -- service not running (Status=$svcSt)" `
+                -Details "164.312(b): Hardware/software/procedural mechanisms to record ePHI access" `
+                -Remediation "Start-Service -Name EventLog; Set-Service -Name EventLog -StartupType Automatic" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; ISO27001='A.8.15'; 'PCI-DSS'='10.2.1' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Audit Controls" -Status "Error" `
+            -Message "164.312(b)(1): Audit controls -- Event Log service -- check failed: $_" `
+            -Severity "Critical" `
+            -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; ISO27001='A.8.15'; 'PCI-DSS'='10.2.1' }
+    }
+    # 164.312(b)(2): Audit controls -- Logon event auditing
+    try {
+        $auditOut = auditpol /get /category:"Logon/Logoff" 2>&1
+        $logonAudit = $false
+        foreach ($line in $auditOut) { if ($line -match "Logon" -and $line -match "Success") { $logonAudit = $true } }
+        if ($logonAudit) {
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Pass" `
+                -Message "164.312(b)(2): Logon event auditing enabled for ePHI access tracking" `
+                -Details "164.312(b): All ePHI access attempts must generate audit records" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; CIS='17.5.1'; 'PCI-DSS'='10.2.1' }
+        } else {
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Fail" `
+                -Message "164.312(b)(2): Logon auditing NOT enabled -- ePHI access untracked" `
+                -Details "164.312(b): Cannot demonstrate access accountability without logon auditing" `
+                -Remediation "auditpol /set /subcategory:'Logon' /success:enable /failure:enable" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; CIS='17.5.1'; 'PCI-DSS'='10.2.1' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Audit Controls" -Status "Error" `
+            -Message "164.312(b)(2): Audit controls -- Logon event auditing -- check failed: $_" `
+            -Severity "Critical" `
+            -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2' }
+    }
+    # 164.312(b)(3): Audit controls -- Account Management auditing
+    try {
+        $auditOut = auditpol /get /category:"Account Management" 2>&1
+        $acctAudit = $false
+        foreach ($line in $auditOut) { if ($line -match "User Account Management" -and $line -match "Success") { $acctAudit = $true } }
+        if ($acctAudit) {
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Pass" `
+                -Message "164.312(b)(3): Account management auditing enabled" `
+                -Details "164.312(b): User account changes affecting ePHI access are tracked" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; CIS='17.1.1' }
+        } else {
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Fail" `
+                -Message "164.312(b)(3): Account management auditing NOT enabled" `
+                -Details "164.312(b): Access control changes to ePHI systems are untracked" `
+                -Remediation "auditpol /set /subcategory:'User Account Management' /success:enable /failure:enable" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; CIS='17.1.1' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Audit Controls" -Status "Error" `
+            -Message "164.312(b)(3): Audit controls -- Account Management auditing -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2' }
+    }
+    # 164.312(b)(4): Audit controls -- Policy Change auditing
+    try {
+        $auditOut = auditpol /get /category:"Policy Change" 2>&1
+        $polAudit = $false
+        foreach ($line in $auditOut) { if ($line -match "Audit Policy Change" -and $line -match "Success") { $polAudit = $true } }
+        if ($polAudit) {
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Pass" `
+                -Message "164.312(b)(4): Security policy change auditing enabled" `
+                -Details "164.312(b): Changes to audit configuration are themselves audited" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-12'; CIS='17.7.1' }
+        } else {
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Fail" `
+                -Message "164.312(b)(4): Policy change auditing NOT enabled" `
+                -Details "164.312(b): Audit policy tampering cannot be detected" `
+                -Remediation "auditpol /set /subcategory:'Audit Policy Change' /success:enable /failure:enable" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-12'; CIS='17.7.1' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Audit Controls" -Status "Error" `
+            -Message "164.312(b)(4): Audit controls -- Policy Change auditing -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-12' }
+    }
+    # 164.312(b)(5): Audit controls -- Object Access auditing
+    try {
+        $auditOut = auditpol /get /category:"Object Access" 2>&1
+        $objAudit = $false
+        foreach ($line in $auditOut) { if ($line -match "File System" -and ($line -match "Success" -or $line -match "Failure")) { $objAudit = $true } }
+        if ($objAudit) {
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Pass" `
+                -Message "164.312(b)(5): File system object access auditing enabled" `
+                -Details "164.312(b): File-level access to ePHI stores can be monitored" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-12'; CIS='17.6.1' }
+        } else {
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Warning" `
+                -Message "164.312(b)(5): Object access auditing NOT configured" `
+                -Details "164.312(b): Cannot track file-level ePHI access without object auditing" `
+                -Remediation "auditpol /set /subcategory:'File System' /success:enable /failure:enable" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-12'; CIS='17.6.1' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Audit Controls" -Status "Error" `
+            -Message "164.312(b)(5): Audit controls -- Object Access auditing -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-12' }
+    }
+    # 164.312(b)(6): Audit log retention -- Security log size
+    try {
+        $secLogSize = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Security" -Name "MaxSize" -Default 0
+        $secLogMB = [Math]::Round($secLogSize / 1MB, 0)
+        if ($secLogSize -ge 1073741824) {
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Pass" `
+                -Message "164.312(b)(6): Security log size is ${secLogMB}MB (`>= 1024MB)" `
+                -Details "164.312(b): HIPAA requires 6-year retention; adequate local log size supports this" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-4'; 'PCI-DSS'='10.3.1' }
+        } else {
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Fail" `
+                -Message "164.312(b)(6): Security log size is ${secLogMB}MB (requires `>= 1024MB)" `
+                -Details "164.312(b): Insufficient log capacity for HIPAA retention requirements" `
+                -Remediation "wevtutil sl Security /ms:1073741824" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-4'; 'PCI-DSS'='10.3.1' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Audit Controls" -Status "Error" `
+            -Message "164.312(b)(6): Audit log retention -- Security log size -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-4' }
+    }
+    # 164.312(b)(7): Audit controls -- PowerShell Script Block Logging
+    try {
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging" -Name "EnableScriptBlockLogging" -Default $null
+        if ($null -ne $val -and $val -eq 1) {
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Pass" `
+                -Message "164.312(b)(7): Audit controls -- PowerShell Script Block Logging -- properly configured" `
+                -Details "164.312(b): PowerShell script execution must be logged for ePHI system forensics" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-12'; CIS='18.9.100.1' }
+        } else {
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Fail" `
+                -Message "164.312(b)(7): Audit controls -- PowerShell Script Block Logging -- not configured (Value=$val)" `
+                -Details "164.312(b): PowerShell script execution must be logged for ePHI system forensics" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-12'; CIS='18.9.100.1' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Audit Controls" -Status "Error" `
+            -Message "164.312(b)(7): Audit controls -- PowerShell Script Block Logging -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-12'; CIS='18.9.100.1' }
+    }
+    # 164.312(b)(8): Audit controls -- PowerShell Transcription
+    try {
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\Transcription" -Name "EnableTranscripting" -Default $null
+        if ($null -ne $val -and $val -eq 1) {
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Pass" `
+                -Message "164.312(b)(8): Audit controls -- PowerShell Transcription -- properly configured" `
+                -Details "164.312(b): PowerShell transcription provides detailed command history for investigations" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-12'; CIS='18.9.100.2' }
+        } else {
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Fail" `
+                -Message "164.312(b)(8): Audit controls -- PowerShell Transcription -- not configured (Value=$val)" `
+                -Details "164.312(b): PowerShell transcription provides detailed command history for investigations" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\Transcription' -Name EnableTranscripting -Value 1" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-12'; CIS='18.9.100.2' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Audit Controls" -Status "Error" `
+            -Message "164.312(b)(8): Audit controls -- PowerShell Transcription -- check failed: $_" `
+            -Severity "Medium" `
+            -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-12'; CIS='18.9.100.2' }
+    }
+    # 164.312(b)(9): Time synchronization -- W32Time
+    try {
+        $svc = Get-Service -Name "W32Time" -ErrorAction SilentlyContinue
+        if ($null -ne $svc -and $svc.Status -eq "Running") {
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Pass" `
+                -Message "164.312(b)(9): Time synchronization -- W32Time -- service running" `
+                -Details "164.312(b): Accurate timestamps are essential for audit trail integrity and correlation" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-8'; 'PCI-DSS'='10.6.1' }
+        } else {
+            $svcSt = if ($null -ne $svc) { $svc.Status } else { "Not Found" }
+            Add-Result -Category "HIPAA - Audit Controls" -Status "Fail" `
+                -Message "164.312(b)(9): Time synchronization -- W32Time -- service not running (Status=$svcSt)" `
+                -Details "164.312(b): Accurate timestamps are essential for audit trail integrity and correlation" `
+                -Remediation "Start-Service -Name W32Time; Set-Service -Name W32Time -StartupType Automatic" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-8'; 'PCI-DSS'='10.6.1' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Audit Controls" -Status "Error" `
+            -Message "164.312(b)(9): Time synchronization -- W32Time -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-8'; 'PCI-DSS'='10.6.1' }
+    }
+
+# ===========================================================================
+# 164.312(c) Integrity Controls
+# ===========================================================================
+Write-Host "[HIPAA] Checking 164.312(c) Integrity Controls..." -ForegroundColor Yellow
+
+    # 164.312(c)(1): Integrity -- SMB signing required (server)
+    try {
+        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "RequireSecuritySignature" -Default $null
+        if ($null -ne $val -and $val -eq 1) {
+            Add-Result -Category "HIPAA - Integrity" -Status "Pass" `
+                -Message "164.312(c)(1): Integrity -- SMB signing required (server) -- properly configured" `
+                -Details "164.312(c)(1): ePHI must not be improperly altered or destroyed during network transfer" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SC-8'; CIS='2.3.9.2' }
+        } else {
+            Add-Result -Category "HIPAA - Integrity" -Status "Fail" `
+                -Message "164.312(c)(1): Integrity -- SMB signing required (server) -- not configured (Value=$val)" `
+                -Details "164.312(c)(1): ePHI must not be improperly altered or destroyed during network transfer" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name RequireSecuritySignature -Value 1" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SC-8'; CIS='2.3.9.2' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Integrity" -Status "Error" `
+            -Message "164.312(c)(1): Integrity -- SMB signing required (server) -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SC-8'; CIS='2.3.9.2' }
+    }
+    # 164.312(c)(2): Integrity -- SMB signing required (client)
+    try {
+        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters" -Name "RequireSecuritySignature" -Default $null
+        if ($null -ne $val -and $val -eq 1) {
+            Add-Result -Category "HIPAA - Integrity" -Status "Pass" `
+                -Message "164.312(c)(2): Integrity -- SMB signing required (client) -- properly configured" `
+                -Details "164.312(c)(1): Client-side message signing ensures ePHI transit integrity" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SC-8'; CIS='2.3.9.5' }
+        } else {
+            Add-Result -Category "HIPAA - Integrity" -Status "Fail" `
+                -Message "164.312(c)(2): Integrity -- SMB signing required (client) -- not configured (Value=$val)" `
+                -Details "164.312(c)(1): Client-side message signing ensures ePHI transit integrity" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters' -Name RequireSecuritySignature -Value 1" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SC-8'; CIS='2.3.9.5' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Integrity" -Status "Error" `
+            -Message "164.312(c)(2): Integrity -- SMB signing required (client) -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SC-8'; CIS='2.3.9.5' }
+    }
+    # 164.312(c)(3): Integrity -- Secure Boot verification
+    try {
+        try {
+            $secureBoot = Confirm-SecureBootUEFI -ErrorAction SilentlyContinue
+            if ($secureBoot -eq $true) {
+                Add-Result -Category "HIPAA - Integrity" -Status "Pass" `
+                    -Message "164.312(c)(3): Secure Boot is enabled -- boot integrity verified" `
+                    -Details "164.312(c)(1): Boot chain integrity protects ePHI processing environment" `
+                    -Severity "High" `
+                    -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SI-7'; ISO27001='A.8.25' }
+            } else {
+                Add-Result -Category "HIPAA - Integrity" -Status "Fail" `
+                    -Message "164.312(c)(3): Secure Boot is NOT enabled" `
+                    -Details "164.312(c)(1): Boot tampering could compromise ePHI processing integrity" `
+                    -Remediation "Enable Secure Boot in UEFI firmware settings" `
+                    -Severity "High" `
+                    -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SI-7'; ISO27001='A.8.25' }
+            }
+        } catch {
+            Add-Result -Category "HIPAA - Integrity" -Status "Info" `
+                -Message "164.312(c)(3): Secure Boot status could not be determined" `
+                -Details "164.312(c)(1): System may use legacy BIOS" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SI-7' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Integrity" -Status "Error" `
+            -Message "164.312(c)(3): Integrity -- Secure Boot verification -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SI-7' }
+    }
+    # 164.312(c)(4): Integrity -- DEP enforcement
+    try {
+        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" -Name "MoveImages" -Default $null
+        if ($null -ne $val -and $val -ne 0) {
+            Add-Result -Category "HIPAA - Integrity" -Status "Pass" `
+                -Message "164.312(c)(4): Integrity -- DEP enforcement -- properly configured" `
+                -Details "164.312(c)(1): Data Execution Prevention protects against code injection affecting ePHI" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SI-16'; CIS='18.3.2' }
+        } else {
+            Add-Result -Category "HIPAA - Integrity" -Status "Fail" `
+                -Message "164.312(c)(4): Integrity -- DEP enforcement -- not configured (Value=$val)" `
+                -Details "164.312(c)(1): Data Execution Prevention protects against code injection affecting ePHI" `
+                -Remediation "bcdedit /set nx AlwaysOn" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SI-16'; CIS='18.3.2' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Integrity" -Status "Error" `
+            -Message "164.312(c)(4): Integrity -- DEP enforcement -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SI-16'; CIS='18.3.2' }
+    }
+    # 164.312(c)(5): Integrity -- pagefile cleared at shutdown
+    try {
+        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" -Name "ClearPageFileAtShutdown" -Default $null
+        if ($null -ne $val -and $val -eq 1) {
+            Add-Result -Category "HIPAA - Integrity" -Status "Pass" `
+                -Message "164.312(c)(5): Integrity -- pagefile cleared at shutdown -- properly configured" `
+                -Details "164.312(c)(1): ePHI remnants in pagefile must be cleared to maintain integrity" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SC-4'; CIS='2.3.11.9' }
+        } else {
+            Add-Result -Category "HIPAA - Integrity" -Status "Fail" `
+                -Message "164.312(c)(5): Integrity -- pagefile cleared at shutdown -- not configured (Value=$val)" `
+                -Details "164.312(c)(1): ePHI remnants in pagefile must be cleared to maintain integrity" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management' -Name ClearPageFileAtShutdown -Value 1" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SC-4'; CIS='2.3.11.9' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Integrity" -Status "Error" `
+            -Message "164.312(c)(5): Integrity -- pagefile cleared at shutdown -- check failed: $_" `
+            -Severity "Medium" `
+            -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SC-4'; CIS='2.3.11.9' }
+    }
+
+# ===========================================================================
+# 164.312(d) Person or Entity Authentication
+# ===========================================================================
+Write-Host "[HIPAA] Checking 164.312(d) Person or Entity Authentication..." -ForegroundColor Yellow
+
+    # 164.312(d)(1): Authentication -- password length
     try {
         $netAcct = net accounts 2>&1
         $minLen = 0
         foreach ($line in $netAcct) { if ($line -match "Minimum password length\s+(\d+)") { $minLen = [int]$Matches[1] } }
         if ($minLen -ge 14) {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Pass" `
-                -Message "A.5.17: Minimum password length is $minLen characters" `
-                -Details "A.5.17 Authentication information: Strong password policy enforced" `
+            Add-Result -Category "HIPAA - Authentication" -Status "Pass" `
+                -Message "164.312(d)(1): Minimum password length is $minLen characters" `
+                -Details "164.312(d): Strong authentication ensures proper ePHI access verification" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.5.17'; NIST='IA-5'; CIS='1.1.4'; STIG='V-220718'; 'PCI-DSS'='8.3.6' }
+                -CrossReferences @{ HIPAA='164.312(d)'; NIST='IA-5'; CIS='1.1.4'; 'PCI-DSS'='8.3.6' }
         } else {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Fail" `
-                -Message "A.5.17: Minimum password length is $minLen (requires `>= 14)" `
-                -Details "A.5.17 Authentication information: Weak passwords undermine access control" `
+            Add-Result -Category "HIPAA - Authentication" -Status "Fail" `
+                -Message "164.312(d)(1): Minimum password length is $minLen (requires `>= 14)" `
+                -Details "164.312(d): Weak passwords allow unauthorized ePHI access" `
                 -Remediation "net accounts /minpwlen:14" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.5.17'; NIST='IA-5'; CIS='1.1.4'; STIG='V-220718'; 'PCI-DSS'='8.3.6' }
+                -CrossReferences @{ HIPAA='164.312(d)'; NIST='IA-5'; CIS='1.1.4'; 'PCI-DSS'='8.3.6' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Error" `
-            -Message "A.5.17: Authentication information -- password length -- check failed: $_" `
+        Add-Result -Category "HIPAA - Authentication" -Status "Error" `
+            -Message "164.312(d)(1): Authentication -- password length -- check failed: $_" `
             -Severity "High" `
-            -CrossReferences @{ ISO27001='A.5.17'; NIST='IA-5' }
+            -CrossReferences @{ HIPAA='164.312(d)'; NIST='IA-5' }
     }
-    # A.5.17b: Authentication information -- password history
-    try {
-        $netAcct = net accounts 2>&1
-        $pwHist = 0
-        foreach ($line in $netAcct) { if ($line -match "Length of password history maintained\s+(\d+)") { $pwHist = [int]$Matches[1] } }
-        if ($pwHist -ge 24) {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Pass" `
-                -Message "A.5.17b: Password history enforces $pwHist previous passwords" `
-                -Details "A.5.17 Authentication information: Password reuse effectively prevented" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.5.17'; NIST='IA-5(1)'; CIS='1.1.1' }
-        } else {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Fail" `
-                -Message "A.5.17b: Password history is $pwHist (requires `>= 24)" `
-                -Details "A.5.17 Authentication information: Low password history enables credential reuse" `
-                -Remediation "net accounts /uniquepw:24" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.5.17'; NIST='IA-5(1)'; CIS='1.1.1' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Error" `
-            -Message "A.5.17b: Authentication information -- password history -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.5.17'; NIST='IA-5(1)' }
-    }
-    # A.5.17c: Authentication information -- account lockout
+    # 164.312(d)(2): Authentication -- account lockout
     try {
         $netAcct = net accounts 2>&1
         $lockThresh = 0
         foreach ($line in $netAcct) { if ($line -match "Lockout threshold\s+(\d+)") { $lockThresh = [int]$Matches[1] } }
         if ($lockThresh -gt 0 -and $lockThresh -le 5) {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Pass" `
-                -Message "A.5.17c: Account lockout threshold is $lockThresh attempts" `
-                -Details "A.5.17 Authentication information: Brute-force protection enabled" `
+            Add-Result -Category "HIPAA - Authentication" -Status "Pass" `
+                -Message "164.312(d)(2): Account lockout threshold is $lockThresh attempts" `
+                -Details "164.312(d): Lockout policy prevents brute-force access to ePHI systems" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.5.17'; NIST='AC-7'; CIS='1.2.1'; 'PCI-DSS'='8.3.4' }
+                -CrossReferences @{ HIPAA='164.312(d)'; NIST='AC-7'; CIS='1.2.1'; 'PCI-DSS'='8.3.4' }
         } else {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Fail" `
-                -Message "A.5.17c: Account lockout threshold is $lockThresh (requires 1-5)" `
-                -Details "A.5.17 Authentication information: No lockout enables brute-force attacks" `
+            Add-Result -Category "HIPAA - Authentication" -Status "Fail" `
+                -Message "164.312(d)(2): Account lockout threshold is $lockThresh (requires 1-5)" `
+                -Details "164.312(d): No lockout allows unlimited authentication attempts" `
                 -Remediation "net accounts /lockoutthreshold:5" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.5.17'; NIST='AC-7'; CIS='1.2.1'; 'PCI-DSS'='8.3.4' }
+                -CrossReferences @{ HIPAA='164.312(d)'; NIST='AC-7'; CIS='1.2.1'; 'PCI-DSS'='8.3.4' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Error" `
-            -Message "A.5.17c: Authentication information -- account lockout -- check failed: $_" `
+        Add-Result -Category "HIPAA - Authentication" -Status "Error" `
+            -Message "164.312(d)(2): Authentication -- account lockout -- check failed: $_" `
             -Severity "High" `
-            -CrossReferences @{ ISO27001='A.5.17'; NIST='AC-7' }
+            -CrossReferences @{ HIPAA='164.312(d)'; NIST='AC-7' }
     }
-    # A.5.18: Access rights -- non-expiring passwords
+    # 164.312(d)(3): Authentication -- password history
     try {
-        $neverExpire = @(Get-LocalUser -ErrorAction SilentlyContinue | Where-Object { $_.PasswordNeverExpires -eq $true -and $_.Enabled -eq $true })
-        if ($neverExpire.Count -eq 0) {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Pass" `
-                -Message "A.5.18: No enabled accounts have non-expiring passwords" `
-                -Details "A.5.18 Access rights: All active accounts enforce password rotation" `
+        $netAcct = net accounts 2>&1
+        $pwHist = 0
+        foreach ($line in $netAcct) { if ($line -match "Length of password history maintained\s+(\d+)") { $pwHist = [int]$Matches[1] } }
+        if ($pwHist -ge 24) {
+            Add-Result -Category "HIPAA - Authentication" -Status "Pass" `
+                -Message "164.312(d)(3): Password history enforces $pwHist previous passwords" `
+                -Details "164.312(d): Password reuse prevention strengthens ePHI authentication" `
                 -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.5.18'; NIST='AC-2'; CIS='1.1.5' }
+                -CrossReferences @{ HIPAA='164.312(d)'; NIST='IA-5(1)'; CIS='1.1.1' }
         } else {
-            $names = ($neverExpire | Select-Object -First 5 -ExpandProperty Name) -join ", "
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Warning" `
-                -Message "A.5.18: $($neverExpire.Count) account(s) have non-expiring passwords ($names)" `
-                -Details "A.5.18 Access rights: Non-expiring passwords weaken periodic access review" `
-                -Remediation "Set-LocalUser -Name '<account`>' -PasswordNeverExpires `$false" `
+            Add-Result -Category "HIPAA - Authentication" -Status "Fail" `
+                -Message "164.312(d)(3): Password history is $pwHist (requires `>= 24)" `
+                -Details "164.312(d): Low history enables credential reuse for ePHI access" `
+                -Remediation "net accounts /uniquepw:24" `
                 -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.5.18'; NIST='AC-2'; CIS='1.1.5' }
+                -CrossReferences @{ HIPAA='164.312(d)'; NIST='IA-5(1)'; CIS='1.1.1' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Error" `
-            -Message "A.5.18: Access rights -- non-expiring passwords -- check failed: $_" `
+        Add-Result -Category "HIPAA - Authentication" -Status "Error" `
+            -Message "164.312(d)(3): Authentication -- password history -- check failed: $_" `
             -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.5.18'; NIST='AC-2' }
+            -CrossReferences @{ HIPAA='164.312(d)'; NIST='IA-5(1)' }
     }
-    # A.5.18b: Access rights -- Guest account disabled
-    try {
-        $guestAcct = Get-LocalUser -Name "Guest" -ErrorAction SilentlyContinue
-        if ($null -ne $guestAcct -and $guestAcct.Enabled -eq $false) {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Pass" `
-                -Message "A.5.18b: Guest account is disabled" `
-                -Details "A.5.18 Access rights: Anonymous access via Guest account is prevented" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.5.18'; NIST='AC-2'; CIS='1.1'; STIG='V-220929' }
-        } else {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Fail" `
-                -Message "A.5.18b: Guest account is ENABLED" `
-                -Details "A.5.18 Access rights: Guest account allows unauthorized anonymous access" `
-                -Remediation "Disable-LocalUser -Name Guest" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.5.18'; NIST='AC-2'; CIS='1.1'; STIG='V-220929' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Error" `
-            -Message "A.5.18b: Access rights -- Guest account disabled -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.5.18'; NIST='AC-2' }
-    }
-    # A.5.23: Cloud services -- OneDrive sync policy
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive" -Name "DisableFileSyncNGSC" -Default $null
-        if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Pass" `
-                -Message "A.5.23: Cloud services -- OneDrive sync policy -- properly configured" `
-                -Details "A.5.23 Cloud services: Uncontrolled cloud sync should be governed by policy" `
-                -Severity "Low" `
-                -CrossReferences @{ ISO27001='A.5.23'; NIST='AC-20'; GDPR='Art.28' }
-        } else {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Info" `
-                -Message "A.5.23: Cloud services -- OneDrive sync policy -- not configured (Value=$val)" `
-                -Details "A.5.23 Cloud services: Uncontrolled cloud sync should be governed by policy" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive' -Name DisableFileSyncNGSC -Value 1" `
-                -Severity "Low" `
-                -CrossReferences @{ ISO27001='A.5.23'; NIST='AC-20'; GDPR='Art.28' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Error" `
-            -Message "A.5.23: Cloud services -- OneDrive sync policy -- check failed: $_" `
-            -Severity "Low" `
-            -CrossReferences @{ ISO27001='A.5.23'; NIST='AC-20'; GDPR='Art.28' }
-    }
-    # A.5.24: Incident management -- Event Log service
-    try {
-        $svc = Get-Service -Name "EventLog" -ErrorAction SilentlyContinue
-        if ($null -ne $svc -and $svc.Status -eq "Running") {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Pass" `
-                -Message "A.5.24: Incident management -- Event Log service -- service running" `
-                -Details "A.5.24 Incident management: Event logging is essential for incident detection" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.5.24'; NIST='IR-4'; SOC2='CC7.3' }
-        } else {
-            $svcSt = if ($null -ne $svc) { $svc.Status } else { "Not Found" }
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Fail" `
-                -Message "A.5.24: Incident management -- Event Log service -- service not running (Status=$svcSt)" `
-                -Details "A.5.24 Incident management: Event logging is essential for incident detection" `
-                -Remediation "Start-Service -Name EventLog; Set-Service -Name EventLog -StartupType Automatic" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.5.24'; NIST='IR-4'; SOC2='CC7.3' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Error" `
-            -Message "A.5.24: Incident management -- Event Log service -- check failed: $_" `
-            -Severity "Critical" `
-            -CrossReferences @{ ISO27001='A.5.24'; NIST='IR-4'; SOC2='CC7.3' }
-    }
-    # A.5.28: Collection of evidence -- security log size
-    try {
-        $secLogSize = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Security" -Name "MaxSize" -Default 0
-        $secLogMB = [Math]::Round($secLogSize / 1MB, 0)
-        if ($secLogSize -ge 1073741824) {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Pass" `
-                -Message "A.5.28: Security event log is ${secLogMB}MB (`>= 1024MB)" `
-                -Details "A.5.28 Collection of evidence: Adequate log retention for forensic investigation" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.5.28'; NIST='AU-4'; STIG='V-220961' }
-        } else {
-            Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Fail" `
-                -Message "A.5.28: Security event log is ${secLogMB}MB (requires `>= 1024MB)" `
-                -Details "A.5.28 Collection of evidence: Insufficient log space may cause evidence loss" `
-                -Remediation "wevtutil sl Security /ms:1073741824" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.5.28'; NIST='AU-4'; STIG='V-220961' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Error" `
-            -Message "A.5.28: Collection of evidence -- security log size -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.5.28'; NIST='AU-4' }
-    }
-
-# ===========================================================================
-# A.6 People Controls
-# ===========================================================================
-Write-Host "[ISO27001] Checking A.6 People Controls..." -ForegroundColor Yellow
-
-    # A.6.7: Remote working -- RDP NLA required
+    # 164.312(d)(4): Authentication -- NLA required for RDP
     try {
         $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "UserAuthentication" -Default $null
         if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.6 People" -Status "Pass" `
-                -Message "A.6.7: Remote working -- RDP NLA required -- properly configured" `
-                -Details "A.6.7 Remote working: NLA prevents unauthenticated RDP sessions" `
+            Add-Result -Category "HIPAA - Authentication" -Status "Pass" `
+                -Message "164.312(d)(4): Authentication -- NLA required for RDP -- properly configured" `
+                -Details "164.312(d): Network Level Authentication verifies identity before session establishment" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.6.7'; NIST='AC-17'; CIS='18.9.65.3.9.1'; STIG='V-220978' }
+                -CrossReferences @{ HIPAA='164.312(d)'; NIST='AC-17'; CIS='18.9.65.3.9.1' }
         } else {
-            Add-Result -Category "ISO27001 - A.6 People" -Status "Fail" `
-                -Message "A.6.7: Remote working -- RDP NLA required -- not configured (Value=$val)" `
-                -Details "A.6.7 Remote working: NLA prevents unauthenticated RDP sessions" `
+            Add-Result -Category "HIPAA - Authentication" -Status "Fail" `
+                -Message "164.312(d)(4): Authentication -- NLA required for RDP -- not configured (Value=$val)" `
+                -Details "164.312(d): Network Level Authentication verifies identity before session establishment" `
                 -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.6.7'; NIST='AC-17'; CIS='18.9.65.3.9.1'; STIG='V-220978' }
+                -CrossReferences @{ HIPAA='164.312(d)'; NIST='AC-17'; CIS='18.9.65.3.9.1' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.6 People" -Status "Error" `
-            -Message "A.6.7: Remote working -- RDP NLA required -- check failed: $_" `
+        Add-Result -Category "HIPAA - Authentication" -Status "Error" `
+            -Message "164.312(d)(4): Authentication -- NLA required for RDP -- check failed: $_" `
             -Severity "High" `
-            -CrossReferences @{ ISO27001='A.6.7'; NIST='AC-17'; CIS='18.9.65.3.9.1'; STIG='V-220978' }
-    }
-    # A.6.7b: Remote working -- RDP encryption level
-    try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "MinEncryptionLevel" -Default $null
-        if ($null -ne $val -and $val -ge 3) {
-            Add-Result -Category "ISO27001 - A.6 People" -Status "Pass" `
-                -Message "A.6.7b: Remote working -- RDP encryption level -- properly configured" `
-                -Details "A.6.7 Remote working: RDP must use High encryption level for remote sessions" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.6.7'; NIST='SC-8'; CIS='18.9.65.3.9.2' }
-        } else {
-            Add-Result -Category "ISO27001 - A.6 People" -Status "Fail" `
-                -Message "A.6.7b: Remote working -- RDP encryption level -- not configured (Value=$val)" `
-                -Details "A.6.7 Remote working: RDP must use High encryption level for remote sessions" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name MinEncryptionLevel -Value 3" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.6.7'; NIST='SC-8'; CIS='18.9.65.3.9.2' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.6 People" -Status "Error" `
-            -Message "A.6.7b: Remote working -- RDP encryption level -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.6.7'; NIST='SC-8'; CIS='18.9.65.3.9.2' }
-    }
-    # A.6.7c: Remote working -- idle session timeout
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "MaxIdleTime" -Default $null
-        if ($null -ne $val -and $val -le 900000) {
-            Add-Result -Category "ISO27001 - A.6 People" -Status "Pass" `
-                -Message "A.6.7c: Remote working -- idle session timeout -- properly configured" `
-                -Details "A.6.7 Remote working: Idle RDP sessions should disconnect to prevent unauthorized access" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.6.7'; NIST='AC-12'; CIS='18.9.65.3.10.1' }
-        } else {
-            Add-Result -Category "ISO27001 - A.6 People" -Status "Fail" `
-                -Message "A.6.7c: Remote working -- idle session timeout -- not configured (Value=$val)" `
-                -Details "A.6.7 Remote working: Idle RDP sessions should disconnect to prevent unauthorized access" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name MaxIdleTime -Value 900000" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.6.7'; NIST='AC-12'; CIS='18.9.65.3.10.1' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.6 People" -Status "Error" `
-            -Message "A.6.7c: Remote working -- idle session timeout -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.6.7'; NIST='AC-12'; CIS='18.9.65.3.10.1' }
-    }
-    # A.6.7d: Remote working -- CredSSP delegation restricted
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation" -Name "AllowDefaultCredentials" -Default $null
-        if ($null -ne $val -and $val -eq 0) {
-            Add-Result -Category "ISO27001 - A.6 People" -Status "Pass" `
-                -Message "A.6.7d: Remote working -- CredSSP delegation restricted -- properly configured" `
-                -Details "A.6.7 Remote working: Credential delegation should be restricted for remote sessions" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.6.7'; NIST='IA-5'; NSA='Credential Protection' }
-        } else {
-            Add-Result -Category "ISO27001 - A.6 People" -Status "Fail" `
-                -Message "A.6.7d: Remote working -- CredSSP delegation restricted -- not configured (Value=$val)" `
-                -Details "A.6.7 Remote working: Credential delegation should be restricted for remote sessions" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation' -Name AllowDefaultCredentials -Value 0" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.6.7'; NIST='IA-5'; NSA='Credential Protection' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.6 People" -Status "Error" `
-            -Message "A.6.7d: Remote working -- CredSSP delegation restricted -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.6.7'; NIST='IA-5'; NSA='Credential Protection' }
+            -CrossReferences @{ HIPAA='164.312(d)'; NIST='AC-17'; CIS='18.9.65.3.9.1' }
     }
 
 # ===========================================================================
-# A.7 Physical Controls (Technical Aspects)
+# 164.312(e) Transmission Security
 # ===========================================================================
-Write-Host "[ISO27001] Checking A.7 Physical Controls (Technical Aspects)..." -ForegroundColor Yellow
+Write-Host "[HIPAA] Checking 164.312(e) Transmission Security..." -ForegroundColor Yellow
 
-    # A.7.7: Clear desk -- screen saver enabled
-    try {
-        $val = Get-RegValue -Path "HKCU:\Control Panel\Desktop" -Name "ScreenSaveActive" -Default $null
-        if ($null -ne $val -and $val -eq "1") {
-            Add-Result -Category "ISO27001 - A.7 Physical" -Status "Pass" `
-                -Message "A.7.7: Clear desk -- screen saver enabled -- properly configured" `
-                -Details "A.7.7 Clear desk: Screen saver must activate to protect unattended workstations" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.7.7'; NIST='AC-11'; CIS='2.3.1.1' }
-        } else {
-            Add-Result -Category "ISO27001 - A.7 Physical" -Status "Fail" `
-                -Message "A.7.7: Clear desk -- screen saver enabled -- not configured (Value=$val)" `
-                -Details "A.7.7 Clear desk: Screen saver must activate to protect unattended workstations" `
-                -Remediation "Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name ScreenSaveActive -Value 1" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.7.7'; NIST='AC-11'; CIS='2.3.1.1' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.7 Physical" -Status "Error" `
-            -Message "A.7.7: Clear desk -- screen saver enabled -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.7.7'; NIST='AC-11'; CIS='2.3.1.1' }
-    }
-    # A.7.7b: Clear desk -- screen saver password protected
-    try {
-        $val = Get-RegValue -Path "HKCU:\Control Panel\Desktop" -Name "ScreenSaverIsSecure" -Default $null
-        if ($null -ne $val -and $val -eq "1") {
-            Add-Result -Category "ISO27001 - A.7 Physical" -Status "Pass" `
-                -Message "A.7.7b: Clear desk -- screen saver password protected -- properly configured" `
-                -Details "A.7.7 Clear desk: Screen saver must require password to unlock" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.7.7'; NIST='AC-11(1)'; CIS='2.3.1.2' }
-        } else {
-            Add-Result -Category "ISO27001 - A.7 Physical" -Status "Fail" `
-                -Message "A.7.7b: Clear desk -- screen saver password protected -- not configured (Value=$val)" `
-                -Details "A.7.7 Clear desk: Screen saver must require password to unlock" `
-                -Remediation "Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name ScreenSaverIsSecure -Value 1" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.7.7'; NIST='AC-11(1)'; CIS='2.3.1.2' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.7 Physical" -Status "Error" `
-            -Message "A.7.7b: Clear desk -- screen saver password protected -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.7.7'; NIST='AC-11(1)'; CIS='2.3.1.2' }
-    }
-    # A.7.7c: Clear desk -- screen saver timeout
-    try {
-        $val = Get-RegValue -Path "HKCU:\Control Panel\Desktop" -Name "ScreenSaveTimeOut" -Default $null
-        if ($null -ne $val -and $val -le 900) {
-            Add-Result -Category "ISO27001 - A.7 Physical" -Status "Pass" `
-                -Message "A.7.7c: Clear desk -- screen saver timeout -- properly configured" `
-                -Details "A.7.7 Clear desk: Screen saver should activate within 15 minutes of inactivity" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.7.7'; NIST='AC-11'; CIS='2.3.1.3' }
-        } else {
-            Add-Result -Category "ISO27001 - A.7 Physical" -Status "Fail" `
-                -Message "A.7.7c: Clear desk -- screen saver timeout -- not configured (Value=$val)" `
-                -Details "A.7.7 Clear desk: Screen saver should activate within 15 minutes of inactivity" `
-                -Remediation "Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name ScreenSaveTimeOut -Value 900" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.7.7'; NIST='AC-11'; CIS='2.3.1.3' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.7 Physical" -Status "Error" `
-            -Message "A.7.7c: Clear desk -- screen saver timeout -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.7.7'; NIST='AC-11'; CIS='2.3.1.3' }
-    }
-    # A.7.9: Security of assets off-premises -- BitLocker OS drive
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\FVE" -Name "OSEncryptionType" -Default $null
-        if ($null -ne $val) {
-            Add-Result -Category "ISO27001 - A.7 Physical" -Status "Pass" `
-                -Message "A.7.9: Security of assets off-premises -- BitLocker OS drive -- properly configured" `
-                -Details "A.7.9 Security of assets off-premises: BitLocker encryption policy is configured for OS drive" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.7.9'; NIST='SC-28'; CIS='18.10.9.1'; STIG='V-220901' }
-        } else {
-            Add-Result -Category "ISO27001 - A.7 Physical" -Status "Fail" `
-                -Message "A.7.9: Security of assets off-premises -- BitLocker OS drive -- not configured (Value=$val)" `
-                -Details "A.7.9 Security of assets off-premises: BitLocker encryption policy is configured for OS drive" `
-                -Remediation "Enable-BitLocker -MountPoint C: -EncryptionMethod XtsAes256 -UsedSpaceOnly" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.7.9'; NIST='SC-28'; CIS='18.10.9.1'; STIG='V-220901' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.7 Physical" -Status "Error" `
-            -Message "A.7.9: Security of assets off-premises -- BitLocker OS drive -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.7.9'; NIST='SC-28'; CIS='18.10.9.1'; STIG='V-220901' }
-    }
-    # A.7.10: Storage media -- autoplay disabled
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoDriveTypeAutoRun" -Default $null
-        if ($null -ne $val -and $val -eq 255) {
-            Add-Result -Category "ISO27001 - A.7 Physical" -Status "Pass" `
-                -Message "A.7.10: Storage media -- autoplay disabled -- properly configured" `
-                -Details "A.7.10 Storage media: AutoPlay disabled prevents automatic execution from removable media" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.7.10'; NIST='MP-7'; CIS='18.9.8.3'; NSA='Application Control' }
-        } else {
-            Add-Result -Category "ISO27001 - A.7 Physical" -Status "Fail" `
-                -Message "A.7.10: Storage media -- autoplay disabled -- not configured (Value=$val)" `
-                -Details "A.7.10 Storage media: AutoPlay disabled prevents automatic execution from removable media" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoDriveTypeAutoRun -Value 255" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.7.10'; NIST='MP-7'; CIS='18.9.8.3'; NSA='Application Control' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.7 Physical" -Status "Error" `
-            -Message "A.7.10: Storage media -- autoplay disabled -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.7.10'; NIST='MP-7'; CIS='18.9.8.3'; NSA='Application Control' }
-    }
-    # A.7.10b: Storage media -- autorun disabled
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoAutorun" -Default $null
-        if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.7 Physical" -Status "Pass" `
-                -Message "A.7.10b: Storage media -- autorun disabled -- properly configured" `
-                -Details "A.7.10 Storage media: AutoRun disabled prevents malware propagation from removable devices" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.7.10'; NIST='MP-7'; CIS='18.9.8.2' }
-        } else {
-            Add-Result -Category "ISO27001 - A.7 Physical" -Status "Fail" `
-                -Message "A.7.10b: Storage media -- autorun disabled -- not configured (Value=$val)" `
-                -Details "A.7.10 Storage media: AutoRun disabled prevents malware propagation from removable devices" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoAutorun -Value 1" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.7.10'; NIST='MP-7'; CIS='18.9.8.2' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.7 Physical" -Status "Error" `
-            -Message "A.7.10b: Storage media -- autorun disabled -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.7.10'; NIST='MP-7'; CIS='18.9.8.2' }
-    }
-
-# ===========================================================================
-# A.8 Technological Controls -- Endpoint & Access
-# ===========================================================================
-Write-Host "[ISO27001] Checking A.8 Technological Controls -- Endpoint & Access..." -ForegroundColor Yellow
-
-    # A.8.1a: User endpoint devices -- Windows Defender real-time protection
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" -Name "DisableRealtimeMonitoring" -Default $null
-        if ($null -ne $val -and $val -eq 0) {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Pass" `
-                -Message "A.8.1a: User endpoint devices -- Windows Defender real-time protection -- properly configured" `
-                -Details "A.8.1 User endpoint devices: Real-time antimalware protection must be enabled on all endpoints" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.9.1'; CISA='EDR' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Fail" `
-                -Message "A.8.1a: User endpoint devices -- Windows Defender real-time protection -- not configured (Value=$val)" `
-                -Details "A.8.1 User endpoint devices: Real-time antimalware protection must be enabled on all endpoints" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' -Name DisableRealtimeMonitoring -Value 0" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.9.1'; CISA='EDR' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Error" `
-            -Message "A.8.1a: User endpoint devices -- Windows Defender real-time protection -- check failed: $_" `
-            -Severity "Critical" `
-            -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.9.1'; CISA='EDR' }
-    }
-    # A.8.1b: User endpoint devices -- Windows Defender antispyware
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -Default $null
-        if ($null -ne $val -and $val -eq 0) {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Pass" `
-                -Message "A.8.1b: User endpoint devices -- Windows Defender antispyware -- properly configured" `
-                -Details "A.8.1 User endpoint devices: Antispyware protection must not be disabled" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.1' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Fail" `
-                -Message "A.8.1b: User endpoint devices -- Windows Defender antispyware -- not configured (Value=$val)" `
-                -Details "A.8.1 User endpoint devices: Antispyware protection must not be disabled" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender' -Name DisableAntiSpyware -Value 0" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.1' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Error" `
-            -Message "A.8.1b: User endpoint devices -- Windows Defender antispyware -- check failed: $_" `
-            -Severity "Critical" `
-            -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.1' }
-    }
-    # A.8.1c: User endpoint devices -- Defender service running
-    try {
-        $svc = Get-Service -Name "WinDefend" -ErrorAction SilentlyContinue
-        if ($null -ne $svc -and $svc.Status -eq "Running") {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Pass" `
-                -Message "A.8.1c: User endpoint devices -- Defender service running -- service running" `
-                -Details "A.8.1 User endpoint devices: Windows Defender Antivirus service must be operational" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CISA='EDR' }
-        } else {
-            $svcSt = if ($null -ne $svc) { $svc.Status } else { "Not Found" }
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Fail" `
-                -Message "A.8.1c: User endpoint devices -- Defender service running -- service not running (Status=$svcSt)" `
-                -Details "A.8.1 User endpoint devices: Windows Defender Antivirus service must be operational" `
-                -Remediation "Start-Service -Name WinDefend; Set-Service -Name WinDefend -StartupType Automatic" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CISA='EDR' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Error" `
-            -Message "A.8.1c: User endpoint devices -- Defender service running -- check failed: $_" `
-            -Severity "Critical" `
-            -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CISA='EDR' }
-    }
-    # A.8.1d: User endpoint devices -- cloud-delivered protection
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet" -Name "SpyNetReporting" -Default $null
-        if ($null -ne $val -and $val -eq 2) {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Pass" `
-                -Message "A.8.1d: User endpoint devices -- cloud-delivered protection -- properly configured" `
-                -Details "A.8.1 User endpoint devices: Cloud-delivered protection enhances threat detection" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3(10)'; CIS='18.9.47.11.1' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Fail" `
-                -Message "A.8.1d: User endpoint devices -- cloud-delivered protection -- not configured (Value=$val)" `
-                -Details "A.8.1 User endpoint devices: Cloud-delivered protection enhances threat detection" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet' -Name SpyNetReporting -Value 2" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3(10)'; CIS='18.9.47.11.1' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Error" `
-            -Message "A.8.1d: User endpoint devices -- cloud-delivered protection -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3(10)'; CIS='18.9.47.11.1' }
-    }
-    # A.8.1e: User endpoint devices -- behavior monitoring
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" -Name "DisableBehaviorMonitoring" -Default $null
-        if ($null -ne $val -and $val -eq 0) {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Pass" `
-                -Message "A.8.1e: User endpoint devices -- behavior monitoring -- properly configured" `
-                -Details "A.8.1 User endpoint devices: Behavioral analysis detects zero-day threats" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.9.2' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Fail" `
-                -Message "A.8.1e: User endpoint devices -- behavior monitoring -- not configured (Value=$val)" `
-                -Details "A.8.1 User endpoint devices: Behavioral analysis detects zero-day threats" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' -Name DisableBehaviorMonitoring -Value 0" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.9.2' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Error" `
-            -Message "A.8.1e: User endpoint devices -- behavior monitoring -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.9.2' }
-    }
-    # A.8.1f: User endpoint devices -- PUA protection
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "PUAProtection" -Default $null
-        if ($null -ne $val -and $val -ge 1) {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Pass" `
-                -Message "A.8.1f: User endpoint devices -- PUA protection -- properly configured" `
-                -Details "A.8.1 User endpoint devices: PUA detection blocks potentially unwanted software" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.15' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Fail" `
-                -Message "A.8.1f: User endpoint devices -- PUA protection -- not configured (Value=$val)" `
-                -Details "A.8.1 User endpoint devices: PUA detection blocks potentially unwanted software" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender' -Name PUAProtection -Value 1" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.15' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Error" `
-            -Message "A.8.1f: User endpoint devices -- PUA protection -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.15' }
-    }
-    # A.8.1g: User endpoint devices -- controlled folder access
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Windows Defender Exploit Guard\Controlled Folder Access" -Name "EnableControlledFolderAccess" -Default $null
-        if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Pass" `
-                -Message "A.8.1g: User endpoint devices -- controlled folder access -- properly configured" `
-                -Details "A.8.1 User endpoint devices: Controlled folder access prevents ransomware data encryption" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.5.1.1' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Fail" `
-                -Message "A.8.1g: User endpoint devices -- controlled folder access -- not configured (Value=$val)" `
-                -Details "A.8.1 User endpoint devices: Controlled folder access prevents ransomware data encryption" `
-                -Remediation "Set-MpPreference -EnableControlledFolderAccess Enabled" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.5.1.1' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Error" `
-            -Message "A.8.1g: User endpoint devices -- controlled folder access -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.5.1.1' }
-    }
-
-# ===========================================================================
-# A.8 Technological Controls -- Privileged Access
-# ===========================================================================
-Write-Host "[ISO27001] Checking A.8 Technological Controls -- Privileged Access..." -ForegroundColor Yellow
-
-    # A.8.2a: Privileged access -- UAC admin approval mode
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "FilterAdministratorToken" -Default $null
-        if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Pass" `
-                -Message "A.8.2a: Privileged access -- UAC admin approval mode -- properly configured" `
-                -Details "A.8.2 Privileged access: Built-in Administrator requires admin approval mode" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.2'; NIST='AC-6(1)'; CIS='2.3.17.1'; STIG='V-220926' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Fail" `
-                -Message "A.8.2a: Privileged access -- UAC admin approval mode -- not configured (Value=$val)" `
-                -Details "A.8.2 Privileged access: Built-in Administrator requires admin approval mode" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name FilterAdministratorToken -Value 1" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.2'; NIST='AC-6(1)'; CIS='2.3.17.1'; STIG='V-220926' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Error" `
-            -Message "A.8.2a: Privileged access -- UAC admin approval mode -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.2'; NIST='AC-6(1)'; CIS='2.3.17.1'; STIG='V-220926' }
-    }
-    # A.8.2b: Privileged access -- UAC consent prompt behavior (admins)
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "ConsentPromptBehaviorAdmin" -Default $null
-        if ($null -ne $val -and $val -eq 2) {
-            Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Pass" `
-                -Message "A.8.2b: Privileged access -- UAC consent prompt behavior (admins) -- properly configured" `
-                -Details "A.8.2 Privileged access: Admins should be prompted for consent on secure desktop" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.2'; NIST='AC-6'; CIS='2.3.17.3' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Fail" `
-                -Message "A.8.2b: Privileged access -- UAC consent prompt behavior (admins) -- not configured (Value=$val)" `
-                -Details "A.8.2 Privileged access: Admins should be prompted for consent on secure desktop" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name ConsentPromptBehaviorAdmin -Value 2" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.2'; NIST='AC-6'; CIS='2.3.17.3' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Error" `
-            -Message "A.8.2b: Privileged access -- UAC consent prompt behavior (admins) -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.2'; NIST='AC-6'; CIS='2.3.17.3' }
-    }
-    # A.8.2c: Privileged access -- UAC secure desktop
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "PromptOnSecureDesktop" -Default $null
-        if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Pass" `
-                -Message "A.8.2c: Privileged access -- UAC secure desktop -- properly configured" `
-                -Details "A.8.2 Privileged access: Secure desktop prevents UI spoofing during elevation" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.2'; NIST='AC-6'; CIS='2.3.17.7'; STIG='V-220930' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Fail" `
-                -Message "A.8.2c: Privileged access -- UAC secure desktop -- not configured (Value=$val)" `
-                -Details "A.8.2 Privileged access: Secure desktop prevents UI spoofing during elevation" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name PromptOnSecureDesktop -Value 1" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.2'; NIST='AC-6'; CIS='2.3.17.7'; STIG='V-220930' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Error" `
-            -Message "A.8.2c: Privileged access -- UAC secure desktop -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.2'; NIST='AC-6'; CIS='2.3.17.7'; STIG='V-220930' }
-    }
-    # A.8.2d: Privileged access -- LSASS protection (RunAsPPL)
-    try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "RunAsPPL" -Default $null
-        if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Pass" `
-                -Message "A.8.2d: Privileged access -- LSASS protection (RunAsPPL) -- properly configured" `
-                -Details "A.8.2 Privileged access: LSASS running as Protected Process prevents credential theft" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.2'; NIST='IA-5(13)'; CIS='18.3.1'; NSA='Credential Protection' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Fail" `
-                -Message "A.8.2d: Privileged access -- LSASS protection (RunAsPPL) -- not configured (Value=$val)" `
-                -Details "A.8.2 Privileged access: LSASS running as Protected Process prevents credential theft" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RunAsPPL -Value 1" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.2'; NIST='IA-5(13)'; CIS='18.3.1'; NSA='Credential Protection' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Error" `
-            -Message "A.8.2d: Privileged access -- LSASS protection (RunAsPPL) -- check failed: $_" `
-            -Severity "Critical" `
-            -CrossReferences @{ ISO27001='A.8.2'; NIST='IA-5(13)'; CIS='18.3.1'; NSA='Credential Protection' }
-    }
-    # A.8.2e: Privileged access -- WDigest disabled
-    try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest" -Name "UseLogonCredential" -Default $null
-        if ($null -ne $val -and $val -eq 0) {
-            Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Pass" `
-                -Message "A.8.2e: Privileged access -- WDigest disabled -- properly configured" `
-                -Details "A.8.2 Privileged access: WDigest caches plaintext credentials; must be disabled" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.2'; NIST='IA-5(13)'; CIS='18.3.6'; STIG='V-220929'; NSA='Credential Protection' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Fail" `
-                -Message "A.8.2e: Privileged access -- WDigest disabled -- not configured (Value=$val)" `
-                -Details "A.8.2 Privileged access: WDigest caches plaintext credentials; must be disabled" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' -Name UseLogonCredential -Value 0" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.2'; NIST='IA-5(13)'; CIS='18.3.6'; STIG='V-220929'; NSA='Credential Protection' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Error" `
-            -Message "A.8.2e: Privileged access -- WDigest disabled -- check failed: $_" `
-            -Severity "Critical" `
-            -CrossReferences @{ ISO27001='A.8.2'; NIST='IA-5(13)'; CIS='18.3.6'; STIG='V-220929'; NSA='Credential Protection' }
-    }
-    # A.8.2f: Privileged access -- Credential Guard
-    try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\LSA" -Name "LsaCfgFlags" -Default $null
-        if ($null -ne $val -and $val -ge 1) {
-            Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Pass" `
-                -Message "A.8.2f: Privileged access -- Credential Guard -- properly configured" `
-                -Details "A.8.2 Privileged access: Credential Guard isolates credentials using virtualization" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.2'; NIST='IA-5(13)'; CIS='18.3.3'; NSA='Credential Protection' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Fail" `
-                -Message "A.8.2f: Privileged access -- Credential Guard -- not configured (Value=$val)" `
-                -Details "A.8.2 Privileged access: Credential Guard isolates credentials using virtualization" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\LSA' -Name LsaCfgFlags -Value 1" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.2'; NIST='IA-5(13)'; CIS='18.3.3'; NSA='Credential Protection' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Error" `
-            -Message "A.8.2f: Privileged access -- Credential Guard -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.2'; NIST='IA-5(13)'; CIS='18.3.3'; NSA='Credential Protection' }
-    }
-
-# ===========================================================================
-# A.8 Technological Controls -- Authentication & Cryptography
-# ===========================================================================
-Write-Host "[ISO27001] Checking A.8 Technological Controls -- Authentication & Cryptography..." -ForegroundColor Yellow
-
-    # A.8.5a: Secure authentication -- LAN Manager level
-    try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LmCompatibilityLevel" -Default $null
-        if ($null -ne $val -and $val -ge 5) {
-            Add-Result -Category "ISO27001 - A.8 Authentication" -Status "Pass" `
-                -Message "A.8.5a: Secure authentication -- LAN Manager level -- properly configured" `
-                -Details "A.8.5 Secure authentication: LM auth level 5 sends NTLMv2 only, refuses LM/NTLM" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.5'; NIST='IA-2'; CIS='2.3.11.7'; STIG='V-220968' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Authentication" -Status "Fail" `
-                -Message "A.8.5a: Secure authentication -- LAN Manager level -- not configured (Value=$val)" `
-                -Details "A.8.5 Secure authentication: LM auth level 5 sends NTLMv2 only, refuses LM/NTLM" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name LmCompatibilityLevel -Value 5" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.5'; NIST='IA-2'; CIS='2.3.11.7'; STIG='V-220968' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Authentication" -Status "Error" `
-            -Message "A.8.5a: Secure authentication -- LAN Manager level -- check failed: $_" `
-            -Severity "Critical" `
-            -CrossReferences @{ ISO27001='A.8.5'; NIST='IA-2'; CIS='2.3.11.7'; STIG='V-220968' }
-    }
-    # A.8.5b: Secure authentication -- anonymous enumeration restricted
-    try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "RestrictAnonymous" -Default $null
-        if ($null -ne $val -and $val -ge 1) {
-            Add-Result -Category "ISO27001 - A.8 Authentication" -Status "Pass" `
-                -Message "A.8.5b: Secure authentication -- anonymous enumeration restricted -- properly configured" `
-                -Details "A.8.5 Secure authentication: Anonymous enumeration of SAM accounts is restricted" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.5'; NIST='AC-14'; CIS='2.3.10.6'; STIG='V-220936' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Authentication" -Status "Fail" `
-                -Message "A.8.5b: Secure authentication -- anonymous enumeration restricted -- not configured (Value=$val)" `
-                -Details "A.8.5 Secure authentication: Anonymous enumeration of SAM accounts is restricted" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RestrictAnonymous -Value 1" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.5'; NIST='AC-14'; CIS='2.3.10.6'; STIG='V-220936' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Authentication" -Status "Error" `
-            -Message "A.8.5b: Secure authentication -- anonymous enumeration restricted -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.5'; NIST='AC-14'; CIS='2.3.10.6'; STIG='V-220936' }
-    }
-    # A.8.5c: Secure authentication -- SMB signing required
-    try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "RequireSecuritySignature" -Default $null
-        if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.8 Authentication" -Status "Pass" `
-                -Message "A.8.5c: Secure authentication -- SMB signing required -- properly configured" `
-                -Details "A.8.5 Secure authentication: SMB signing prevents man-in-the-middle attacks" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.5'; NIST='SC-8'; CIS='2.3.9.2'; NSA='Network Hardening' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Authentication" -Status "Fail" `
-                -Message "A.8.5c: Secure authentication -- SMB signing required -- not configured (Value=$val)" `
-                -Details "A.8.5 Secure authentication: SMB signing prevents man-in-the-middle attacks" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name RequireSecuritySignature -Value 1" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.5'; NIST='SC-8'; CIS='2.3.9.2'; NSA='Network Hardening' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Authentication" -Status "Error" `
-            -Message "A.8.5c: Secure authentication -- SMB signing required -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.5'; NIST='SC-8'; CIS='2.3.9.2'; NSA='Network Hardening' }
-    }
-    # A.8.24a: Use of cryptography -- TLS 1.2 enabled
+    # 164.312(e)(1)a: Transmission security -- TLS 1.2 enabled
     try {
         $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client" -Name "Enabled" -Default $null
         if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Pass" `
-                -Message "A.8.24a: Use of cryptography -- TLS 1.2 enabled -- properly configured" `
-                -Details "A.8.24 Use of cryptography: TLS 1.2 must be enabled for secure communications" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1'; STIG='V-220964' }
+            Add-Result -Category "HIPAA - Transmission Security" -Status "Pass" `
+                -Message "164.312(e)(1)a: Transmission security -- TLS 1.2 enabled -- properly configured" `
+                -Details "164.312(e)(1): ePHI transmitted over electronic networks must be encrypted" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-8'; 'PCI-DSS'='4.2.1'; ISO27001='A.8.24' }
         } else {
-            Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Fail" `
-                -Message "A.8.24a: Use of cryptography -- TLS 1.2 enabled -- not configured (Value=$val)" `
-                -Details "A.8.24 Use of cryptography: TLS 1.2 must be enabled for secure communications" `
+            Add-Result -Category "HIPAA - Transmission Security" -Status "Fail" `
+                -Message "164.312(e)(1)a: Transmission security -- TLS 1.2 enabled -- not configured (Value=$val)" `
+                -Details "164.312(e)(1): ePHI transmitted over electronic networks must be encrypted" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client' -Name Enabled -Value 1" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1'; STIG='V-220964' }
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-8'; 'PCI-DSS'='4.2.1'; ISO27001='A.8.24' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Error" `
-            -Message "A.8.24a: Use of cryptography -- TLS 1.2 enabled -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1'; STIG='V-220964' }
+        Add-Result -Category "HIPAA - Transmission Security" -Status "Error" `
+            -Message "164.312(e)(1)a: Transmission security -- TLS 1.2 enabled -- check failed: $_" `
+            -Severity "Critical" `
+            -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-8'; 'PCI-DSS'='4.2.1'; ISO27001='A.8.24' }
     }
-    # A.8.24b: Use of cryptography -- SSL 2.0 disabled
+    # 164.312(e)(1)b: Transmission security -- SSL 2.0 disabled
     try {
         $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 2.0\Server" -Name "Enabled" -Default $null
         if ($null -ne $val -and $val -eq 0) {
-            Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Pass" `
-                -Message "A.8.24b: Use of cryptography -- SSL 2.0 disabled -- properly configured" `
-                -Details "A.8.24 Use of cryptography: SSL 2.0 is insecure and must be disabled" `
+            Add-Result -Category "HIPAA - Transmission Security" -Status "Pass" `
+                -Message "164.312(e)(1)b: Transmission security -- SSL 2.0 disabled -- properly configured" `
+                -Details "164.312(e)(1): Insecure protocols must be disabled to protect ePHI in transit" `
                 -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
         } else {
-            Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Fail" `
-                -Message "A.8.24b: Use of cryptography -- SSL 2.0 disabled -- not configured (Value=$val)" `
-                -Details "A.8.24 Use of cryptography: SSL 2.0 is insecure and must be disabled" `
+            Add-Result -Category "HIPAA - Transmission Security" -Status "Fail" `
+                -Message "164.312(e)(1)b: Transmission security -- SSL 2.0 disabled -- not configured (Value=$val)" `
+                -Details "164.312(e)(1): Insecure protocols must be disabled to protect ePHI in transit" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 2.0\Server' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 2.0\Server' -Name Enabled -Value 0" `
                 -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Error" `
-            -Message "A.8.24b: Use of cryptography -- SSL 2.0 disabled -- check failed: $_" `
+        Add-Result -Category "HIPAA - Transmission Security" -Status "Error" `
+            -Message "164.312(e)(1)b: Transmission security -- SSL 2.0 disabled -- check failed: $_" `
             -Severity "Critical" `
-            -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
+            -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
     }
-    # A.8.24c: Use of cryptography -- SSL 3.0 disabled
+    # 164.312(e)(1)c: Transmission security -- SSL 3.0 disabled
     try {
         $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Server" -Name "Enabled" -Default $null
         if ($null -ne $val -and $val -eq 0) {
-            Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Pass" `
-                -Message "A.8.24c: Use of cryptography -- SSL 3.0 disabled -- properly configured" `
-                -Details "A.8.24 Use of cryptography: SSL 3.0 (POODLE vulnerability) must be disabled" `
+            Add-Result -Category "HIPAA - Transmission Security" -Status "Pass" `
+                -Message "164.312(e)(1)c: Transmission security -- SSL 3.0 disabled -- properly configured" `
+                -Details "164.312(e)(1): SSL 3.0 POODLE vulnerability threatens ePHI confidentiality" `
                 -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
         } else {
-            Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Fail" `
-                -Message "A.8.24c: Use of cryptography -- SSL 3.0 disabled -- not configured (Value=$val)" `
-                -Details "A.8.24 Use of cryptography: SSL 3.0 (POODLE vulnerability) must be disabled" `
+            Add-Result -Category "HIPAA - Transmission Security" -Status "Fail" `
+                -Message "164.312(e)(1)c: Transmission security -- SSL 3.0 disabled -- not configured (Value=$val)" `
+                -Details "164.312(e)(1): SSL 3.0 POODLE vulnerability threatens ePHI confidentiality" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Server' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Server' -Name Enabled -Value 0" `
                 -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Error" `
-            -Message "A.8.24c: Use of cryptography -- SSL 3.0 disabled -- check failed: $_" `
+        Add-Result -Category "HIPAA - Transmission Security" -Status "Error" `
+            -Message "164.312(e)(1)c: Transmission security -- SSL 3.0 disabled -- check failed: $_" `
             -Severity "Critical" `
-            -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
+            -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
     }
-    # A.8.24d: Use of cryptography -- TLS 1.0 disabled
+    # 164.312(e)(1)d: Transmission security -- TLS 1.0 disabled
     try {
         $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server" -Name "Enabled" -Default $null
         if ($null -ne $val -and $val -eq 0) {
-            Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Pass" `
-                -Message "A.8.24d: Use of cryptography -- TLS 1.0 disabled -- properly configured" `
-                -Details "A.8.24 Use of cryptography: TLS 1.0 has known vulnerabilities and should be disabled" `
+            Add-Result -Category "HIPAA - Transmission Security" -Status "Pass" `
+                -Message "164.312(e)(1)d: Transmission security -- TLS 1.0 disabled -- properly configured" `
+                -Details "164.312(e)(1): TLS 1.0 known vulnerabilities endanger ePHI transmission security" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
         } else {
-            Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Fail" `
-                -Message "A.8.24d: Use of cryptography -- TLS 1.0 disabled -- not configured (Value=$val)" `
-                -Details "A.8.24 Use of cryptography: TLS 1.0 has known vulnerabilities and should be disabled" `
+            Add-Result -Category "HIPAA - Transmission Security" -Status "Fail" `
+                -Message "164.312(e)(1)d: Transmission security -- TLS 1.0 disabled -- not configured (Value=$val)" `
+                -Details "164.312(e)(1): TLS 1.0 known vulnerabilities endanger ePHI transmission security" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server' -Name Enabled -Value 0" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Error" `
-            -Message "A.8.24d: Use of cryptography -- TLS 1.0 disabled -- check failed: $_" `
+        Add-Result -Category "HIPAA - Transmission Security" -Status "Error" `
+            -Message "164.312(e)(1)d: Transmission security -- TLS 1.0 disabled -- check failed: $_" `
             -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
+            -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
     }
-    # A.8.24e: Use of cryptography -- TLS 1.1 disabled
+    # 164.312(e)(1)e: Transmission security -- TLS 1.1 disabled
     try {
         $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server" -Name "Enabled" -Default $null
         if ($null -ne $val -and $val -eq 0) {
-            Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Pass" `
-                -Message "A.8.24e: Use of cryptography -- TLS 1.1 disabled -- properly configured" `
-                -Details "A.8.24 Use of cryptography: TLS 1.1 is deprecated and should be disabled" `
+            Add-Result -Category "HIPAA - Transmission Security" -Status "Pass" `
+                -Message "164.312(e)(1)e: Transmission security -- TLS 1.1 disabled -- properly configured" `
+                -Details "164.312(e)(1): TLS 1.1 is deprecated and should not be used for ePHI" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
         } else {
-            Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Fail" `
-                -Message "A.8.24e: Use of cryptography -- TLS 1.1 disabled -- not configured (Value=$val)" `
-                -Details "A.8.24 Use of cryptography: TLS 1.1 is deprecated and should be disabled" `
+            Add-Result -Category "HIPAA - Transmission Security" -Status "Fail" `
+                -Message "164.312(e)(1)e: Transmission security -- TLS 1.1 disabled -- not configured (Value=$val)" `
+                -Details "164.312(e)(1): TLS 1.1 is deprecated and should not be used for ePHI" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server' -Name Enabled -Value 0" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Error" `
-            -Message "A.8.24e: Use of cryptography -- TLS 1.1 disabled -- check failed: $_" `
+        Add-Result -Category "HIPAA - Transmission Security" -Status "Error" `
+            -Message "164.312(e)(1)e: Transmission security -- TLS 1.1 disabled -- check failed: $_" `
             -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
+            -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
     }
-
-# ===========================================================================
-# A.8 Technological Controls -- Vulnerabilities & Configuration
-# ===========================================================================
-Write-Host "[ISO27001] Checking A.8 Technological Controls -- Vulnerabilities & Configuration..." -ForegroundColor Yellow
-
-    # A.8.8a: Management of technical vulnerabilities -- Windows Update auto
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update" -Name "AUOptions" -Default $null
-        if ($null -ne $val -and $val -ge 4) {
-            Add-Result -Category "ISO27001 - A.8 Vulnerabilities" -Status "Pass" `
-                -Message "A.8.8a: Management of technical vulnerabilities -- Windows Update auto -- properly configured" `
-                -Details "A.8.8 Technical vulnerabilities: Automatic updates should be enabled for timely patching" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.8'; NIST='SI-2'; CIS='18.9.101.2'; CISA='Patch Management' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Vulnerabilities" -Status "Fail" `
-                -Message "A.8.8a: Management of technical vulnerabilities -- Windows Update auto -- not configured (Value=$val)" `
-                -Details "A.8.8 Technical vulnerabilities: Automatic updates should be enabled for timely patching" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update' -Name AUOptions -Value 4" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.8'; NIST='SI-2'; CIS='18.9.101.2'; CISA='Patch Management' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Vulnerabilities" -Status "Error" `
-            -Message "A.8.8a: Management of technical vulnerabilities -- Windows Update auto -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.8'; NIST='SI-2'; CIS='18.9.101.2'; CISA='Patch Management' }
-    }
-    # A.8.8b: Management of technical vulnerabilities -- Windows Update service
-    try {
-        $svc = Get-Service -Name "wuauserv" -ErrorAction SilentlyContinue
-        if ($null -ne $svc -and $svc.Status -eq "Running") {
-            Add-Result -Category "ISO27001 - A.8 Vulnerabilities" -Status "Pass" `
-                -Message "A.8.8b: Management of technical vulnerabilities -- Windows Update service -- service running" `
-                -Details "A.8.8 Technical vulnerabilities: Windows Update service must be running for patch delivery" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.8'; NIST='SI-2'; CISA='Patch Management' }
-        } else {
-            $svcSt = if ($null -ne $svc) { $svc.Status } else { "Not Found" }
-            Add-Result -Category "ISO27001 - A.8 Vulnerabilities" -Status "Fail" `
-                -Message "A.8.8b: Management of technical vulnerabilities -- Windows Update service -- service not running (Status=$svcSt)" `
-                -Details "A.8.8 Technical vulnerabilities: Windows Update service must be running for patch delivery" `
-                -Remediation "Start-Service -Name wuauserv; Set-Service -Name wuauserv -StartupType Automatic" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.8'; NIST='SI-2'; CISA='Patch Management' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Vulnerabilities" -Status "Error" `
-            -Message "A.8.8b: Management of technical vulnerabilities -- Windows Update service -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.8'; NIST='SI-2'; CISA='Patch Management' }
-    }
-    # A.8.9a: Configuration management -- PowerShell Script Block Logging
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging" -Name "EnableScriptBlockLogging" -Default $null
-        if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Pass" `
-                -Message "A.8.9a: Configuration management -- PowerShell Script Block Logging -- properly configured" `
-                -Details "A.8.9 Configuration management: Script Block Logging records all PowerShell execution for audit" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.9'; NIST='CM-6'; CIS='18.9.100.1'; NSA='PowerShell Security' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Fail" `
-                -Message "A.8.9a: Configuration management -- PowerShell Script Block Logging -- not configured (Value=$val)" `
-                -Details "A.8.9 Configuration management: Script Block Logging records all PowerShell execution for audit" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.9'; NIST='CM-6'; CIS='18.9.100.1'; NSA='PowerShell Security' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Error" `
-            -Message "A.8.9a: Configuration management -- PowerShell Script Block Logging -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.9'; NIST='CM-6'; CIS='18.9.100.1'; NSA='PowerShell Security' }
-    }
-    # A.8.9b: Configuration management -- PowerShell Transcription
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\Transcription" -Name "EnableTranscripting" -Default $null
-        if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Pass" `
-                -Message "A.8.9b: Configuration management -- PowerShell Transcription -- properly configured" `
-                -Details "A.8.9 Configuration management: Transcription logs all PowerShell input/output to files" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.9'; NIST='AU-12'; CIS='18.9.100.2'; NSA='PowerShell Security' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Fail" `
-                -Message "A.8.9b: Configuration management -- PowerShell Transcription -- not configured (Value=$val)" `
-                -Details "A.8.9 Configuration management: Transcription logs all PowerShell input/output to files" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\Transcription' -Name EnableTranscripting -Value 1" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.9'; NIST='AU-12'; CIS='18.9.100.2'; NSA='PowerShell Security' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Error" `
-            -Message "A.8.9b: Configuration management -- PowerShell Transcription -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.9'; NIST='AU-12'; CIS='18.9.100.2'; NSA='PowerShell Security' }
-    }
-    # A.8.9c: Configuration management -- PowerShell v2 disabled
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\PowerShell\3\PowerShellEngine" -Name "PSCompatibleVersion" -Default $null
-        if ($null -ne $val) {
-            Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Pass" `
-                -Message "A.8.9c: Configuration management -- PowerShell v2 disabled -- properly configured" `
-                -Details "A.8.9 Configuration management: PowerShell v2 bypasses all logging; check for removal" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.9'; NIST='CM-7'; CIS='18.9.100.3'; NSA='PowerShell Security' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Warning" `
-                -Message "A.8.9c: Configuration management -- PowerShell v2 disabled -- not configured (Value=$val)" `
-                -Details "A.8.9 Configuration management: PowerShell v2 bypasses all logging; check for removal" `
-                -Remediation "Disable-WindowsOptionalFeature -Online -FeatureName MicrosoftWindowsPowerShellV2" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.9'; NIST='CM-7'; CIS='18.9.100.3'; NSA='PowerShell Security' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Error" `
-            -Message "A.8.9c: Configuration management -- PowerShell v2 disabled -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.9'; NIST='CM-7'; CIS='18.9.100.3'; NSA='PowerShell Security' }
-    }
-    # A.8.9d: Configuration management -- SMBv1 disabled
-    try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "SMB1" -Default $null
-        if ($null -ne $val -and $val -eq 0) {
-            Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Pass" `
-                -Message "A.8.9d: Configuration management -- SMBv1 disabled -- properly configured" `
-                -Details "A.8.9 Configuration management: SMBv1 is a critical attack vector (WannaCry/NotPetya)" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.9'; NIST='CM-7'; CIS='18.3.3'; STIG='V-220968'; NSA='Network Hardening' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Fail" `
-                -Message "A.8.9d: Configuration management -- SMBv1 disabled -- not configured (Value=$val)" `
-                -Details "A.8.9 Configuration management: SMBv1 is a critical attack vector (WannaCry/NotPetya)" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name SMB1 -Value 0" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.9'; NIST='CM-7'; CIS='18.3.3'; STIG='V-220968'; NSA='Network Hardening' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Error" `
-            -Message "A.8.9d: Configuration management -- SMBv1 disabled -- check failed: $_" `
-            -Severity "Critical" `
-            -CrossReferences @{ ISO27001='A.8.9'; NIST='CM-7'; CIS='18.3.3'; STIG='V-220968'; NSA='Network Hardening' }
-    }
-    # A.8.10: Information deletion -- pagefile cleared at shutdown
-    try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" -Name "ClearPageFileAtShutdown" -Default $null
-        if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Pass" `
-                -Message "A.8.10: Information deletion -- pagefile cleared at shutdown -- properly configured" `
-                -Details "A.8.10 Information deletion: Pagefile may contain sensitive data; clear at shutdown" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.10'; NIST='SC-4'; CIS='2.3.11.9'; GDPR='Art.17' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Fail" `
-                -Message "A.8.10: Information deletion -- pagefile cleared at shutdown -- not configured (Value=$val)" `
-                -Details "A.8.10 Information deletion: Pagefile may contain sensitive data; clear at shutdown" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management' -Name ClearPageFileAtShutdown -Value 1" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.10'; NIST='SC-4'; CIS='2.3.11.9'; GDPR='Art.17' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Error" `
-            -Message "A.8.10: Information deletion -- pagefile cleared at shutdown -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.10'; NIST='SC-4'; CIS='2.3.11.9'; GDPR='Art.17' }
-    }
-    # A.8.12a: Data leakage prevention -- clipboard redirection disabled in RDP
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "fDisableClip" -Default $null
-        if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Pass" `
-                -Message "A.8.12a: Data leakage prevention -- clipboard redirection disabled in RDP -- properly configured" `
-                -Details "A.8.12 Data leakage prevention: Clipboard redirection in RDP enables data exfiltration" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.12'; NIST='AC-4'; CIS='18.9.65.3.3.1' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Fail" `
-                -Message "A.8.12a: Data leakage prevention -- clipboard redirection disabled in RDP -- not configured (Value=$val)" `
-                -Details "A.8.12 Data leakage prevention: Clipboard redirection in RDP enables data exfiltration" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name fDisableClip -Value 1" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.12'; NIST='AC-4'; CIS='18.9.65.3.3.1' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Error" `
-            -Message "A.8.12a: Data leakage prevention -- clipboard redirection disabled in RDP -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.12'; NIST='AC-4'; CIS='18.9.65.3.3.1' }
-    }
-    # A.8.12b: Data leakage prevention -- drive redirection disabled in RDP
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "fDisableCdm" -Default $null
-        if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Pass" `
-                -Message "A.8.12b: Data leakage prevention -- drive redirection disabled in RDP -- properly configured" `
-                -Details "A.8.12 Data leakage prevention: Drive mapping in RDP enables unauthorized file transfer" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.12'; NIST='AC-4'; CIS='18.9.65.3.3.2' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Fail" `
-                -Message "A.8.12b: Data leakage prevention -- drive redirection disabled in RDP -- not configured (Value=$val)" `
-                -Details "A.8.12 Data leakage prevention: Drive mapping in RDP enables unauthorized file transfer" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name fDisableCdm -Value 1" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.12'; NIST='AC-4'; CIS='18.9.65.3.3.2' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Error" `
-            -Message "A.8.12b: Data leakage prevention -- drive redirection disabled in RDP -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.12'; NIST='AC-4'; CIS='18.9.65.3.3.2' }
-    }
-
-# ===========================================================================
-# A.8 Technological Controls -- Backup & Logging
-# ===========================================================================
-Write-Host "[ISO27001] Checking A.8 Technological Controls -- Backup & Logging..." -ForegroundColor Yellow
-
-    # A.8.13a: Information backup -- Volume Shadow Copy available
-    try {
-        $svc = Get-Service -Name "VSS" -ErrorAction SilentlyContinue
-        if ($null -ne $svc -and $svc.Status -eq "Running") {
-            Add-Result -Category "ISO27001 - A.8 Backup" -Status "Pass" `
-                -Message "A.8.13a: Information backup -- Volume Shadow Copy available -- service running" `
-                -Details "A.8.13 Information backup: VSS provides point-in-time recovery for data protection" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.13'; NIST='CP-9'; SOC2='A1.2' }
-        } else {
-            $svcSt = if ($null -ne $svc) { $svc.Status } else { "Not Found" }
-            Add-Result -Category "ISO27001 - A.8 Backup" -Status "Warning" `
-                -Message "A.8.13a: Information backup -- Volume Shadow Copy available -- service not running (Status=$svcSt)" `
-                -Details "A.8.13 Information backup: VSS provides point-in-time recovery for data protection" `
-                -Remediation "Set-Service -Name VSS -StartupType Manual" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.13'; NIST='CP-9'; SOC2='A1.2' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Backup" -Status "Error" `
-            -Message "A.8.13a: Information backup -- Volume Shadow Copy available -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.13'; NIST='CP-9'; SOC2='A1.2' }
-    }
-    # A.8.13b: Information backup -- System Restore status
-    try {
-        $srStatus = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" -Name "RPSessionInterval" -Default $null
-        $srDisabled = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\SystemRestore" -Name "DisableSR" -Default 0
-        if ($srDisabled -ne 1) {
-            $intervalMsg = if ($null -ne $srStatus) { " (restore point interval: $srStatus seconds)" } else { "" }
-            Add-Result -Category "ISO27001 - A.8 Backup" -Status "Pass" `
-                -Message "A.8.13b: System Restore is enabled$intervalMsg" `
-                -Details "A.8.13 Information backup: System Restore provides OS recovery capability" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.13'; NIST='CP-9'; SOC2='A1.2' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Backup" -Status "Warning" `
-                -Message "A.8.13b: System Restore is DISABLED by policy" `
-                -Details "A.8.13 Information backup: Ensure alternative backup/recovery mechanisms exist" `
-                -Remediation "Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\SystemRestore' -Name DisableSR" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.13'; NIST='CP-9'; SOC2='A1.2' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Backup" -Status "Error" `
-            -Message "A.8.13b: Information backup -- System Restore status -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.13'; NIST='CP-9' }
-    }
-    # A.8.15a: Logging -- audit policy: Logon Events
-    try {
-        $auditOutput = auditpol /get /category:"Logon/Logoff" 2>&1
-        $logonSuccess = $false
-        foreach ($line in $auditOutput) {
-            if ($line -match "Logon" -and $line -match "Success") { $logonSuccess = $true }
-        }
-        if ($logonSuccess) {
-            Add-Result -Category "ISO27001 - A.8 Logging" -Status "Pass" `
-                -Message "A.8.15a: Logon event auditing is enabled" `
-                -Details "A.8.15 Logging: Logon events are captured for access monitoring" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.15'; NIST='AU-2'; CIS='17.5.1'; STIG='V-220958' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Logging" -Status "Fail" `
-                -Message "A.8.15a: Logon event auditing is NOT enabled" `
-                -Details "A.8.15 Logging: Cannot track access without logon event auditing" `
-                -Remediation "auditpol /set /subcategory:'Logon' /success:enable /failure:enable" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.15'; NIST='AU-2'; CIS='17.5.1'; STIG='V-220958' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Logging" -Status "Error" `
-            -Message "A.8.15a: Logging -- audit policy: Logon Events -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.15'; NIST='AU-2' }
-    }
-    # A.8.15b: Logging -- audit policy: Account Management
-    try {
-        $auditOutput = auditpol /get /category:"Account Management" 2>&1
-        $acctAudit = $false
-        foreach ($line in $auditOutput) {
-            if ($line -match "User Account Management" -and $line -match "Success") { $acctAudit = $true }
-        }
-        if ($acctAudit) {
-            Add-Result -Category "ISO27001 - A.8 Logging" -Status "Pass" `
-                -Message "A.8.15b: Account management auditing is enabled" `
-                -Details "A.8.15 Logging: Account changes are captured for compliance" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.15'; NIST='AU-2'; CIS='17.1.1' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Logging" -Status "Fail" `
-                -Message "A.8.15b: Account management auditing is NOT enabled" `
-                -Details "A.8.15 Logging: Account modifications cannot be tracked without auditing" `
-                -Remediation "auditpol /set /subcategory:'User Account Management' /success:enable /failure:enable" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.15'; NIST='AU-2'; CIS='17.1.1' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Logging" -Status "Error" `
-            -Message "A.8.15b: Logging -- audit policy: Account Management -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.15'; NIST='AU-2' }
-    }
-    # A.8.15c: Logging -- audit policy: Object Access
-    try {
-        $auditOutput = auditpol /get /category:"Object Access" 2>&1
-        $objAudit = $false
-        foreach ($line in $auditOutput) {
-            if ($line -match "File System" -and ($line -match "Success" -or $line -match "Failure")) { $objAudit = $true }
-        }
-        if ($objAudit) {
-            Add-Result -Category "ISO27001 - A.8 Logging" -Status "Pass" `
-                -Message "A.8.15c: File system object access auditing is enabled" `
-                -Details "A.8.15 Logging: File access events are captured for data protection monitoring" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.15'; NIST='AU-12'; CIS='17.6.1' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Logging" -Status "Warning" `
-                -Message "A.8.15c: File system object access auditing is NOT configured" `
-                -Details "A.8.15 Logging: Consider enabling file access auditing for sensitive data paths" `
-                -Remediation "auditpol /set /subcategory:'File System' /success:enable /failure:enable" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.15'; NIST='AU-12'; CIS='17.6.1' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Logging" -Status "Error" `
-            -Message "A.8.15c: Logging -- audit policy: Object Access -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.15'; NIST='AU-12' }
-    }
-    # A.8.15d: Logging -- audit policy: Policy Change
-    try {
-        $auditOutput = auditpol /get /category:"Policy Change" 2>&1
-        $policyAudit = $false
-        foreach ($line in $auditOutput) {
-            if ($line -match "Audit Policy Change" -and $line -match "Success") { $policyAudit = $true }
-        }
-        if ($policyAudit) {
-            Add-Result -Category "ISO27001 - A.8 Logging" -Status "Pass" `
-                -Message "A.8.15d: Policy change auditing is enabled" `
-                -Details "A.8.15 Logging: Security policy modifications are tracked" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.15'; NIST='AU-12'; CIS='17.7.1' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Logging" -Status "Fail" `
-                -Message "A.8.15d: Policy change auditing is NOT enabled" `
-                -Details "A.8.15 Logging: Unauthorized policy changes cannot be detected" `
-                -Remediation "auditpol /set /subcategory:'Audit Policy Change' /success:enable /failure:enable" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.15'; NIST='AU-12'; CIS='17.7.1' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Logging" -Status "Error" `
-            -Message "A.8.15d: Logging -- audit policy: Policy Change -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.15'; NIST='AU-12' }
-    }
-    # A.8.15e: Logging -- audit policy: Privilege Use
-    try {
-        $auditOutput = auditpol /get /category:"Privilege Use" 2>&1
-        $privAudit = $false
-        foreach ($line in $auditOutput) {
-            if ($line -match "Sensitive Privilege Use" -and $line -match "Success") { $privAudit = $true }
-        }
-        if ($privAudit) {
-            Add-Result -Category "ISO27001 - A.8 Logging" -Status "Pass" `
-                -Message "A.8.15e: Sensitive privilege use auditing is enabled" `
-                -Details "A.8.15 Logging: Privileged operations are tracked for accountability" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.15'; NIST='AU-12'; CIS='17.8.1' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Logging" -Status "Warning" `
-                -Message "A.8.15e: Sensitive privilege use auditing is NOT configured" `
-                -Details "A.8.15 Logging: Enable for privileged operation accountability" `
-                -Remediation "auditpol /set /subcategory:'Sensitive Privilege Use' /success:enable /failure:enable" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.15'; NIST='AU-12'; CIS='17.8.1' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Logging" -Status "Error" `
-            -Message "A.8.15e: Logging -- audit policy: Privilege Use -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.15'; NIST='AU-12' }
-    }
-    # A.8.16: Monitoring activities -- Windows Event Log
-    try {
-        $svc = Get-Service -Name "EventLog" -ErrorAction SilentlyContinue
-        if ($null -ne $svc -and $svc.Status -eq "Running") {
-            Add-Result -Category "ISO27001 - A.8 Logging" -Status "Pass" `
-                -Message "A.8.16: Monitoring activities -- Windows Event Log -- service running" `
-                -Details "A.8.16 Monitoring activities: Central event logging service must be operational" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.16'; NIST='AU-6'; SOC2='CC4.1' }
-        } else {
-            $svcSt = if ($null -ne $svc) { $svc.Status } else { "Not Found" }
-            Add-Result -Category "ISO27001 - A.8 Logging" -Status "Fail" `
-                -Message "A.8.16: Monitoring activities -- Windows Event Log -- service not running (Status=$svcSt)" `
-                -Details "A.8.16 Monitoring activities: Central event logging service must be operational" `
-                -Remediation "Start-Service -Name EventLog; Set-Service -Name EventLog -StartupType Automatic" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.16'; NIST='AU-6'; SOC2='CC4.1' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Logging" -Status "Error" `
-            -Message "A.8.16: Monitoring activities -- Windows Event Log -- check failed: $_" `
-            -Severity "Critical" `
-            -CrossReferences @{ ISO27001='A.8.16'; NIST='AU-6'; SOC2='CC4.1' }
-    }
-
-# ===========================================================================
-# A.8 Technological Controls -- Network Security
-# ===========================================================================
-Write-Host "[ISO27001] Checking A.8 Technological Controls -- Network Security..." -ForegroundColor Yellow
-
-    # A.8.20a: Network security -- firewall enabled (Domain profile)
-    try {
-        $fwProfiles = Get-NetFirewallProfile -ErrorAction SilentlyContinue
-        $domainFw = $fwProfiles | Where-Object { $_.Name -eq "Domain" }
-        if ($null -ne $domainFw -and $domainFw.Enabled -eq $true) {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Pass" `
-                -Message "A.8.20a: Firewall enabled on Domain profile" `
-                -Details "A.8.20 Network security: Domain network firewall provides boundary protection" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='9.1.1'; STIG='V-220908' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Fail" `
-                -Message "A.8.20a: Firewall DISABLED on Domain profile" `
-                -Details "A.8.20 Network security: All firewall profiles must be enabled" `
-                -Remediation "Set-NetFirewallProfile -Profile Domain -Enabled True" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='9.1.1'; STIG='V-220908' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Error" `
-            -Message "A.8.20a: Network security -- firewall enabled (Domain profile) -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7' }
-    }
-    # A.8.20b: Network security -- firewall enabled (Private profile)
-    try {
-        $fwProfiles = Get-NetFirewallProfile -ErrorAction SilentlyContinue
-        $privateFw = $fwProfiles | Where-Object { $_.Name -eq "Private" }
-        if ($null -ne $privateFw -and $privateFw.Enabled -eq $true) {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Pass" `
-                -Message "A.8.20b: Firewall enabled on Private profile" `
-                -Details "A.8.20 Network security: Private network firewall provides boundary protection" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='9.2.1'; STIG='V-220909' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Fail" `
-                -Message "A.8.20b: Firewall DISABLED on Private profile" `
-                -Details "A.8.20 Network security: All firewall profiles must be enabled" `
-                -Remediation "Set-NetFirewallProfile -Profile Private -Enabled True" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='9.2.1'; STIG='V-220909' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Error" `
-            -Message "A.8.20b: Network security -- firewall enabled (Private profile) -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7' }
-    }
-    # A.8.20c: Network security -- firewall enabled (Public profile)
-    try {
-        $fwProfiles = Get-NetFirewallProfile -ErrorAction SilentlyContinue
-        $publicFw = $fwProfiles | Where-Object { $_.Name -eq "Public" }
-        if ($null -ne $publicFw -and $publicFw.Enabled -eq $true) {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Pass" `
-                -Message "A.8.20c: Firewall enabled on Public profile" `
-                -Details "A.8.20 Network security: Public network firewall provides boundary protection" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='9.3.1'; STIG='V-220912' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Fail" `
-                -Message "A.8.20c: Firewall DISABLED on Public profile" `
-                -Details "A.8.20 Network security: Public profile is most critical for boundary defense" `
-                -Remediation "Set-NetFirewallProfile -Profile Public -Enabled True" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='9.3.1'; STIG='V-220912' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Error" `
-            -Message "A.8.20c: Network security -- firewall enabled (Public profile) -- check failed: $_" `
-            -Severity "Critical" `
-            -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7' }
-    }
-    # A.8.20d: Network security -- LLMNR disabled
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient" -Name "EnableMulticast" -Default $null
-        if ($null -ne $val -and $val -eq 0) {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Pass" `
-                -Message "A.8.20d: Network security -- LLMNR disabled -- properly configured" `
-                -Details "A.8.20 Network security: LLMNR enables name poisoning attacks on local networks" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-20'; CIS='18.5.4.2'; NSA='Network Protocol Security' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Fail" `
-                -Message "A.8.20d: Network security -- LLMNR disabled -- not configured (Value=$val)" `
-                -Details "A.8.20 Network security: LLMNR enables name poisoning attacks on local networks" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient' -Name EnableMulticast -Value 0" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-20'; CIS='18.5.4.2'; NSA='Network Protocol Security' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Error" `
-            -Message "A.8.20d: Network security -- LLMNR disabled -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-20'; CIS='18.5.4.2'; NSA='Network Protocol Security' }
-    }
-    # A.8.20e: Network security -- NetBIOS over TCP/IP
-    try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters" -Name "NodeType" -Default $null
-        if ($null -ne $val -and $val -eq 2) {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Pass" `
-                -Message "A.8.20e: Network security -- NetBIOS over TCP/IP -- properly configured" `
-                -Details "A.8.20 Network security: NetBIOS NodeType=2 (P-node) prevents broadcast name resolution" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-20'; NSA='Network Protocol Security' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Fail" `
-                -Message "A.8.20e: Network security -- NetBIOS over TCP/IP -- not configured (Value=$val)" `
-                -Details "A.8.20 Network security: NetBIOS NodeType=2 (P-node) prevents broadcast name resolution" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters' -Name NodeType -Value 2" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-20'; NSA='Network Protocol Security' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Error" `
-            -Message "A.8.20e: Network security -- NetBIOS over TCP/IP -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-20'; NSA='Network Protocol Security' }
-    }
-    # A.8.20f: Network security -- WPAD disabled
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Wpad" -Name "WpadOverride" -Default $null
-        if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Pass" `
-                -Message "A.8.20f: Network security -- WPAD disabled -- properly configured" `
-                -Details "A.8.20 Network security: WPAD auto-proxy discovery enables traffic interception" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='18.5.21.1'; NSA='Network Protocol Security' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Fail" `
-                -Message "A.8.20f: Network security -- WPAD disabled -- not configured (Value=$val)" `
-                -Details "A.8.20 Network security: WPAD auto-proxy discovery enables traffic interception" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings\Wpad' -Name WpadOverride -Value 1" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='18.5.21.1'; NSA='Network Protocol Security' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Error" `
-            -Message "A.8.20f: Network security -- WPAD disabled -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='18.5.21.1'; NSA='Network Protocol Security' }
-    }
-    # A.8.20g: Network security -- Remote Desktop disabled (if not needed)
-    try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Default $null
-        if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Pass" `
-                -Message "A.8.20g: Network security -- Remote Desktop disabled (if not needed) -- properly configured" `
-                -Details "A.8.20 Network security: RDP should be disabled unless explicitly required" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='AC-17'; CIS='18.9.65.1' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Info" `
-                -Message "A.8.20g: Network security -- Remote Desktop disabled (if not needed) -- not configured (Value=$val)" `
-                -Details "A.8.20 Network security: RDP should be disabled unless explicitly required" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' -Name fDenyTSConnections -Value 1" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='AC-17'; CIS='18.9.65.1' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Error" `
-            -Message "A.8.20g: Network security -- Remote Desktop disabled (if not needed) -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.20'; NIST='AC-17'; CIS='18.9.65.1' }
-    }
-
-# ===========================================================================
-# A.8 Technological Controls -- SDLC & Hardening
-# ===========================================================================
-Write-Host "[ISO27001] Checking A.8 Technological Controls -- SDLC & Hardening..." -ForegroundColor Yellow
-
-    # A.8.25a: Secure development -- DEP enforcement
-    try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" -Name "MoveImages" -Default $null
-        if ($null -ne $val -and $val -ne 0) {
-            Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Pass" `
-                -Message "A.8.25a: Secure development -- DEP enforcement -- properly configured" `
-                -Details "A.8.25 Secure development: DEP (Data Execution Prevention) must be enforced" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.25'; NIST='SI-16'; CIS='18.3.2'; STIG='V-220726' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Fail" `
-                -Message "A.8.25a: Secure development -- DEP enforcement -- not configured (Value=$val)" `
-                -Details "A.8.25 Secure development: DEP (Data Execution Prevention) must be enforced" `
-                -Remediation "bcdedit /set nx AlwaysOn" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.25'; NIST='SI-16'; CIS='18.3.2'; STIG='V-220726' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Error" `
-            -Message "A.8.25a: Secure development -- DEP enforcement -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.25'; NIST='SI-16'; CIS='18.3.2'; STIG='V-220726' }
-    }
-    # A.8.25b: Secure development -- SEHOP enabled
-    try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" -Name "DisableExceptionChainValidation" -Default $null
-        if ($null -ne $val -and $val -eq 0) {
-            Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Pass" `
-                -Message "A.8.25b: Secure development -- SEHOP enabled -- properly configured" `
-                -Details "A.8.25 Secure development: SEHOP prevents structured exception handler exploitation" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.25'; NIST='SI-16'; NSA='Exploit Mitigation' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Fail" `
-                -Message "A.8.25b: Secure development -- SEHOP enabled -- not configured (Value=$val)" `
-                -Details "A.8.25 Secure development: SEHOP prevents structured exception handler exploitation" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel' -Name DisableExceptionChainValidation -Value 0" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.25'; NIST='SI-16'; NSA='Exploit Mitigation' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Error" `
-            -Message "A.8.25b: Secure development -- SEHOP enabled -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.25'; NIST='SI-16'; NSA='Exploit Mitigation' }
-    }
-    # A.8.25c: Secure development -- Secure Boot status
-    try {
-        try {
-            $secureBoot = Confirm-SecureBootUEFI -ErrorAction SilentlyContinue
-            if ($secureBoot -eq $true) {
-                Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Pass" `
-                    -Message "A.8.25c: Secure Boot is enabled" `
-                    -Details "A.8.25 Secure development: UEFI Secure Boot verifies boot integrity" `
-                    -Severity "High" `
-                    -CrossReferences @{ ISO27001='A.8.25'; NIST='SI-7'; CIS='1.1.1' }
-            } else {
-                Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Fail" `
-                    -Message "A.8.25c: Secure Boot is NOT enabled" `
-                    -Details "A.8.25 Secure development: Enable Secure Boot in UEFI firmware settings" `
-                    -Remediation "Enable Secure Boot in UEFI/BIOS firmware settings" `
-                    -Severity "High" `
-                    -CrossReferences @{ ISO27001='A.8.25'; NIST='SI-7'; CIS='1.1.1' }
-            }
-        } catch {
-            Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Info" `
-                -Message "A.8.25c: Secure Boot status could not be determined (may not be UEFI)" `
-                -Details "A.8.25 Secure development: System may use legacy BIOS without Secure Boot support" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.25'; NIST='SI-7' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Error" `
-            -Message "A.8.25c: Secure development -- Secure Boot status -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.25'; NIST='SI-7' }
-    }
-    # A.8.25d: Secure development -- VBS enabled
-    try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" -Name "EnableVirtualizationBasedSecurity" -Default $null
-        if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Pass" `
-                -Message "A.8.25d: Secure development -- VBS enabled -- properly configured" `
-                -Details "A.8.25 Secure development: Virtualization-based security isolates critical OS functions" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.25'; NIST='SC-39'; CIS='18.8.5.1'; NSA='Boot Security' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Fail" `
-                -Message "A.8.25d: Secure development -- VBS enabled -- not configured (Value=$val)" `
-                -Details "A.8.25 Secure development: Virtualization-based security isolates critical OS functions" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard' -Name EnableVirtualizationBasedSecurity -Value 1" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.25'; NIST='SC-39'; CIS='18.8.5.1'; NSA='Boot Security' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Error" `
-            -Message "A.8.25d: Secure development -- VBS enabled -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.25'; NIST='SC-39'; CIS='18.8.5.1'; NSA='Boot Security' }
-    }
-    # A.8.9e: Configuration management -- Windows Remote Management (WinRM) hardened
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service" -Name "AllowBasic" -Default $null
-        if ($null -ne $val -and $val -eq 0) {
-            Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Pass" `
-                -Message "A.8.9e: Configuration management -- Windows Remote Management (WinRM) hardened -- properly configured" `
-                -Details "A.8.9 Configuration management: WinRM basic authentication exposes credentials in cleartext" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.9'; NIST='IA-2'; CIS='18.9.102.1.1'; NSA='Remote Access' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Fail" `
-                -Message "A.8.9e: Configuration management -- Windows Remote Management (WinRM) hardened -- not configured (Value=$val)" `
-                -Details "A.8.9 Configuration management: WinRM basic authentication exposes credentials in cleartext" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service' -Name AllowBasic -Value 0" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.9'; NIST='IA-2'; CIS='18.9.102.1.1'; NSA='Remote Access' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Error" `
-            -Message "A.8.9e: Configuration management -- Windows Remote Management (WinRM) hardened -- check failed: $_" `
-            -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.9'; NIST='IA-2'; CIS='18.9.102.1.1'; NSA='Remote Access' }
-    }
-    # A.8.9f: Configuration management -- WinRM unencrypted traffic disabled
+    # 164.312(e)(2)a: Transmission security -- WinRM encryption required
     try {
         $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service" -Name "AllowUnencryptedTraffic" -Default $null
         if ($null -ne $val -and $val -eq 0) {
-            Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Pass" `
-                -Message "A.8.9f: Configuration management -- WinRM unencrypted traffic disabled -- properly configured" `
-                -Details "A.8.9 Configuration management: WinRM must encrypt all management traffic" `
+            Add-Result -Category "HIPAA - Transmission Security" -Status "Pass" `
+                -Message "164.312(e)(2)a: Transmission security -- WinRM encryption required -- properly configured" `
+                -Details "164.312(e)(2)(ii): Encryption mechanism to encrypt ePHI during remote management" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.9'; NIST='SC-8'; CIS='18.9.102.1.3' }
+                -CrossReferences @{ HIPAA='164.312(e)(2)(ii)'; NIST='SC-8'; CIS='18.9.102.1.3' }
         } else {
-            Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Fail" `
-                -Message "A.8.9f: Configuration management -- WinRM unencrypted traffic disabled -- not configured (Value=$val)" `
-                -Details "A.8.9 Configuration management: WinRM must encrypt all management traffic" `
+            Add-Result -Category "HIPAA - Transmission Security" -Status "Fail" `
+                -Message "164.312(e)(2)a: Transmission security -- WinRM encryption required -- not configured (Value=$val)" `
+                -Details "164.312(e)(2)(ii): Encryption mechanism to encrypt ePHI during remote management" `
                 -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service' -Name AllowUnencryptedTraffic -Value 0" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.9'; NIST='SC-8'; CIS='18.9.102.1.3' }
+                -CrossReferences @{ HIPAA='164.312(e)(2)(ii)'; NIST='SC-8'; CIS='18.9.102.1.3' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.8 Hardening" -Status "Error" `
-            -Message "A.8.9f: Configuration management -- WinRM unencrypted traffic disabled -- check failed: $_" `
+        Add-Result -Category "HIPAA - Transmission Security" -Status "Error" `
+            -Message "164.312(e)(2)a: Transmission security -- WinRM encryption required -- check failed: $_" `
             -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.9'; NIST='SC-8'; CIS='18.9.102.1.3' }
+            -CrossReferences @{ HIPAA='164.312(e)(2)(ii)'; NIST='SC-8'; CIS='18.9.102.1.3' }
     }
-    # A.8.20h: Network security -- IPv6 source routing disabled
+    # 164.312(e)(2)b: Transmission security -- WinRM basic auth disabled
     try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters" -Name "DisableIPSourceRouting" -Default $null
-        if ($null -ne $val -and $val -eq 2) {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Pass" `
-                -Message "A.8.20h: Network security -- IPv6 source routing disabled -- properly configured" `
-                -Details "A.8.20 Network security: IPv6 source routing can bypass network controls" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='18.4.2' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Fail" `
-                -Message "A.8.20h: Network security -- IPv6 source routing disabled -- not configured (Value=$val)" `
-                -Details "A.8.20 Network security: IPv6 source routing can bypass network controls" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip6\Parameters' -Name DisableIPSourceRouting -Value 2" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='18.4.2' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Error" `
-            -Message "A.8.20h: Network security -- IPv6 source routing disabled -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='18.4.2' }
-    }
-    # A.8.20i: Network security -- IPv4 source routing disabled
-    try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" -Name "DisableIPSourceRouting" -Default $null
-        if ($null -ne $val -and $val -eq 2) {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Pass" `
-                -Message "A.8.20i: Network security -- IPv4 source routing disabled -- properly configured" `
-                -Details "A.8.20 Network security: IP source routing can bypass network security controls" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='18.4.3' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Fail" `
-                -Message "A.8.20i: Network security -- IPv4 source routing disabled -- not configured (Value=$val)" `
-                -Details "A.8.20 Network security: IP source routing can bypass network security controls" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters' -Name DisableIPSourceRouting -Value 2" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='18.4.3' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Error" `
-            -Message "A.8.20i: Network security -- IPv4 source routing disabled -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='18.4.3' }
-    }
-    # A.8.20j: Network security -- ICMP redirects ignored
-    try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" -Name "EnableICMPRedirect" -Default $null
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service" -Name "AllowBasic" -Default $null
         if ($null -ne $val -and $val -eq 0) {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Pass" `
-                -Message "A.8.20j: Network security -- ICMP redirects ignored -- properly configured" `
-                -Details "A.8.20 Network security: ICMP redirects can manipulate routing tables" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='18.4.4' }
+            Add-Result -Category "HIPAA - Transmission Security" -Status "Pass" `
+                -Message "164.312(e)(2)b: Transmission security -- WinRM basic auth disabled -- properly configured" `
+                -Details "164.312(e)(2)(ii): Basic auth transmits credentials in cleartext -- risk to ePHI access" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(e)(2)(ii)'; NIST='IA-2'; CIS='18.9.102.1.1' }
         } else {
-            Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Fail" `
-                -Message "A.8.20j: Network security -- ICMP redirects ignored -- not configured (Value=$val)" `
-                -Details "A.8.20 Network security: ICMP redirects can manipulate routing tables" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters' -Name EnableICMPRedirect -Value 0" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='18.4.4' }
+            Add-Result -Category "HIPAA - Transmission Security" -Status "Fail" `
+                -Message "164.312(e)(2)b: Transmission security -- WinRM basic auth disabled -- not configured (Value=$val)" `
+                -Details "164.312(e)(2)(ii): Basic auth transmits credentials in cleartext -- risk to ePHI access" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service' -Name AllowBasic -Value 0" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(e)(2)(ii)'; NIST='IA-2'; CIS='18.9.102.1.1' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Error" `
-            -Message "A.8.20j: Network security -- ICMP redirects ignored -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.20'; NIST='SC-7'; CIS='18.4.4' }
-    }
-    # A.8.7a: Protection against malware -- scan downloads
-    try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" -Name "DisableIOAVProtection" -Default $null
-        if ($null -ne $val -and $val -eq 0) {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Pass" `
-                -Message "A.8.7a: Protection against malware -- scan downloads -- properly configured" `
-                -Details "A.8.7 Protection against malware: All downloads must be scanned in real-time" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.7'; NIST='SI-3'; CIS='18.9.47.9.3' }
-        } else {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Fail" `
-                -Message "A.8.7a: Protection against malware -- scan downloads -- not configured (Value=$val)" `
-                -Details "A.8.7 Protection against malware: All downloads must be scanned in real-time" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' -Name DisableIOAVProtection -Value 0" `
-                -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.7'; NIST='SI-3'; CIS='18.9.47.9.3' }
-        }
-    } catch {
-        Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Error" `
-            -Message "A.8.7a: Protection against malware -- scan downloads -- check failed: $_" `
+        Add-Result -Category "HIPAA - Transmission Security" -Status "Error" `
+            -Message "164.312(e)(2)b: Transmission security -- WinRM basic auth disabled -- check failed: $_" `
             -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.7'; NIST='SI-3'; CIS='18.9.47.9.3' }
+            -CrossReferences @{ HIPAA='164.312(e)(2)(ii)'; NIST='IA-2'; CIS='18.9.102.1.1' }
     }
-    # A.8.7b: Protection against malware -- automatic sample submission
+    # 164.312(e)(2)c: Transmission security -- RDP encryption level
     try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet" -Name "SubmitSamplesConsent" -Default $null
-        if ($null -ne $val -and $val -ge 1) {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Pass" `
-                -Message "A.8.7b: Protection against malware -- automatic sample submission -- properly configured" `
-                -Details "A.8.7 Protection against malware: Automatic sample submission enhances threat intelligence" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.7'; NIST='SI-3'; CIS='18.9.47.11.2' }
+        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "MinEncryptionLevel" -Default $null
+        if ($null -ne $val -and $val -ge 3) {
+            Add-Result -Category "HIPAA - Transmission Security" -Status "Pass" `
+                -Message "164.312(e)(2)c: Transmission security -- RDP encryption level -- properly configured" `
+                -Details "164.312(e)(2)(ii): Remote Desktop sessions accessing ePHI must use high encryption" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(e)(2)(ii)'; NIST='SC-8'; CIS='18.9.65.3.9.2' }
         } else {
-            Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Fail" `
-                -Message "A.8.7b: Protection against malware -- automatic sample submission -- not configured (Value=$val)" `
-                -Details "A.8.7 Protection against malware: Automatic sample submission enhances threat intelligence" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet' -Name SubmitSamplesConsent -Value 1" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.7'; NIST='SI-3'; CIS='18.9.47.11.2' }
+            Add-Result -Category "HIPAA - Transmission Security" -Status "Fail" `
+                -Message "164.312(e)(2)c: Transmission security -- RDP encryption level -- not configured (Value=$val)" `
+                -Details "164.312(e)(2)(ii): Remote Desktop sessions accessing ePHI must use high encryption" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name MinEncryptionLevel -Value 3" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.312(e)(2)(ii)'; NIST='SC-8'; CIS='18.9.65.3.9.2' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Error" `
-            -Message "A.8.7b: Protection against malware -- automatic sample submission -- check failed: $_" `
-            -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.7'; NIST='SI-3'; CIS='18.9.47.11.2' }
+        Add-Result -Category "HIPAA - Transmission Security" -Status "Error" `
+            -Message "164.312(e)(2)c: Transmission security -- RDP encryption level -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.312(e)(2)(ii)'; NIST='SC-8'; CIS='18.9.65.3.9.2' }
     }
-    # A.8.3a: Information access restriction -- LM hash storage disabled
+
+# ===========================================================================
+# 164.310 Physical Safeguards -- Technical Aspects
+# ===========================================================================
+Write-Host "[HIPAA] Checking 164.310 Physical Safeguards -- Technical Aspects..." -ForegroundColor Yellow
+
+    # 164.310(b): Workstation use -- screen saver enabled
     try {
-        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "NoLMHash" -Default $null
+        $val = Get-RegValue -Path "HKCU:\Control Panel\Desktop" -Name "ScreenSaveActive" -Default $null
+        if ($null -ne $val -and $val -eq "1") {
+            Add-Result -Category "HIPAA - Physical Safeguards" -Status "Pass" `
+                -Message "164.310(b): Workstation use -- screen saver enabled -- properly configured" `
+                -Details "164.310(b): Workstations with ePHI access must activate screen protection when idle" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='164.310(b)'; NIST='AC-11'; CIS='2.3.1.1' }
+        } else {
+            Add-Result -Category "HIPAA - Physical Safeguards" -Status "Fail" `
+                -Message "164.310(b): Workstation use -- screen saver enabled -- not configured (Value=$val)" `
+                -Details "164.310(b): Workstations with ePHI access must activate screen protection when idle" `
+                -Remediation "Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name ScreenSaveActive -Value 1" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='164.310(b)'; NIST='AC-11'; CIS='2.3.1.1' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Physical Safeguards" -Status "Error" `
+            -Message "164.310(b): Workstation use -- screen saver enabled -- check failed: $_" `
+            -Severity "Medium" `
+            -CrossReferences @{ HIPAA='164.310(b)'; NIST='AC-11'; CIS='2.3.1.1' }
+    }
+    # 164.310(b)b: Workstation use -- screen saver timeout
+    try {
+        $val = Get-RegValue -Path "HKCU:\Control Panel\Desktop" -Name "ScreenSaveTimeOut" -Default $null
+        if ($null -ne $val -and $val -le 900) {
+            Add-Result -Category "HIPAA - Physical Safeguards" -Status "Pass" `
+                -Message "164.310(b)b: Workstation use -- screen saver timeout -- properly configured" `
+                -Details "164.310(b): Screen saver must activate within 15 minutes to protect ePHI visibility" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='164.310(b)'; NIST='AC-11'; CIS='2.3.1.3' }
+        } else {
+            Add-Result -Category "HIPAA - Physical Safeguards" -Status "Fail" `
+                -Message "164.310(b)b: Workstation use -- screen saver timeout -- not configured (Value=$val)" `
+                -Details "164.310(b): Screen saver must activate within 15 minutes to protect ePHI visibility" `
+                -Remediation "Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name ScreenSaveTimeOut -Value 900" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='164.310(b)'; NIST='AC-11'; CIS='2.3.1.3' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Physical Safeguards" -Status "Error" `
+            -Message "164.310(b)b: Workstation use -- screen saver timeout -- check failed: $_" `
+            -Severity "Medium" `
+            -CrossReferences @{ HIPAA='164.310(b)'; NIST='AC-11'; CIS='2.3.1.3' }
+    }
+    # 164.310(d)(1): Device/media controls -- autoplay disabled
+    try {
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoDriveTypeAutoRun" -Default $null
+        if ($null -ne $val -and $val -eq 255) {
+            Add-Result -Category "HIPAA - Physical Safeguards" -Status "Pass" `
+                -Message "164.310(d)(1): Device/media controls -- autoplay disabled -- properly configured" `
+                -Details "164.310(d)(1): Removable media must not auto-execute to prevent ePHI system compromise" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.310(d)(1)'; NIST='MP-7'; CIS='18.9.8.3' }
+        } else {
+            Add-Result -Category "HIPAA - Physical Safeguards" -Status "Fail" `
+                -Message "164.310(d)(1): Device/media controls -- autoplay disabled -- not configured (Value=$val)" `
+                -Details "164.310(d)(1): Removable media must not auto-execute to prevent ePHI system compromise" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoDriveTypeAutoRun -Value 255" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.310(d)(1)'; NIST='MP-7'; CIS='18.9.8.3' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Physical Safeguards" -Status "Error" `
+            -Message "164.310(d)(1): Device/media controls -- autoplay disabled -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.310(d)(1)'; NIST='MP-7'; CIS='18.9.8.3' }
+    }
+    # 164.310(d)(2): Device/media controls -- USB storage restrictions
+    try {
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\RemovableStorageDevices" -Name "Deny_All" -Default $null
         if ($null -ne $val -and $val -eq 1) {
-            Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Pass" `
-                -Message "A.8.3a: Information access restriction -- LM hash storage disabled -- properly configured" `
-                -Details "A.8.3 Information access restriction: LM hashes are cryptographically weak and easily cracked" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.3'; NIST='IA-5'; CIS='2.3.11.5'; STIG='V-220725' }
+            Add-Result -Category "HIPAA - Physical Safeguards" -Status "Pass" `
+                -Message "164.310(d)(2): Device/media controls -- USB storage restrictions -- properly configured" `
+                -Details "164.310(d)(2)(iii): Removable storage must be controlled to prevent ePHI exfiltration" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.310(d)(2)(iii)'; NIST='MP-7'; CIS='18.9.28.1' }
         } else {
-            Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Fail" `
-                -Message "A.8.3a: Information access restriction -- LM hash storage disabled -- not configured (Value=$val)" `
-                -Details "A.8.3 Information access restriction: LM hashes are cryptographically weak and easily cracked" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name NoLMHash -Value 1" `
-                -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.3'; NIST='IA-5'; CIS='2.3.11.5'; STIG='V-220725' }
+            Add-Result -Category "HIPAA - Physical Safeguards" -Status "Warning" `
+                -Message "164.310(d)(2): Device/media controls -- USB storage restrictions -- not configured (Value=$val)" `
+                -Details "164.310(d)(2)(iii): Removable storage must be controlled to prevent ePHI exfiltration" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\RemovableStorageDevices' -Name Deny_All -Value 1" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.310(d)(2)(iii)'; NIST='MP-7'; CIS='18.9.28.1' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Error" `
-            -Message "A.8.3a: Information access restriction -- LM hash storage disabled -- check failed: $_" `
-            -Severity "Critical" `
-            -CrossReferences @{ ISO27001='A.8.3'; NIST='IA-5'; CIS='2.3.11.5'; STIG='V-220725' }
+        Add-Result -Category "HIPAA - Physical Safeguards" -Status "Error" `
+            -Message "164.310(d)(2): Device/media controls -- USB storage restrictions -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.310(d)(2)(iii)'; NIST='MP-7'; CIS='18.9.28.1' }
     }
-    # A.8.3b: Information access restriction -- cached logon credentials limited
+
+# ===========================================================================
+# 164.308 Administrative Safeguards -- Technical Aspects
+# ===========================================================================
+Write-Host "[HIPAA] Checking 164.308 Administrative Safeguards -- Technical Aspects..." -ForegroundColor Yellow
+
+    # 164.308(a)(1)(ii)(A): Risk analysis -- vulnerability mgmt service
     try {
-        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "CachedLogonsCount" -Default $null
-        if ($null -ne $val -and $val -le 4) {
-            Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Pass" `
-                -Message "A.8.3b: Information access restriction -- cached logon credentials limited -- properly configured" `
-                -Details "A.8.3 Information access restriction: Limit cached logon credentials to minimize exposure" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.3'; NIST='IA-5'; CIS='2.3.11.1' }
+        $svc = Get-Service -Name "wuauserv" -ErrorAction SilentlyContinue
+        if ($null -ne $svc -and $svc.Status -eq "Running") {
+            Add-Result -Category "HIPAA - Administrative" -Status "Pass" `
+                -Message "164.308(a)(1)(ii)(A): Risk analysis -- vulnerability mgmt service -- service running" `
+                -Details "164.308(a)(1)(ii)(A): Risk analysis requires maintained systems with current patches" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.308(a)(1)(ii)(A)'; NIST='RA-3'; CISA='Patch Management' }
         } else {
-            Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Fail" `
-                -Message "A.8.3b: Information access restriction -- cached logon credentials limited -- not configured (Value=$val)" `
-                -Details "A.8.3 Information access restriction: Limit cached logon credentials to minimize exposure" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name CachedLogonsCount -Value 4" `
-                -Severity "Medium" `
-                -CrossReferences @{ ISO27001='A.8.3'; NIST='IA-5'; CIS='2.3.11.1' }
+            $svcSt = if ($null -ne $svc) { $svc.Status } else { "Not Found" }
+            Add-Result -Category "HIPAA - Administrative" -Status "Fail" `
+                -Message "164.308(a)(1)(ii)(A): Risk analysis -- vulnerability mgmt service -- service not running (Status=$svcSt)" `
+                -Details "164.308(a)(1)(ii)(A): Risk analysis requires maintained systems with current patches" `
+                -Remediation "Start-Service -Name wuauserv; Set-Service -Name wuauserv -StartupType Automatic" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.308(a)(1)(ii)(A)'; NIST='RA-3'; CISA='Patch Management' }
         }
     } catch {
-        Add-Result -Category "ISO27001 - A.8 Privileged Access" -Status "Error" `
-            -Message "A.8.3b: Information access restriction -- cached logon credentials limited -- check failed: $_" `
+        Add-Result -Category "HIPAA - Administrative" -Status "Error" `
+            -Message "164.308(a)(1)(ii)(A): Risk analysis -- vulnerability mgmt service -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.308(a)(1)(ii)(A)'; NIST='RA-3'; CISA='Patch Management' }
+    }
+    # 164.308(a)(1)(ii)(A)b: Risk analysis -- auto updates enabled
+    try {
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update" -Name "AUOptions" -Default $null
+        if ($null -ne $val -and $val -ge 4) {
+            Add-Result -Category "HIPAA - Administrative" -Status "Pass" `
+                -Message "164.308(a)(1)(ii)(A)b: Risk analysis -- auto updates enabled -- properly configured" `
+                -Details "164.308(a)(1)(ii)(A): Automatic updates reduce vulnerability window for ePHI systems" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.308(a)(1)(ii)(A)'; NIST='SI-2'; CIS='18.9.101.2' }
+        } else {
+            Add-Result -Category "HIPAA - Administrative" -Status "Fail" `
+                -Message "164.308(a)(1)(ii)(A)b: Risk analysis -- auto updates enabled -- not configured (Value=$val)" `
+                -Details "164.308(a)(1)(ii)(A): Automatic updates reduce vulnerability window for ePHI systems" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update' -Name AUOptions -Value 4" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='164.308(a)(1)(ii)(A)'; NIST='SI-2'; CIS='18.9.101.2' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Administrative" -Status "Error" `
+            -Message "164.308(a)(1)(ii)(A)b: Risk analysis -- auto updates enabled -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='164.308(a)(1)(ii)(A)'; NIST='SI-2'; CIS='18.9.101.2' }
+    }
+    # 164.308(a)(5): Security awareness -- Defender service
+    try {
+        $svc = Get-Service -Name "WinDefend" -ErrorAction SilentlyContinue
+        if ($null -ne $svc -and $svc.Status -eq "Running") {
+            Add-Result -Category "HIPAA - Administrative" -Status "Pass" `
+                -Message "164.308(a)(5): Security awareness -- Defender service -- service running" `
+                -Details "164.308(a)(5)(ii)(B): Anti-malware protection as part of security awareness program" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.308(a)(5)'; NIST='SI-3' }
+        } else {
+            $svcSt = if ($null -ne $svc) { $svc.Status } else { "Not Found" }
+            Add-Result -Category "HIPAA - Administrative" -Status "Fail" `
+                -Message "164.308(a)(5): Security awareness -- Defender service -- service not running (Status=$svcSt)" `
+                -Details "164.308(a)(5)(ii)(B): Anti-malware protection as part of security awareness program" `
+                -Remediation "Start-Service -Name WinDefend; Set-Service -Name WinDefend -StartupType Automatic" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.308(a)(5)'; NIST='SI-3' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Administrative" -Status "Error" `
+            -Message "164.308(a)(5): Security awareness -- Defender service -- check failed: $_" `
+            -Severity "Critical" `
+            -CrossReferences @{ HIPAA='164.308(a)(5)'; NIST='SI-3' }
+    }
+    # 164.308(a)(5)b: Security awareness -- real-time AV protection
+    try {
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection" -Name "DisableRealtimeMonitoring" -Default $null
+        if ($null -ne $val -and $val -eq 0) {
+            Add-Result -Category "HIPAA - Administrative" -Status "Pass" `
+                -Message "164.308(a)(5)b: Security awareness -- real-time AV protection -- properly configured" `
+                -Details "164.308(a)(5)(ii)(B): Real-time anti-malware is a fundamental ePHI protection" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.308(a)(5)'; NIST='SI-3'; CIS='18.9.47.9.1' }
+        } else {
+            Add-Result -Category "HIPAA - Administrative" -Status "Fail" `
+                -Message "164.308(a)(5)b: Security awareness -- real-time AV protection -- not configured (Value=$val)" `
+                -Details "164.308(a)(5)(ii)(B): Real-time anti-malware is a fundamental ePHI protection" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' -Name DisableRealtimeMonitoring -Value 0" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.308(a)(5)'; NIST='SI-3'; CIS='18.9.47.9.1' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Administrative" -Status "Error" `
+            -Message "164.308(a)(5)b: Security awareness -- real-time AV protection -- check failed: $_" `
+            -Severity "Critical" `
+            -CrossReferences @{ HIPAA='164.308(a)(5)'; NIST='SI-3'; CIS='18.9.47.9.1' }
+    }
+    # 164.308(a)(5)c: Security awareness -- Defender not disabled
+    try {
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -Default $null
+        if ($null -ne $val -and $val -eq 0) {
+            Add-Result -Category "HIPAA - Administrative" -Status "Pass" `
+                -Message "164.308(a)(5)c: Security awareness -- Defender not disabled -- properly configured" `
+                -Details "164.308(a)(5)(ii)(B): Anti-malware must not be administratively disabled on ePHI systems" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.308(a)(5)'; NIST='SI-3'; CIS='18.9.47.1' }
+        } else {
+            Add-Result -Category "HIPAA - Administrative" -Status "Fail" `
+                -Message "164.308(a)(5)c: Security awareness -- Defender not disabled -- not configured (Value=$val)" `
+                -Details "164.308(a)(5)(ii)(B): Anti-malware must not be administratively disabled on ePHI systems" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender' -Name DisableAntiSpyware -Value 0" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='164.308(a)(5)'; NIST='SI-3'; CIS='18.9.47.1' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Administrative" -Status "Error" `
+            -Message "164.308(a)(5)c: Security awareness -- Defender not disabled -- check failed: $_" `
+            -Severity "Critical" `
+            -CrossReferences @{ HIPAA='164.308(a)(5)'; NIST='SI-3'; CIS='18.9.47.1' }
+    }
+    # 164.308(a)(7): Contingency plan -- VSS service available
+    try {
+        $svc = Get-Service -Name "VSS" -ErrorAction SilentlyContinue
+        if ($null -ne $svc -and $svc.Status -eq "Running") {
+            Add-Result -Category "HIPAA - Administrative" -Status "Pass" `
+                -Message "164.308(a)(7): Contingency plan -- VSS service available -- service running" `
+                -Details "164.308(a)(7)(ii)(A): Data backup capability must exist for ePHI recovery" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='164.308(a)(7)'; NIST='CP-9'; SOC2='A1.2' }
+        } else {
+            $svcSt = if ($null -ne $svc) { $svc.Status } else { "Not Found" }
+            Add-Result -Category "HIPAA - Administrative" -Status "Warning" `
+                -Message "164.308(a)(7): Contingency plan -- VSS service available -- service not running (Status=$svcSt)" `
+                -Details "164.308(a)(7)(ii)(A): Data backup capability must exist for ePHI recovery" `
+                -Remediation "Set-Service -Name VSS -StartupType Manual" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='164.308(a)(7)'; NIST='CP-9'; SOC2='A1.2' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Administrative" -Status "Error" `
+            -Message "164.308(a)(7): Contingency plan -- VSS service available -- check failed: $_" `
             -Severity "Medium" `
-            -CrossReferences @{ ISO27001='A.8.3'; NIST='IA-5'; CIS='2.3.11.1' }
+            -CrossReferences @{ HIPAA='164.308(a)(7)'; NIST='CP-9'; SOC2='A1.2' }
+    }
+    # 164.308(a)(7)b: Contingency plan -- System Restore
+    try {
+        $srDisabled = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\SystemRestore" -Name "DisableSR" -Default 0
+        if ($srDisabled -ne 1) {
+            Add-Result -Category "HIPAA - Administrative" -Status "Pass" `
+                -Message "164.308(a)(7)b: System Restore is enabled for OS recovery" `
+                -Details "164.308(a)(7)(ii)(B): Disaster recovery capability supports ePHI availability" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='164.308(a)(7)'; NIST='CP-10'; SOC2='A1.2' }
+        } else {
+            Add-Result -Category "HIPAA - Administrative" -Status "Warning" `
+                -Message "164.308(a)(7)b: System Restore is DISABLED" `
+                -Details "164.308(a)(7)(ii)(B): Ensure alternative recovery mechanisms exist" `
+                -Remediation "Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\SystemRestore' -Name DisableSR" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='164.308(a)(7)'; NIST='CP-10'; SOC2='A1.2' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - Administrative" -Status "Error" `
+            -Message "164.308(a)(7)b: Contingency plan -- System Restore -- check failed: $_" `
+            -Severity "Medium" `
+            -CrossReferences @{ HIPAA='164.308(a)(7)'; NIST='CP-10' }
+    }
+
+# ===========================================================================
+# HITECH Act & ePHI Protection
+# ===========================================================================
+Write-Host "[HIPAA] Checking HITECH Act & ePHI Protection..." -ForegroundColor Yellow
+
+    # HITECH-1: Breach readiness -- firewall enabled all profiles
+    try {
+        $fwProfiles = Get-NetFirewallProfile -ErrorAction SilentlyContinue
+        $allEnabled = $true
+        foreach ($fw in $fwProfiles) { if ($fw.Enabled -ne $true) { $allEnabled = $false } }
+        if ($allEnabled -and $null -ne $fwProfiles) {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Pass" `
+                -Message "HITECH-1: All firewall profiles are enabled" `
+                -Details "HITECH Breach Notification: Network boundary protection reduces breach probability" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='SC-7'; ISO27001='A.8.20' }
+        } else {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Fail" `
+                -Message "HITECH-1: Not all firewall profiles are enabled" `
+                -Details "HITECH Breach Notification: Disabled firewall increases breach exposure" `
+                -Remediation "Set-NetFirewallProfile -Profile Domain,Private,Public -Enabled True" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='SC-7'; ISO27001='A.8.20' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - ePHI Protection" -Status "Error" `
+            -Message "HITECH-1: Breach readiness -- firewall enabled all profiles -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='HITECH'; NIST='SC-7' }
+    }
+    # HITECH-2: ePHI protection -- cloud sync controlled
+    try {
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive" -Name "DisableFileSyncNGSC" -Default $null
+        if ($null -ne $val -and $val -eq 1) {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Pass" `
+                -Message "HITECH-2: ePHI protection -- cloud sync controlled -- properly configured" `
+                -Details "HITECH: Uncontrolled cloud sync could result in unauthorized ePHI disclosure" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='AC-20'; GDPR='Art.28' }
+        } else {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Warning" `
+                -Message "HITECH-2: ePHI protection -- cloud sync controlled -- not configured (Value=$val)" `
+                -Details "HITECH: Uncontrolled cloud sync could result in unauthorized ePHI disclosure" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive' -Name DisableFileSyncNGSC -Value 1" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='AC-20'; GDPR='Art.28' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - ePHI Protection" -Status "Error" `
+            -Message "HITECH-2: ePHI protection -- cloud sync controlled -- check failed: $_" `
+            -Severity "Medium" `
+            -CrossReferences @{ HIPAA='HITECH'; NIST='AC-20'; GDPR='Art.28' }
+    }
+    # HITECH-3: ePHI protection -- clipboard redirection disabled (RDP)
+    try {
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "fDisableClip" -Default $null
+        if ($null -ne $val -and $val -eq 1) {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Pass" `
+                -Message "HITECH-3: ePHI protection -- clipboard redirection disabled (RDP) -- properly configured" `
+                -Details "HITECH: RDP clipboard sharing enables ePHI data exfiltration" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='AC-4'; CIS='18.9.65.3.3.1' }
+        } else {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Fail" `
+                -Message "HITECH-3: ePHI protection -- clipboard redirection disabled (RDP) -- not configured (Value=$val)" `
+                -Details "HITECH: RDP clipboard sharing enables ePHI data exfiltration" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name fDisableClip -Value 1" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='AC-4'; CIS='18.9.65.3.3.1' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - ePHI Protection" -Status "Error" `
+            -Message "HITECH-3: ePHI protection -- clipboard redirection disabled (RDP) -- check failed: $_" `
+            -Severity "Medium" `
+            -CrossReferences @{ HIPAA='HITECH'; NIST='AC-4'; CIS='18.9.65.3.3.1' }
+    }
+    # HITECH-4: ePHI protection -- drive redirection disabled (RDP)
+    try {
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "fDisableCdm" -Default $null
+        if ($null -ne $val -and $val -eq 1) {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Pass" `
+                -Message "HITECH-4: ePHI protection -- drive redirection disabled (RDP) -- properly configured" `
+                -Details "HITECH: RDP drive mapping enables unauthorized ePHI file transfer" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='AC-4'; CIS='18.9.65.3.3.2' }
+        } else {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Fail" `
+                -Message "HITECH-4: ePHI protection -- drive redirection disabled (RDP) -- not configured (Value=$val)" `
+                -Details "HITECH: RDP drive mapping enables unauthorized ePHI file transfer" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' -Name fDisableCdm -Value 1" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='AC-4'; CIS='18.9.65.3.3.2' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - ePHI Protection" -Status "Error" `
+            -Message "HITECH-4: ePHI protection -- drive redirection disabled (RDP) -- check failed: $_" `
+            -Severity "Medium" `
+            -CrossReferences @{ HIPAA='HITECH'; NIST='AC-4'; CIS='18.9.65.3.3.2' }
+    }
+    # HITECH-5: ePHI protection -- network protection enabled
+    try {
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Windows Defender Exploit Guard\Network Protection" -Name "EnableNetworkProtection" -Default $null
+        if ($null -ne $val -and $val -eq 1) {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Pass" `
+                -Message "HITECH-5: ePHI protection -- network protection enabled -- properly configured" `
+                -Details "HITECH: Network protection blocks malicious connections that could expose ePHI" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='SI-4'; CIS='18.9.47.5.3.1' }
+        } else {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Fail" `
+                -Message "HITECH-5: ePHI protection -- network protection enabled -- not configured (Value=$val)" `
+                -Details "HITECH: Network protection blocks malicious connections that could expose ePHI" `
+                -Remediation "Set-MpPreference -EnableNetworkProtection Enabled" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='SI-4'; CIS='18.9.47.5.3.1' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - ePHI Protection" -Status "Error" `
+            -Message "HITECH-5: ePHI protection -- network protection enabled -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='HITECH'; NIST='SI-4'; CIS='18.9.47.5.3.1' }
+    }
+    # HITECH-6: ePHI protection -- controlled folder access
+    try {
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Windows Defender Exploit Guard\Controlled Folder Access" -Name "EnableControlledFolderAccess" -Default $null
+        if ($null -ne $val -and $val -eq 1) {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Pass" `
+                -Message "HITECH-6: ePHI protection -- controlled folder access -- properly configured" `
+                -Details "HITECH: Ransomware protection is essential for ePHI data stores" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='SI-3'; CIS='18.9.47.5.1.1' }
+        } else {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Fail" `
+                -Message "HITECH-6: ePHI protection -- controlled folder access -- not configured (Value=$val)" `
+                -Details "HITECH: Ransomware protection is essential for ePHI data stores" `
+                -Remediation "Set-MpPreference -EnableControlledFolderAccess Enabled" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='SI-3'; CIS='18.9.47.5.1.1' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - ePHI Protection" -Status "Error" `
+            -Message "HITECH-6: ePHI protection -- controlled folder access -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='HITECH'; NIST='SI-3'; CIS='18.9.47.5.1.1' }
+    }
+    # HITECH-7: ePHI protection -- SMBv1 disabled
+    try {
+        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "SMB1" -Default $null
+        if ($null -ne $val -and $val -eq 0) {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Pass" `
+                -Message "HITECH-7: ePHI protection -- SMBv1 disabled -- properly configured" `
+                -Details "HITECH: SMBv1 is a critical ransomware vector threatening ePHI systems" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='CM-7'; ISO27001='A.8.9'; STIG='V-220968' }
+        } else {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Fail" `
+                -Message "HITECH-7: ePHI protection -- SMBv1 disabled -- not configured (Value=$val)" `
+                -Details "HITECH: SMBv1 is a critical ransomware vector threatening ePHI systems" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name SMB1 -Value 0" `
+                -Severity "Critical" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='CM-7'; ISO27001='A.8.9'; STIG='V-220968' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - ePHI Protection" -Status "Error" `
+            -Message "HITECH-7: ePHI protection -- SMBv1 disabled -- check failed: $_" `
+            -Severity "Critical" `
+            -CrossReferences @{ HIPAA='HITECH'; NIST='CM-7'; ISO27001='A.8.9'; STIG='V-220968' }
+    }
+    # HITECH-8: ePHI protection -- Credential Guard
+    try {
+        $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\LSA" -Name "LsaCfgFlags" -Default $null
+        if ($null -ne $val -and $val -ge 1) {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Pass" `
+                -Message "HITECH-8: ePHI protection -- Credential Guard -- properly configured" `
+                -Details "HITECH: Credential isolation protects authentication to ePHI systems" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='IA-5(13)'; ISO27001='A.8.2' }
+        } else {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Fail" `
+                -Message "HITECH-8: ePHI protection -- Credential Guard -- not configured (Value=$val)" `
+                -Details "HITECH: Credential isolation protects authentication to ePHI systems" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\LSA' -Name LsaCfgFlags -Value 1" `
+                -Severity "High" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='IA-5(13)'; ISO27001='A.8.2' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - ePHI Protection" -Status "Error" `
+            -Message "HITECH-8: ePHI protection -- Credential Guard -- check failed: $_" `
+            -Severity "High" `
+            -CrossReferences @{ HIPAA='HITECH'; NIST='IA-5(13)'; ISO27001='A.8.2' }
+    }
+    # HITECH-9: ePHI protection -- telemetry minimized
+    try {
+        $val = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" -Name "AllowTelemetry" -Default $null
+        if ($null -ne $val -and $val -eq 0) {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Pass" `
+                -Message "HITECH-9: ePHI protection -- telemetry minimized -- properly configured" `
+                -Details "HITECH: Minimize data collection to reduce incidental ePHI exposure" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='SC-7'; GDPR='Art.25' }
+        } else {
+            Add-Result -Category "HIPAA - ePHI Protection" -Status "Warning" `
+                -Message "HITECH-9: ePHI protection -- telemetry minimized -- not configured (Value=$val)" `
+                -Details "HITECH: Minimize data collection to reduce incidental ePHI exposure" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' -Name AllowTelemetry -Value 0" `
+                -Severity "Medium" `
+                -CrossReferences @{ HIPAA='HITECH'; NIST='SC-7'; GDPR='Art.25' }
+        }
+    } catch {
+        Add-Result -Category "HIPAA - ePHI Protection" -Status "Error" `
+            -Message "HITECH-9: ePHI protection -- telemetry minimized -- check failed: $_" `
+            -Severity "Medium" `
+            -CrossReferences @{ HIPAA='HITECH'; NIST='SC-7'; GDPR='Art.25' }
     }
 
 
 # ===========================================================================
-# v6.1: ISO 27002:2022 implementation guidance references
+# v6.1: HHS Recognized Security Practices (RSP) alignment
 # ===========================================================================
-Write-Host "[ISO27001] Checking ISO 27002:2022 implementation references..." -ForegroundColor Yellow
+Write-Host "[HIPAA] Checking HHS Recognized Security Practices alignment..." -ForegroundColor Yellow
 
 try {
-    $cgEnabled = Test-CredentialGuardEnabled
-    if ($cgEnabled) {
-        Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Pass" `
+    $defenderStatus = Get-DefenderStatus -Cache $SharedData.Cache
+    if ($defenderStatus -and $defenderStatus.RealTimeProtectionEnabled) {
+        Add-Result -Category "HIPAA - HHS RSP" -Status "Pass" `
             -Severity "High" `
-            -Message "27002 Sec.5.16 Identity management: privileged identity isolation active" `
-            -Details "ISO/IEC 27002:2022 Sec.5.16 covers identity management implementation guidance" `
-            -CrossReferences @{ ISO27001='A.5.16'; ISO27002='5.16'; NIST='IA-5' }
+            -Message "RSP: Endpoint protection active (NIST 800-66 R2 SI-3 alignment)" `
+            -Details "PL 116-321 Section 13412 recognizes implementation of NIST-based practices for HIPAA enforcement discretion" `
+            -CrossReferences @{ HIPAA='HHS-RSP'; NIST66R2='SI-3'; PL='116-321' }
     }
     else {
-        Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Warning" `
+        Add-Result -Category "HIPAA - HHS RSP" -Status "Fail" `
             -Severity "High" `
-            -Message "27002 Sec.5.16 Credential Guard inactive (identity management gap)" `
-            -CrossReferences @{ ISO27001='A.5.16'; ISO27002='5.16' }
+            -Message "RSP: Endpoint protection inactive" `
+            -CrossReferences @{ HIPAA='HHS-RSP'; PL='116-321' }
     }
 
     $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
     if ($bitLocker -and $bitLocker.SystemDriveProtected) {
-        Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Pass" `
+        Add-Result -Category "HIPAA - HHS RSP" -Status "Pass" `
             -Severity "High" `
-            -Message "27002 Sec.8.24 Use of cryptography: at-rest encryption operational" `
-            -CrossReferences @{ ISO27001='A.8.24'; ISO27002='8.24'; NIST='SC-28' }
+            -Message "RSP: Encryption controls active (NIST 800-66 R2 SC-28 alignment)" `
+            -CrossReferences @{ HIPAA='HHS-RSP'; NIST66R2='SC-28'; PL='116-321' }
     }
     else {
-        Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Fail" `
+        Add-Result -Category "HIPAA - HHS RSP" -Status "Fail" `
             -Severity "High" `
-            -Message "27002 Sec.8.24 No at-rest encryption implementation" `
+            -Message "RSP: Drive encryption not active" `
             -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
-            -CrossReferences @{ ISO27001='A.8.24'; ISO27002='8.24' }
+            -CrossReferences @{ HIPAA='HHS-RSP'; NIST66R2='SC-28' }
     }
 
-    $defenderStatus = Get-DefenderStatus -Cache $SharedData.Cache
-    if ($defenderStatus -and $defenderStatus.RealTimeProtectionEnabled) {
-        Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Pass" `
+    $cgEnabled = Test-CredentialGuardEnabled
+    if ($cgEnabled) {
+        Add-Result -Category "HIPAA - HHS RSP" -Status "Pass" `
             -Severity "High" `
-            -Message "27002 Sec.8.7 Protection against malware: real-time protection active" `
-            -CrossReferences @{ ISO27001='A.8.7'; ISO27002='8.7'; NIST='SI-3' }
+            -Message "RSP: Authentication controls hardened (Credential Guard active)" `
+            -CrossReferences @{ HIPAA='HHS-RSP'; NIST66R2='IA-5' }
     }
     else {
-        Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Fail" `
-            -Severity "Critical" `
-            -Message "27002 Sec.8.7 Malware protection inactive" `
-            -CrossReferences @{ ISO27001='A.8.7'; ISO27002='8.7' }
-    }
-
-    $auditPS = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging" -Name "EnableScriptBlockLogging" -Default 0
-    if ($auditPS -eq 1) {
-        Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Pass" `
-            -Severity "Medium" `
-            -Message "27002 Sec.8.15 Logging: PowerShell script block logging operational" `
-            -CrossReferences @{ ISO27001='A.8.15'; ISO27002='8.15'; NIST='AU-12' }
-    }
-    else {
-        Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Warning" `
-            -Severity "Medium" `
-            -Message "27002 Sec.8.15 Logging gap: PowerShell script block logging disabled" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name 'EnableScriptBlockLogging' -Value 1 -Type DWord" `
-            -CrossReferences @{ ISO27001='A.8.15'; ISO27002='8.15' }
+        Add-Result -Category "HIPAA - HHS RSP" -Status "Warning" `
+            -Severity "High" `
+            -Message "RSP: Credential Guard not active" `
+            -CrossReferences @{ HIPAA='HHS-RSP'; NIST66R2='IA-5' }
     }
 }
 catch {
-    Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Error" `
+    Add-Result -Category "HIPAA - HHS RSP" -Status "Error" `
         -Severity "Medium" `
-        -Message "ISO 27002:2022 guidance assessment failed: $($_.Exception.Message)"
+        -Message "HHS RSP assessment failed: $($_.Exception.Message)"
 }
 
 # ===========================================================================
-# v6.1: ISO/IEC 27017 (Cloud Services) and 27018 (PII in Cloud)
+# v6.1: NIST 800-66 Rev 2 explicit mapping
 # ===========================================================================
-Write-Host "[ISO27001] Checking ISO 27017/27018 cloud-extension controls..." -ForegroundColor Yellow
+Write-Host "[HIPAA] Checking NIST SP 800-66 Rev 2 control mappings..." -ForegroundColor Yellow
+
+try {
+    $auditAccount = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'User Account Management' }
+    if ($auditAccount -and $auditAccount.Setting -ne 'No Auditing') {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "AC-2 Account management auditing (164.308(a)(4) Information Access Management)" `
+            -CrossReferences @{ NIST66R2='AC-2'; HIPAA='164.308(a)(4)' }
+    }
+    else {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Fail" `
+            -Severity "High" `
+            -Message "AC-2 User account management auditing not active" `
+            -Remediation "auditpol /set /subcategory:'User Account Management' /success:enable /failure:enable" `
+            -CrossReferences @{ NIST66R2='AC-2'; HIPAA='164.308(a)(4)' }
+    }
+
+    $auditLogon = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'Logon' }
+    if ($auditLogon -and $auditLogon.Setting -ne 'No Auditing') {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "AC-7 Unsuccessful logon attempts auditing (164.312(a)(2)(i) Unique User ID)" `
+            -CrossReferences @{ NIST66R2='AC-7'; HIPAA='164.312(a)(2)(i)' }
+    }
+    else {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Fail" `
+            -Severity "High" `
+            -Message "AC-7 Logon auditing not active" `
+            -Remediation "auditpol /set /subcategory:'Logon' /success:enable /failure:enable" `
+            -CrossReferences @{ NIST66R2='AC-7'; HIPAA='164.312(a)(2)(i)' }
+    }
+
+    $idleTimeout = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "InactivityTimeoutSecs" -Default 0
+    if ($idleTimeout -gt 0 -and $idleTimeout -le 900) {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "AC-11 Session lock at $idleTimeout seconds (164.312(a)(2)(iii) Automatic Logoff)" `
+            -CrossReferences @{ NIST66R2='AC-11'; HIPAA='164.312(a)(2)(iii)' }
+    }
+    elseif ($idleTimeout -eq 0) {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Fail" `
+            -Severity "High" `
+            -Message "AC-11 No automatic session lock configured" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'InactivityTimeoutSecs' -Value 900 -Type DWord" `
+            -CrossReferences @{ NIST66R2='AC-11'; HIPAA='164.312(a)(2)(iii)' }
+    }
+    else {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "AC-11 Session lock at $idleTimeout seconds (exceeds 900 second baseline)" `
+            -CrossReferences @{ NIST66R2='AC-11'; HIPAA='164.312(a)(2)(iii)' }
+    }
+
+    $auditObjAccess = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -like '*File System*' }
+    if ($auditObjAccess -and $auditObjAccess.Setting -ne 'No Auditing') {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "AU-2 Audit events captured (164.312(b) Audit Controls)" `
+            -CrossReferences @{ NIST66R2='AU-2'; HIPAA='164.312(b)' }
+    }
+    else {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Fail" `
+            -Severity "High" `
+            -Message "AU-2 File system audit events not captured" `
+            -Remediation "auditpol /set /subcategory:'File System' /success:enable /failure:enable" `
+            -CrossReferences @{ NIST66R2='AU-2'; HIPAA='164.312(b)' }
+    }
+}
+catch {
+    Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Error" `
+        -Severity "Medium" `
+        -Message "NIST 800-66 R2 mapping assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: HITECH Act technical safeguards
+# ===========================================================================
+Write-Host "[HIPAA] Checking HITECH Act technical safeguards..." -ForegroundColor Yellow
+
+try {
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "HIPAA - HITECH Act" -Status "Pass" `
+            -Severity "High" `
+            -Message "HITECH 13402(h) Encryption renders ePHI unusable (safe harbor for breach notification)" `
+            -Details "ARRA 2009 HITECH Section 13402 provides safe harbor for breaches involving encrypted ePHI" `
+            -CrossReferences @{ HITECH='13402(h)'; HIPAA='164.402'; ARRA='2009' }
+    }
+    else {
+        Add-Result -Category "HIPAA - HITECH Act" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "HITECH 13402(h) No encryption safe harbor (breaches require notification)" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ HITECH='13402(h)'; HIPAA='164.402' }
+    }
+
+    $accessLogging = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -like '*File System*' }
+    if ($accessLogging -and $accessLogging.Setting -ne 'No Auditing') {
+        Add-Result -Category "HIPAA - HITECH Act" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "HITECH 13405(c) Accounting of disclosures supported by file access auditing" `
+            -CrossReferences @{ HITECH='13405(c)'; HIPAA='164.528' }
+    }
+    else {
+        Add-Result -Category "HIPAA - HITECH Act" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "HITECH 13405(c) File access auditing not supporting disclosure accounting" `
+            -CrossReferences @{ HITECH='13405(c)' }
+    }
+}
+catch {
+    Add-Result -Category "HIPAA - HITECH Act" -Status "Error" `
+        -Severity "Medium" `
+        -Message "HITECH Act assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: 405(d) Health Industry Cybersecurity Practices (HICP)
+# ===========================================================================
+Write-Host "[HIPAA] Checking 405(d) HICP technical practice alignment..." -ForegroundColor Yellow
+
+try {
+    $netProt = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Windows Defender Exploit Guard\Network Protection" -Name "EnableNetworkProtection" -Default 0
+    if ($netProt -eq 1) {
+        Add-Result -Category "HIPAA - 405(d) HICP" -Status "Pass" `
+            -Severity "High" `
+            -Message "HICP TV1 Email phishing mitigation: Network Protection blocking malicious domains" `
+            -Details "405(d) Health Industry Cybersecurity Practices Technical Volume 1 addresses email phishing as Top Threat #1" `
+            -CrossReferences @{ HICP='TV1'; CARES='405(d)' }
+    }
+    else {
+        Add-Result -Category "HIPAA - 405(d) HICP" -Status "Warning" `
+            -Severity "High" `
+            -Message "HICP TV1 Network Protection not in block mode (phishing exposure)" `
+            -Remediation "Set-MpPreference -EnableNetworkProtection Enabled" `
+            -CrossReferences @{ HICP='TV1' }
+    }
+
+    $cfaState = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Windows Defender Exploit Guard\Controlled Folder Access" -Name "EnableControlledFolderAccess" -Default 0
+    if ($cfaState -in @(1,3)) {
+        Add-Result -Category "HIPAA - 405(d) HICP" -Status "Pass" `
+            -Severity "High" `
+            -Message "HICP TV2 Ransomware mitigation: Controlled Folder Access blocking" `
+            -Details "405(d) HICP TV2 addresses ransomware as Top Threat #2" `
+            -CrossReferences @{ HICP='TV2'; CARES='405(d)' }
+    }
+    else {
+        Add-Result -Category "HIPAA - 405(d) HICP" -Status "Fail" `
+            -Severity "High" `
+            -Message "HICP TV2 Ransomware exposure (CFA not blocking)" `
+            -Remediation "Set-MpPreference -EnableControlledFolderAccess Enabled" `
+            -CrossReferences @{ HICP='TV2' }
+    }
+
+    $smbv1 = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "SMB1" -Default 1
+    if ($smbv1 -eq 0) {
+        Add-Result -Category "HIPAA - 405(d) HICP" -Status "Pass" `
+            -Severity "High" `
+            -Message "HICP TV5 Network connected medical device protection: SMBv1 disabled" `
+            -Details "405(d) HICP TV5 addresses connected medical devices as Top Threat #5" `
+            -CrossReferences @{ HICP='TV5'; CVE='CVE-2017-0144' }
+    }
+    else {
+        Add-Result -Category "HIPAA - 405(d) HICP" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "HICP TV5 SMBv1 enabled (wormable malware exposure to medical devices)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'SMB1' -Value 0 -Type DWord" `
+            -CrossReferences @{ HICP='TV5' }
+    }
+}
+catch {
+    Add-Result -Category "HIPAA - 405(d) HICP" -Status "Error" `
+        -Severity "Medium" `
+        -Message "405(d) HICP assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Sec.164.312(a)(2)(iv) Encryption and Decryption (Addressable)
+# ===========================================================================
+Write-Host "[HIPAA] Checking Sec.164.312(a)(2)(iv) Encryption controls..." -ForegroundColor Yellow
+
+try {
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "HIPAA - Sec.164.312(a)(2)(iv)" -Status "Pass" `
+            -Severity "High" `
+            -Message "Addressable specification implemented: ePHI at rest encrypted" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; CFR='45 CFR 164.312' }
+    }
+    else {
+        Add-Result -Category "HIPAA - Sec.164.312(a)(2)(iv)" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "Addressable specification not implemented: ePHI at rest unencrypted" `
+            -Details "If implementation determined not reasonable and appropriate, document rationale and equivalent alternative" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(iv)' }
+    }
+
+    $fipsPolicy = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy" -Name "Enabled" -Default 0
+    if ($fipsPolicy -eq 1) {
+        Add-Result -Category "HIPAA - Sec.164.312(a)(2)(iv)" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "FIPS-validated cryptography policy enforced (NIST 800-66 R2 alignment)" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST66R2='SC-13' }
+    }
+    else {
+        Add-Result -Category "HIPAA - Sec.164.312(a)(2)(iv)" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "FIPS-only cryptography mode not enforced" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy' -Name 'Enabled' -Value 1 -Type DWord; Restart-Computer" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(iv)' }
+    }
+}
+catch {
+    Add-Result -Category "HIPAA - Sec.164.312(a)(2)(iv)" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Encryption specification assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Sec.164.312(e)(2)(ii) Encryption (Transmission Security)
+# ===========================================================================
+Write-Host "[HIPAA] Checking Sec.164.312(e)(2)(ii) Transmission Security..." -ForegroundColor Yellow
 
 try {
     $tlsv12Server = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server" -Name "Enabled" -Default $null
     if ($null -eq $tlsv12Server -or $tlsv12Server -eq 1) {
-        Add-Result -Category "ISO27001 - 27017/27018 Cloud" -Status "Pass" `
+        Add-Result -Category "HIPAA - Sec.164.312(e)(2)(ii)" -Status "Pass" `
             -Severity "High" `
-            -Message "27017 CLD.13.1 Network segregation in cloud: TLS 1.2 available" `
-            -Details "ISO/IEC 27017 Cloud Services adds cloud-specific guidance to ISO 27002 controls" `
-            -CrossReferences @{ ISO27017='CLD.13.1'; ISO27001='A.8.20' }
+            -Message "Transmission encryption available (TLS 1.2 enabled server-side)" `
+            -CrossReferences @{ HIPAA='164.312(e)(2)(ii)' }
     }
     else {
-        Add-Result -Category "ISO27001 - 27017/27018 Cloud" -Status "Fail" `
+        Add-Result -Category "HIPAA - Sec.164.312(e)(2)(ii)" -Status "Fail" `
             -Severity "High" `
-            -Message "27017 CLD.13.1 TLS 1.2 disabled (cloud transit encryption gap)" `
-            -CrossReferences @{ ISO27017='CLD.13.1' }
+            -Message "TLS 1.2 disabled server-side (ePHI transmission encryption gap)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server' -Name 'Enabled' -Value 1 -Type DWord" `
+            -CrossReferences @{ HIPAA='164.312(e)(2)(ii)' }
     }
 
-    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
-    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
-        Add-Result -Category "ISO27001 - 27017/27018 Cloud" -Status "Pass" `
+    $tlsv10 = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server" -Name "Enabled" -Default $null
+    if ($tlsv10 -eq 0) {
+        Add-Result -Category "HIPAA - Sec.164.312(e)(2)(ii)" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "TLS 1.0 explicitly disabled (legacy protocol removed)" `
+            -CrossReferences @{ HIPAA='164.312(e)(2)(ii)' }
+    }
+    elseif ($tlsv10 -eq 1) {
+        Add-Result -Category "HIPAA - Sec.164.312(e)(2)(ii)" -Status "Fail" `
             -Severity "High" `
-            -Message "27018 PII protection in cloud: at-rest encryption (Sec.7 Data minimization)" `
-            -Details "ISO/IEC 27018 PII processor controls require encryption of PII in cloud environments" `
-            -CrossReferences @{ ISO27018='Sec.7'; ISO27001='A.8.24' }
+            -Message "TLS 1.0 enabled (legacy protocol; ePHI transmission risk)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server' -Name 'Enabled' -Value 0 -Type DWord" `
+            -CrossReferences @{ HIPAA='164.312(e)(2)(ii)' }
+    }
+
+    $smbSigning = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "RequireSecuritySignature" -Default 0
+    if ($smbSigning -eq 1) {
+        Add-Result -Category "HIPAA - Sec.164.312(e)(2)(ii)" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "SMB signing required (transmission integrity for ePHI)" `
+            -CrossReferences @{ HIPAA='164.312(e)(2)(i)' }
     }
     else {
-        Add-Result -Category "ISO27001 - 27017/27018 Cloud" -Status "Fail" `
-            -Severity "Critical" `
-            -Message "27018 PII at-rest encryption inactive" `
-            -CrossReferences @{ ISO27018='Sec.7' }
+        Add-Result -Category "HIPAA - Sec.164.312(e)(2)(ii)" -Status "Fail" `
+            -Severity "Medium" `
+            -Message "SMB signing not required (transmission integrity gap)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'RequireSecuritySignature' -Value 1 -Type DWord" `
+            -CrossReferences @{ HIPAA='164.312(e)(2)(i)' }
     }
+}
+catch {
+    Add-Result -Category "HIPAA - Sec.164.312(e)(2)(ii)" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Transmission security assessment failed: $($_.Exception.Message)"
+}
 
+# ===========================================================================
+# v6.1: Breach Notification Rule Sec.164.402 technical indicators
+# ===========================================================================
+Write-Host "[HIPAA] Checking Breach Notification Rule technical indicators..." -ForegroundColor Yellow
+
+try {
     $secLogSize = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Security" -Name "MaxSize" -Default 0
     if ($secLogSize -ge 268435456) {
-        Add-Result -Category "ISO27001 - 27017/27018 Cloud" -Status "Pass" `
+        $secLogMB = [Math]::Round($secLogSize / 1MB, 0)
+        Add-Result -Category "HIPAA - Breach Notification" -Status "Pass" `
             -Severity "Medium" `
-            -Message "27018 Sec.A.10 Customer monitoring: audit retention adequate" `
-            -CrossReferences @{ ISO27018='A.10'; ISO27001='A.8.15' }
+            -Message "Sec.164.402 Breach risk assessment: audit log retention adequate (${secLogMB} MB)" `
+            -CrossReferences @{ HIPAA='164.402'; CFR='45 CFR 164.402' }
     }
     else {
-        Add-Result -Category "ISO27001 - 27017/27018 Cloud" -Status "Warning" `
+        Add-Result -Category "HIPAA - Breach Notification" -Status "Warning" `
             -Severity "Medium" `
-            -Message "27018 Sec.A.10 Audit log retention below customer monitoring baseline" `
+            -Message "Sec.164.402 Audit log undersized for breach forensic timeline" `
             -Remediation "wevtutil sl Security /ms:268435456" `
-            -CrossReferences @{ ISO27018='A.10' }
-    }
-}
-catch {
-    Add-Result -Category "ISO27001 - 27017/27018 Cloud" -Status "Error" `
-        -Severity "Medium" `
-        -Message "Cloud extension assessment failed: $($_.Exception.Message)"
-}
-
-# ===========================================================================
-# v6.1: ISO/IEC 27701 (Privacy Information Management)
-# ===========================================================================
-Write-Host "[ISO27001] Checking ISO 27701 privacy management controls..." -ForegroundColor Yellow
-
-try {
-    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
-    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
-        Add-Result -Category "ISO27001 - 27701 Privacy" -Status "Pass" `
-            -Severity "High" `
-            -Message "27701 Sec.6.13.2 Privacy by design: PII protection through encryption" `
-            -CrossReferences @{ ISO27701='6.13.2'; ISO27001='A.8.24' }
-    }
-    else {
-        Add-Result -Category "ISO27001 - 27701 Privacy" -Status "Fail" `
-            -Severity "High" `
-            -Message "27701 Sec.6.13.2 Privacy by design gap: PII at-rest unprotected" `
-            -CrossReferences @{ ISO27701='6.13.2' }
+            -CrossReferences @{ HIPAA='164.402' }
     }
 
-    $auditUserMgmt = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'User Account Management' }
-    if ($auditUserMgmt -and $auditUserMgmt.Setting -ne 'No Auditing') {
-        Add-Result -Category "ISO27001 - 27701 Privacy" -Status "Pass" `
-            -Severity "Medium" `
-            -Message "27701 Sec.7.2.7 PII transfer recording: account management audited" `
-            -CrossReferences @{ ISO27701='7.2.7'; ISO27001='A.5.34' }
-    }
-    else {
-        Add-Result -Category "ISO27001 - 27701 Privacy" -Status "Warning" `
-            -Severity "Medium" `
-            -Message "27701 Sec.7.2.7 User account management auditing not active" `
-            -Remediation "auditpol /set /subcategory:'User Account Management' /success:enable /failure:enable" `
-            -CrossReferences @{ ISO27701='7.2.7' }
-    }
-
-    $userListPolicy = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "DontDisplayLastUserName" -Default 0
-    if ($userListPolicy -eq 1) {
-        Add-Result -Category "ISO27001 - 27701 Privacy" -Status "Pass" `
-            -Severity "Low" `
-            -Message "27701 Sec.7.4.5 PII minimisation: previous user not displayed at sign-in" `
-            -CrossReferences @{ ISO27701='7.4.5' }
-    }
-    else {
-        Add-Result -Category "ISO27001 - 27701 Privacy" -Status "Warning" `
-            -Severity "Low" `
-            -Message "27701 Sec.7.4.5 Previous user displayed at sign-in (PII exposure)" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'DontDisplayLastUserName' -Value 1 -Type DWord" `
-            -CrossReferences @{ ISO27701='7.4.5' }
-    }
-}
-catch {
-    Add-Result -Category "ISO27001 - 27701 Privacy" -Status "Error" `
-        -Severity "Medium" `
-        -Message "ISO 27701 privacy assessment failed: $($_.Exception.Message)"
-}
-
-# ===========================================================================
-# v6.1: Statement of Applicability (SoA) generation support
-# ===========================================================================
-Write-Host "[ISO27001] Computing Statement of Applicability summary..." -ForegroundColor Yellow
-
-try {
-    $isoResults = @($results | Where-Object { $_.Module -eq 'ISO27001' })
-    $applicableControls = @($isoResults | Where-Object { $_.Status -in @('Pass','Fail','Warning') })
-    $passedControls = @($isoResults | Where-Object { $_.Status -eq 'Pass' })
-    $failedControls = @($isoResults | Where-Object { $_.Status -eq 'Fail' })
-
-    $applicabilityRate = if ($applicableControls.Count -gt 0) {
-        [Math]::Round(($passedControls.Count / $applicableControls.Count) * 100, 1)
-    } else { 0 }
-
-    Add-Result -Category "ISO27001 - SoA Summary" -Status "Info" `
-        -Severity "Informational" `
-        -Message "SoA: ${applicabilityRate}% of $($applicableControls.Count) applicable controls implemented ($($passedControls.Count) pass, $($failedControls.Count) fail)" `
-        -Details "ISO 27001 Sec.6.1.3(d) Statement of Applicability documents control implementation status. This is an automated technical-control summary; full SoA requires organizational assessment." `
-        -CrossReferences @{ ISO27001='Sec.6.1.3(d)' }
-
-    if ($failedControls.Count -gt 0) {
-        Add-Result -Category "ISO27001 - SoA Summary" -Status "Warning" `
-            -Severity "Medium" `
-            -Message "SoA: $($failedControls.Count) controls require risk treatment plan documentation" `
-            -Details "Failed controls require corresponding entries in the risk treatment plan (Sec.6.1.3(b))" `
-            -CrossReferences @{ ISO27001='Sec.6.1.3(b)' }
-    }
-}
-catch {
-    Add-Result -Category "ISO27001 - SoA Summary" -Status "Error" `
-        -Severity "Low" `
-        -Message "SoA computation failed: $($_.Exception.Message)"
-}
-
-# ===========================================================================
-# v6.1: ISO/IEC 27005 (Risk Management) and 27031 (ICT Continuity)
-# ===========================================================================
-Write-Host "[ISO27001] Checking ISO 27005 risk and 27031 ICT continuity evidence..." -ForegroundColor Yellow
-
-try {
-    $secLogSize = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Security" -Name "MaxSize" -Default 0
-    if ($secLogSize -ge 268435456) {
-        Add-Result -Category "ISO27001 - 27005 Risk" -Status "Pass" `
-            -Severity "Medium" `
-            -Message "27005 Sec.8 Risk monitoring: audit log capacity supports trend analysis" `
-            -CrossReferences @{ ISO27005='Sec.8'; ISO27001='A.8.16' }
-    }
-    else {
-        Add-Result -Category "ISO27001 - 27005 Risk" -Status "Warning" `
-            -Severity "Medium" `
-            -Message "27005 Sec.8 Audit log undersized for risk trend analysis" `
-            -CrossReferences @{ ISO27005='Sec.8' }
-    }
-
-    $vssService = Get-Service -Name 'VSS' -ErrorAction SilentlyContinue
-    if ($vssService -and $vssService.StartType -in @('Manual','Automatic')) {
-        Add-Result -Category "ISO27001 - 27031 ICT Continuity" -Status "Pass" `
-            -Severity "Medium" `
-            -Message "27031 Sec.7 ICT readiness: backup/restore infrastructure operational" `
-            -CrossReferences @{ ISO27031='Sec.7'; ISO27001='A.5.30' }
-    }
-    else {
-        Add-Result -Category "ISO27001 - 27031 ICT Continuity" -Status "Warning" `
-            -Severity "Medium" `
-            -Message "27031 Sec.7 VSS disabled (ICT recovery readiness gap)" `
-            -Remediation "Set-Service -Name VSS -StartupType Manual" `
-            -CrossReferences @{ ISO27031='Sec.7' }
-    }
-
-    $w32time = Get-Service -Name 'W32Time' -ErrorAction SilentlyContinue
-    if ($w32time -and $w32time.Status -eq 'Running') {
-        Add-Result -Category "ISO27001 - 27031 ICT Continuity" -Status "Pass" `
-            -Severity "Low" `
-            -Message "27031 Time synchronization for incident reconstruction" `
-            -CrossReferences @{ ISO27031='Sec.6'; ISO27001='A.8.17' }
-    }
-    else {
-        Add-Result -Category "ISO27001 - 27031 ICT Continuity" -Status "Warning" `
-            -Severity "Medium" `
-            -Message "27031 Time service inactive (incident reconstruction impaired)" `
-            -Remediation "Start-Service -Name W32Time; Set-Service -Name W32Time -StartupType Automatic" `
-            -CrossReferences @{ ISO27031='Sec.6' }
-    }
-
-    $sysRestore = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" -Name "DisableSR" -Default 0
-    if ($sysRestore -eq 0) {
-        Add-Result -Category "ISO27001 - 27031 ICT Continuity" -Status "Pass" `
-            -Severity "Low" `
-            -Message "27031 System restore enabled for rollback recovery" `
-            -CrossReferences @{ ISO27031='Sec.7'; ISO27001='A.8.13' }
-    }
-    else {
-        Add-Result -Category "ISO27001 - 27031 ICT Continuity" -Status "Warning" `
-            -Severity "Medium" `
-            -Message "27031 System Restore disabled" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore' -Name 'DisableSR' -Value 0 -Type DWord; Enable-ComputerRestore -Drive 'C:\\'" `
-            -CrossReferences @{ ISO27031='Sec.7' }
-    }
-}
-catch {
-    Add-Result -Category "ISO27001 - 27005 Risk" -Status "Error" `
-        -Severity "Medium" `
-        -Message "ISO 27005 / 27031 assessment failed: $($_.Exception.Message)"
-}
-
-# ===========================================================================
-# v6.1: Annex A.5 Organizational and A.7 Physical control evidence
-# ===========================================================================
-Write-Host "[ISO27001] Checking Annex A.5/A.7 control technical evidence..." -ForegroundColor Yellow
-
-try {
     $auditPolicyChange = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'Audit Policy Change' }
     if ($auditPolicyChange -and $auditPolicyChange.Setting -ne 'No Auditing') {
-        Add-Result -Category "ISO27001 - Annex A.5/A.7" -Status "Pass" `
+        Add-Result -Category "HIPAA - Breach Notification" -Status "Pass" `
             -Severity "Medium" `
-            -Message "A.5.37 Documented operating procedures: change tracking active" `
-            -CrossReferences @{ ISO27001='A.5.37' }
+            -Message "Sec.164.402 Tamper indicator: audit policy changes tracked" `
+            -CrossReferences @{ HIPAA='164.402' }
     }
     else {
-        Add-Result -Category "ISO27001 - Annex A.5/A.7" -Status "Warning" `
+        Add-Result -Category "HIPAA - Breach Notification" -Status "Warning" `
             -Severity "Medium" `
-            -Message "A.5.37 Audit policy change tracking inactive" `
+            -Message "Sec.164.402 Audit policy changes not tracked (tamper detection gap)" `
             -Remediation "auditpol /set /subcategory:'Audit Policy Change' /success:enable /failure:enable" `
-            -CrossReferences @{ ISO27001='A.5.37' }
-    }
-
-    $autoPlay = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoDriveTypeAutoRun" -Default 0
-    if ($autoPlay -eq 255) {
-        Add-Result -Category "ISO27001 - Annex A.5/A.7" -Status "Pass" `
-            -Severity "Medium" `
-            -Message "A.7.10 Storage media: AutoPlay restricted on all drive types" `
-            -CrossReferences @{ ISO27001='A.7.10' }
-    }
-    else {
-        Add-Result -Category "ISO27001 - Annex A.5/A.7" -Status "Warning" `
-            -Severity "Medium" `
-            -Message "A.7.10 Storage media: AutoPlay not fully disabled" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name 'NoDriveTypeAutoRun' -Value 255 -Type DWord" `
-            -CrossReferences @{ ISO27001='A.7.10' }
-    }
-
-    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
-    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
-        Add-Result -Category "ISO27001 - Annex A.5/A.7" -Status "Pass" `
-            -Severity "High" `
-            -Message "A.7.5 Physical security perimeter: drive encryption mitigates physical theft risk" `
-            -CrossReferences @{ ISO27001='A.7.5' }
-    }
-    else {
-        Add-Result -Category "ISO27001 - Annex A.5/A.7" -Status "Fail" `
-            -Severity "High" `
-            -Message "A.7.5 Physical security gap: no drive encryption (theft exposure)" `
-            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
-            -CrossReferences @{ ISO27001='A.7.5' }
+            -CrossReferences @{ HIPAA='164.402' }
     }
 }
 catch {
-    Add-Result -Category "ISO27001 - Annex A.5/A.7" -Status "Error" `
+    Add-Result -Category "HIPAA - Breach Notification" -Status "Error" `
         -Severity "Medium" `
-        -Message "Annex A.5/A.7 evidence assessment failed: $($_.Exception.Message)"
+        -Message "Breach Notification Rule assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: 21st Century Cures Act and ONC Health IT Certification
+# ===========================================================================
+Write-Host "[HIPAA] Checking 21st Century Cures Act and ONC technical controls..." -ForegroundColor Yellow
+
+try {
+    $autoUpdate = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "NoAutoUpdate" -Default 0
+    if ($autoUpdate -eq 0) {
+        Add-Result -Category "HIPAA - 21st Century Cures" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Information blocking exception: security updates applied automatically" `
+            -Details "21st Century Cures Act Sec. 4004 information blocking provisions allow security update activities" `
+            -CrossReferences @{ Cures='4004'; ONC='Cures Final Rule' }
+    }
+    else {
+        Add-Result -Category "HIPAA - 21st Century Cures" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Automatic updates disabled (security exception use must be documented)" `
+            -CrossReferences @{ Cures='4004' }
+    }
+
+    $defenderStatus = Get-DefenderStatus -Cache $SharedData.Cache
+    if ($defenderStatus -and $defenderStatus.AntivirusEnabled) {
+        Add-Result -Category "HIPAA - ONC Health IT" -Status "Pass" `
+            -Severity "High" `
+            -Message "ONC Sec. 170.315(d)(2) Auditable events: malicious code detection active" `
+            -Details "ONC Health IT Certification 2015 Edition requires audit log content including malicious code events" `
+            -CrossReferences @{ ONC='170.315(d)(2)'; Cures='ONC Cures Update' }
+    }
+    else {
+        Add-Result -Category "HIPAA - ONC Health IT" -Status "Fail" `
+            -Severity "High" `
+            -Message "ONC Sec. 170.315(d)(2) Antivirus not enabled" `
+            -CrossReferences @{ ONC='170.315(d)(2)' }
+    }
+
+    $auditLogon = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'Logon' }
+    if ($auditLogon -and $auditLogon.Setting -ne 'No Auditing') {
+        Add-Result -Category "HIPAA - ONC Health IT" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "ONC Sec. 170.315(d)(3) Audit log content: authentication events captured" `
+            -CrossReferences @{ ONC='170.315(d)(3)' }
+    }
+    else {
+        Add-Result -Category "HIPAA - ONC Health IT" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "ONC Sec. 170.315(d)(3) Authentication audit content gap" `
+            -Remediation "auditpol /set /subcategory:'Logon' /success:enable /failure:enable" `
+            -CrossReferences @{ ONC='170.315(d)(3)' }
+    }
+}
+catch {
+    Add-Result -Category "HIPAA - 21st Century Cures" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Cures Act and ONC assessment failed: $($_.Exception.Message)"
 }
 
 # ===========================================================================
@@ -2409,7 +2015,7 @@ $totalChecks  = $results.Count
 $passPct      = if ($totalChecks -gt 0) { [Math]::Round(($passCount / $totalChecks) * 100, 1) } else { 0 }
 
 Write-Host "`n$("=" * 80)" -ForegroundColor White
-Write-Host "  [ISO27001] ISO/IEC 27001:2022 Module Complete (v$moduleVersion)" -ForegroundColor Cyan
+Write-Host "  [HIPAA] HIPAA Security Rule Module Complete (v$moduleVersion)" -ForegroundColor Cyan
 Write-Host "$("=" * 80)" -ForegroundColor White
 Write-Host "  Total Checks: $totalChecks  |  Pass: $passCount ($passPct`%)  |  Fail: $failCount  |  Warn: $warnCount  |  Info: $infoCount  |  Error: $errorCount" -ForegroundColor White
 
@@ -2442,7 +2048,7 @@ return $results
 # ===========================================================================
 if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocation.MyCommand.Path) {
     Write-Host "`n$("=" * 80)" -ForegroundColor White
-    Write-Host "  ISO/IEC 27001:2022 Module -- Standalone Execution (v$moduleVersion)" -ForegroundColor Cyan
+    Write-Host "  HIPAA Security Rule Module -- Standalone Execution (v$moduleVersion)" -ForegroundColor Cyan
     Write-Host "$("=" * 80)" -ForegroundColor White
 
     $standaloneData = @{
@@ -2483,7 +2089,7 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
     $SharedData = $standaloneData
     $useCache = ($null -ne $SharedData.Cache)
 
-    Write-Host "[ISO27001] Executing checks with standalone environment...`n" -ForegroundColor Cyan
+    Write-Host "[HIPAA] Executing checks with standalone environment...`n" -ForegroundColor Cyan
     $script:results = @()
 
     Write-Host "`n$("=" * 80)" -ForegroundColor White
@@ -2514,7 +2120,7 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
     }
 
     Write-Host "`n$("=" * 80)" -ForegroundColor White
-    Write-Host "  ISO27001 module standalone test complete" -ForegroundColor Cyan
+    Write-Host "  HIPAA module standalone test complete" -ForegroundColor Cyan
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
