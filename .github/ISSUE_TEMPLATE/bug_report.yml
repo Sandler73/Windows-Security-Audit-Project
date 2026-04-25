@@ -1,0 +1,226 @@
+name: 🐛 Bug Report
+description: Report something broken in the audit framework (errors, crashes, wrong behavior, output corruption)
+title: "[Bug]: "
+labels: ["bug", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! A few notes before you start:
+
+        - **Not sure if it's a bug?** Use [Discussions](https://github.com/Sandler73/Windows-Security-Audit-Project/discussions) for usage questions.
+        - **Did you find a security vulnerability in the framework itself?** STOP. Use a [private Security Advisory](https://github.com/Sandler73/Windows-Security-Audit-Project/security/advisories/new) instead. Do not disclose it publicly.
+        - **Is a check reporting Pass when it should Fail (or vice versa)?** Use the False Positive or False Negative templates instead — they collect the right framework-mapping context.
+        - **Is the audit running but slow?** Use the Performance Issue template instead.
+
+        Please complete every section. Incomplete reports may be closed without action.
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Pre-flight checklist
+      description: Confirm the basics before submitting
+      options:
+        - label: I have searched [existing issues](https://github.com/Sandler73/Windows-Security-Audit-Project/issues?q=is%3Aissue) and this is not a duplicate
+          required: true
+        - label: I have read the [Troubleshooting Guide](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Troubleshooting-Guide)
+          required: true
+        - label: I am running the latest stable release (or a clearly identified development version)
+          required: true
+        - label: I am running PowerShell as Administrator
+          required: true
+        - label: This is NOT a security vulnerability in the framework itself
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Audit framework version
+      description: Output of `(Get-Content .\Windows-Security-Audit.ps1 | Select-String "ScriptVersion\s*=").Line.Trim()`
+      placeholder: "e.g., $script:ScriptVersion = '6.1.2'"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Windows version
+      description: Pick your operating system. Run `(Get-CimInstance Win32_OperatingSystem).Caption` if unsure.
+      options:
+        - Windows 11 24H2
+        - Windows 11 23H2
+        - Windows 11 22H2
+        - Windows 11 21H2
+        - Windows 10 22H2
+        - Windows 10 21H2
+        - Windows 10 IoT LTSC 2021
+        - Windows Server 2025
+        - Windows Server 2022
+        - Windows Server 2019
+        - Windows Server 2016
+        - Other (please specify in description)
+    validations:
+      required: true
+
+  - type: input
+    id: build-number
+    attributes:
+      label: Windows build number
+      description: Run `[System.Environment]::OSVersion.Version.Build` -- gives the precise build (e.g., 26100, 22631, 19045)
+      placeholder: "26100"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: powershell
+    attributes:
+      label: PowerShell version
+      description: Run `$PSVersionTable.PSVersion` to find this.
+      options:
+        - "5.1 (Windows PowerShell)"
+        - "7.0.x"
+        - "7.1.x"
+        - "7.2.x"
+        - "7.3.x"
+        - "7.4.x"
+        - "7.5.x"
+        - "Other (specify in description)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ps-edition
+    attributes:
+      label: PowerShell edition
+      description: Run `$PSVersionTable.PSEdition` to find this.
+      options:
+        - Desktop
+        - Core
+    validations:
+      required: true
+
+  - type: dropdown
+    id: domain-state
+    attributes:
+      label: Domain/workgroup state
+      description: Important context for AD-related checks
+      options:
+        - Standalone (workgroup)
+        - Domain-joined member
+        - Domain Controller
+        - Hybrid Azure AD joined
+        - Azure AD joined
+        - Other / unknown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: modules
+    attributes:
+      label: Affected module(s)
+      description: Which audit module(s) exhibit the bug? Select multiple if applicable.
+      multiple: true
+      options:
+        - acsc
+        - cis
+        - cisa
+        - cmmc
+        - core
+        - enisa
+        - gdpr
+        - hipaa
+        - iso27001
+        - ms
+        - ms-defenderatp
+        - nist
+        - nsa
+        - pcidss
+        - soc2
+        - stig
+        - Orchestrator (Windows-Security-Audit.ps1)
+        - Shared library (audit-common.ps1)
+        - Output formatter (HTML / JSON / CSV / XML)
+        - Logging system
+        - Cache system
+        - Parallel execution
+        - Remediation engine
+        - Rollback / GPO export
+        - Baseline drift
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact command invocation
+      description: The exact PowerShell command that triggered the bug
+      placeholder: |
+        .\Windows-Security-Audit.ps1 -Modules core,cis -OutputFormat HTML -Parallel -Workers 4
+      render: powershell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened? Include exact error messages.
+    validations:
+      required: true
+
+  - type: textarea
+    id: log-output
+    attributes:
+      label: Relevant log output
+      description: |
+        Re-run with `-LogLevel Debug -Verbose` and paste the relevant log section.
+        The log file is at `.\logs\audit-yyyyMMdd-HHmmss.log` by default.
+
+        **Sanitize first:** remove any hostnames, usernames, IP addresses, or other identifying info you don't want public.
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Numbered, minimal repro steps
+      placeholder: |
+        1. Open PowerShell as Administrator
+        2. cd to extracted Windows-Security-Audit folder
+        3. Run: .\Windows-Security-Audit.ps1 -Modules core
+        4. Observe error in console output around the BitLocker check
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround (if known)
+      description: Have you found any way to work around the bug?
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: |
+        - Group Policy state (any custom GPOs applied?)
+        - Third-party EDR / AV product (CrowdStrike, SentinelOne, Defender for Endpoint, etc.)
+        - PowerShell execution policy (`Get-ExecutionPolicy -List`)
+        - Locked-down environment? (CIS-hardened, STIG-hardened, etc.)
+        - Anything else relevant
+    validations:
+      required: false
