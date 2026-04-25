@@ -487,6 +487,73 @@ $totalControls = 110
 Add-Result -Details "Assessed $totalControls controls" ...
 ```
 
+**6. GitHub Actions: matrix context not allowed in step `shell:` directive**
+
+GitHub Actions' workflow validator rejects matrix-context expressions in
+step-level `shell:` directives at parse time, BEFORE matrix expansion.
+This applies even to simple substitutions:
+
+```yaml
+# WRONG -- "Unrecognized named-value: 'matrix'"
+- name: Run tests
+  shell: ${{ matrix.ps == '5.1' && 'powershell' || 'pwsh' }}
+  run: ...
+```
+
+Matrix is permitted in `runs-on:`, `name:`, step `if:`, step `with:`,
+step `env:`, and `run:` script bodies, but NOT in `shell:`. The cleanest
+fix is to split the matrix axis into separate jobs, each with a fixed
+`defaults.run.shell` at job level (where matrix substitution works on
+other fields):
+
+```yaml
+# RIGHT -- two jobs, each with fixed shell at job level
+jobs:
+  pester-pwsh:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-2022, windows-2025]
+    defaults:
+      run:
+        shell: pwsh   # static value here is fine
+    steps: ...
+
+  pester-windowspowershell:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-2022, windows-2025]
+    defaults:
+      run:
+        shell: powershell
+    steps: ...
+```
+
+**7. Environment-tolerant result-count thresholds**
+
+GitHub-hosted Windows runners are stripped-down: no domain join, no
+BitLocker, no Hyper-V, no Defender ATP licensing, missing many optional
+Windows features. As a result, modules legitimately produce fewer results
+than on a production system -- e.g., the `core` module emits ~95 results
+on `windows-2022` but ~243 on a fully-configured production server.
+
+When writing CI assertions, use thresholds calibrated to the
+LEAST-equipped runner the test runs on, not nominal/production values.
+Concrete benchmarks (as of v6.1.2):
+
+| Test scope             | Production target | CI threshold |
+|------------------------|-------------------|--------------|
+| Single module (core)   | ~243              | >=50         |
+| 3 modules sequential   | ~700              | >=150        |
+| Full 16-module audit   | ~3,994            | >=1,500      |
+| Module diversity       | 16                | >=14         |
+
+Failing tests due to too-strict thresholds is a false-failure pattern
+that consumes contributor time. When in doubt, set the threshold to 25%
+of the production target -- this catches genuine regressions (modules
+not running at all) while tolerating environmental variation.
+
 ## Submission Process
 
 ### Pull Request Guidelines
