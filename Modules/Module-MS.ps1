@@ -3146,25 +3146,32 @@ try {
     if ($os) {
         $build = [int]$os.BuildNumber
         $product = $os.ProductType
+        $productLabel = switch ($product) {
+            1 { 'Workstation' }
+            2 { 'Domain Controller' }
+            3 { 'Member Server' }
+            default { 'Unknown' }
+        }
 
         if ($build -ge 26100) {
+            $osLabel = if ($product -eq 1) { 'Windows 11 24H2' } else { 'Windows Server 2025' }
             Add-Result -Category "MS - Modern Baseline" -Status "Pass" `
                 -Severity "Low" `
-                -Message "OS at Windows 11 24H2 / Server 2025 build level (build $build)" `
+                -Message "OS at $osLabel build level (build $build, $productLabel)" `
                 -Details "Microsoft Security Baseline 24H2 / Server 2025 applicable" `
                 -CrossReferences @{ MS='Baseline 24H2/2025'; Build="$build" }
         }
         elseif ($build -ge 22631) {
             Add-Result -Category "MS - Modern Baseline" -Status "Pass" `
                 -Severity "Low" `
-                -Message "OS at Windows 11 23H2 build level (build $build)" `
+                -Message "OS at Windows 11 23H2 build level (build $build, $productLabel)" `
                 -Details "Microsoft Security Baseline 23H2 applicable; consider 24H2 upgrade path" `
                 -CrossReferences @{ MS='Baseline 23H2'; Build="$build" }
         }
         elseif ($build -ge 22000) {
             Add-Result -Category "MS - Modern Baseline" -Status "Info" `
                 -Severity "Informational" `
-                -Message "OS at Windows 11 21H2/22H2 baseline (build $build)" `
+                -Message "OS at Windows 11 21H2/22H2 baseline (build $build, $productLabel)" `
                 -CrossReferences @{ MS='Baseline 21H2/22H2' }
         }
         elseif ($build -ge 19041) {
