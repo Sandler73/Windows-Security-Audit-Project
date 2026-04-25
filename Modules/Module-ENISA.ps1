@@ -1,6 +1,6 @@
 # module-enisa.ps1
 # ENISA Cybersecurity Guidelines Module for Windows Security Audit
-# Version: 6.0
+# Version: 6.1.2
 #
 # Evaluates Windows configuration against ENISA (European Union Agency for
 # Cybersecurity) guidelines and recommendations with Severity ratings
@@ -35,7 +35,7 @@
     Dependencies: audit-common.ps1 (optional, for caching)
     References: ENISA Good Practices for IoT and Smart Infrastructures (2019),
                 ENISA Threat Landscape (2023), EU Cybersecurity Act (2019/881)
-    Version: 6.0
+    Version: 6.1.2
 
 .EXAMPLE
     $results = & .\modules\module-enisa.ps1 -SharedData $sharedData
@@ -47,7 +47,7 @@ param(
 )
 
 $moduleName = "ENISA"
-$moduleVersion = "6.0"
+$moduleVersion = "6.1.2"
 $results = @()
 
 # ---------------------------------------------------------------------------
@@ -89,7 +89,7 @@ function Get-RegValue {
     try {
         $item = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
         if ($null -ne $item) { return $item.$Name }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
     return $Default
 }
 
@@ -1347,6 +1347,412 @@ Write-Host "[ENISA] Checking GP.10 -- Endpoint Protection..." -ForegroundColor Y
             -Severity "High" -CrossReferences @{ ENISA='GP.10'; NIST='SI-16' }
     }
 
+
+# ===========================================================================
+# v6.1: NIS2 Directive specific control mapping
+# ===========================================================================
+Write-Host "[ENISA] Checking NIS2 Directive technical controls..." -ForegroundColor Yellow
+
+try {
+    $defenderStatus = Get-DefenderStatus -Cache $SharedData.Cache
+    if ($defenderStatus -and $defenderStatus.RealTimeProtectionEnabled) {
+        Add-Result -Category "ENISA - NIS2 Directive" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "NIS2 Art. 21(2)(d) Supply chain security: endpoint malware detection active" `
+            -Details "Directive (EU) 2022/2555 Article 21 requires cybersecurity risk-management measures" `
+            -CrossReferences @{ NIS2='Art.21(2)(d)'; Directive='2022/2555'; NIST='SI-3' }
+    }
+    else {
+        Add-Result -Category "ENISA - NIS2 Directive" -Status "Fail" `
+            -Severity "High" `
+            -Message "NIS2 Art. 21(2)(d) Endpoint malware protection inactive" `
+            -CrossReferences @{ NIS2='Art.21(2)(d)'; Directive='2022/2555' }
+    }
+
+    $secLogSize = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Security" -Name "MaxSize" -Default 0
+    if ($secLogSize -ge 268435456) {
+        $secLogMB = [Math]::Round($secLogSize / 1MB, 0)
+        Add-Result -Category "ENISA - NIS2 Directive" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "NIS2 Art. 21(2)(b) Incident handling: audit log capacity adequate (${secLogMB} MB)" `
+            -CrossReferences @{ NIS2='Art.21(2)(b)'; Directive='2022/2555' }
+    }
+    else {
+        Add-Result -Category "ENISA - NIS2 Directive" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "NIS2 Art. 21(2)(b) Audit log capacity below incident handling baseline" `
+            -Remediation "wevtutil sl Security /ms:268435456" `
+            -CrossReferences @{ NIS2='Art.21(2)(b)' }
+    }
+
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "ENISA - NIS2 Directive" -Status "Pass" `
+            -Severity "High" `
+            -Message "NIS2 Art. 21(2)(h) Cryptography use: at-rest encryption active" `
+            -CrossReferences @{ NIS2='Art.21(2)(h)'; Directive='2022/2555' }
+    }
+    else {
+        Add-Result -Category "ENISA - NIS2 Directive" -Status "Fail" `
+            -Severity "High" `
+            -Message "NIS2 Art. 21(2)(h) No at-rest encryption" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ NIS2='Art.21(2)(h)' }
+    }
+
+    $cgEnabled = Test-CredentialGuardEnabled
+    if ($cgEnabled) {
+        Add-Result -Category "ENISA - NIS2 Directive" -Status "Pass" `
+            -Severity "High" `
+            -Message "NIS2 Art. 21(2)(i) Access control: privileged credential isolation active" `
+            -CrossReferences @{ NIS2='Art.21(2)(i)'; Directive='2022/2555' }
+    }
+    else {
+        Add-Result -Category "ENISA - NIS2 Directive" -Status "Warning" `
+            -Severity "High" `
+            -Message "NIS2 Art. 21(2)(i) Credential Guard not active (privileged access protection gap)" `
+            -CrossReferences @{ NIS2='Art.21(2)(i)' }
+    }
+
+    $w32time = Get-Service -Name 'W32Time' -ErrorAction SilentlyContinue
+    if ($w32time -and $w32time.Status -eq 'Running') {
+        Add-Result -Category "ENISA - NIS2 Directive" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "NIS2 Art. 21(2)(j) Time synchronization for incident timeline correlation" `
+            -CrossReferences @{ NIS2='Art.21(2)(j)'; NIST='AU-8' }
+    }
+    else {
+        Add-Result -Category "ENISA - NIS2 Directive" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "NIS2 Art. 21(2)(j) W32Time service not running (incident correlation impaired)" `
+            -Remediation "Start-Service -Name W32Time; Set-Service -Name W32Time -StartupType Automatic" `
+            -CrossReferences @{ NIS2='Art.21(2)(j)' }
+    }
+}
+catch {
+    Add-Result -Category "ENISA - NIS2 Directive" -Status "Error" `
+        -Severity "Medium" `
+        -Message "NIS2 Directive assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Cyber Resilience Act (CRA) alignment for products
+# ===========================================================================
+Write-Host "[ENISA] Checking Cyber Resilience Act technical alignment..." -ForegroundColor Yellow
+
+try {
+    $autoUpdate = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "NoAutoUpdate" -Default 0
+    if ($autoUpdate -eq 0) {
+        Add-Result -Category "ENISA - Cyber Resilience Act" -Status "Pass" `
+            -Severity "High" `
+            -Message "CRA Annex I(2)(d) Vulnerability handling: automatic updates enabled" `
+            -Details "Regulation (EU) 2024/2847 mandates security update mechanisms for products with digital elements" `
+            -CrossReferences @{ CRA='Annex I(2)(d)'; Regulation='2024/2847' }
+    }
+    else {
+        Add-Result -Category "ENISA - Cyber Resilience Act" -Status "Fail" `
+            -Severity "High" `
+            -Message "CRA Annex I(2)(d) Automatic updates disabled" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name 'NoAutoUpdate' -Value 0 -Type DWord" `
+            -CrossReferences @{ CRA='Annex I(2)(d)' }
+    }
+
+    $sbEnabled = Test-SecureBootEnabled
+    if ($sbEnabled) {
+        Add-Result -Category "ENISA - Cyber Resilience Act" -Status "Pass" `
+            -Severity "High" `
+            -Message "CRA Annex I(1)(c) Secure default configuration (Secure Boot active)" `
+            -CrossReferences @{ CRA='Annex I(1)(c)'; Regulation='2024/2847' }
+    }
+    else {
+        Add-Result -Category "ENISA - Cyber Resilience Act" -Status "Fail" `
+            -Severity "High" `
+            -Message "CRA Annex I(1)(c) Secure Boot not active" `
+            -CrossReferences @{ CRA='Annex I(1)(c)' }
+    }
+
+    $sbomEvent = Get-CimInstance -ClassName Win32_QuickFixEngineering -ErrorAction SilentlyContinue
+    if ($sbomEvent) {
+        $hotfixCount = @($sbomEvent).Count
+        Add-Result -Category "ENISA - Cyber Resilience Act" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "CRA Art. 13 Patch inventory available ($hotfixCount installed updates)" `
+            -Details "Win32_QuickFixEngineering enumeration supports software bill of materials requirements" `
+            -CrossReferences @{ CRA='Art.13'; Regulation='2024/2847' }
+    }
+    else {
+        Add-Result -Category "ENISA - Cyber Resilience Act" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "CRA Art. 13 Patch inventory query failed" `
+            -CrossReferences @{ CRA='Art.13' }
+    }
+}
+catch {
+    Add-Result -Category "ENISA - Cyber Resilience Act" -Status "Error" `
+        -Severity "Medium" `
+        -Message "CRA alignment assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: ENISA Threat Landscape categorization
+# ===========================================================================
+Write-Host "[ENISA] Checking Threat Landscape category coverage..." -ForegroundColor Yellow
+
+try {
+    $defenderStatus = Get-DefenderStatus -Cache $SharedData.Cache
+    if ($defenderStatus -and $defenderStatus.RealTimeProtectionEnabled) {
+        Add-Result -Category "ENISA - Threat Landscape" -Status "Pass" `
+            -Severity "High" `
+            -Message "ETL Threat: Ransomware (real-time AV active)" `
+            -Details "ENISA Threat Landscape ranks ransomware as a Tier 1 threat" `
+            -CrossReferences @{ ENISA='ETL Ransomware'; NIST='SI-3' }
+    }
+    else {
+        Add-Result -Category "ENISA - Threat Landscape" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "ETL Threat: Ransomware exposure (no real-time AV)" `
+            -CrossReferences @{ ENISA='ETL Ransomware' }
+    }
+
+    $cfaState = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Windows Defender Exploit Guard\Controlled Folder Access" -Name "EnableControlledFolderAccess" -Default 0
+    if ($cfaState -in @(1,3)) {
+        Add-Result -Category "ENISA - Threat Landscape" -Status "Pass" `
+            -Severity "High" `
+            -Message "ETL Threat: Ransomware (Controlled Folder Access blocking)" `
+            -CrossReferences @{ ENISA='ETL Ransomware' }
+    }
+    else {
+        Add-Result -Category "ENISA - Threat Landscape" -Status "Warning" `
+            -Severity "High" `
+            -Message "ETL Threat: Ransomware exposure (CFA not blocking)" `
+            -Remediation "Set-MpPreference -EnableControlledFolderAccess Enabled" `
+            -CrossReferences @{ ENISA='ETL Ransomware' }
+    }
+
+    $netProt = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Windows Defender Exploit Guard\Network Protection" -Name "EnableNetworkProtection" -Default 0
+    if ($netProt -eq 1) {
+        Add-Result -Category "ENISA - Threat Landscape" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "ETL Threat: Phishing (Network Protection blocking malicious domains)" `
+            -CrossReferences @{ ENISA='ETL Phishing' }
+    }
+    else {
+        Add-Result -Category "ENISA - Threat Landscape" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "ETL Threat: Phishing exposure (Network Protection not in block mode)" `
+            -Remediation "Set-MpPreference -EnableNetworkProtection Enabled" `
+            -CrossReferences @{ ENISA='ETL Phishing' }
+    }
+
+    $smbv1 = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "SMB1" -Default 1
+    if ($smbv1 -eq 0) {
+        Add-Result -Category "ENISA - Threat Landscape" -Status "Pass" `
+            -Severity "High" `
+            -Message "ETL Threat: Wormable malware (SMBv1 disabled)" `
+            -CrossReferences @{ ENISA='ETL Malware'; CVE='CVE-2017-0144' }
+    }
+    else {
+        Add-Result -Category "ENISA - Threat Landscape" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "ETL Threat: Wormable malware exposure (SMBv1 enabled)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'SMB1' -Value 0 -Type DWord" `
+            -CrossReferences @{ ENISA='ETL Malware'; CVE='CVE-2017-0144' }
+    }
+}
+catch {
+    Add-Result -Category "ENISA - Threat Landscape" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Threat Landscape assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: ENISA Reference Incident Classification Taxonomy
+# ===========================================================================
+Write-Host "[ENISA] Checking Reference Incident Classification Taxonomy support..." -ForegroundColor Yellow
+
+try {
+    $auditAccountLogon = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'Credential Validation' }
+    if ($auditAccountLogon -and $auditAccountLogon.Setting -ne 'No Auditing') {
+        Add-Result -Category "ENISA - Incident Taxonomy" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "RICT Class: Intrusion detection (credential validation auditing active)" `
+            -Details "Reference Incident Classification Taxonomy v1.1 categorizes intrusion attempts using authentication evidence" `
+            -CrossReferences @{ ENISA='RICT-Intrusion'; NIST='AU-2' }
+    }
+    else {
+        Add-Result -Category "ENISA - Incident Taxonomy" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "RICT Class: Credential validation auditing not active" `
+            -Remediation "auditpol /set /subcategory:'Credential Validation' /success:enable /failure:enable" `
+            -CrossReferences @{ ENISA='RICT-Intrusion' }
+    }
+
+    $auditObjAccess = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -like '*File System*' }
+    if ($auditObjAccess -and $auditObjAccess.Setting -ne 'No Auditing') {
+        Add-Result -Category "ENISA - Incident Taxonomy" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "RICT Class: Information content security (file access auditing active)" `
+            -CrossReferences @{ ENISA='RICT-InfoSec'; NIST='AU-2' }
+    }
+    else {
+        Add-Result -Category "ENISA - Incident Taxonomy" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "RICT Class: File access auditing not active" `
+            -CrossReferences @{ ENISA='RICT-InfoSec' }
+    }
+
+    $auditPolicyChange = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'Audit Policy Change' }
+    if ($auditPolicyChange -and $auditPolicyChange.Setting -ne 'No Auditing') {
+        Add-Result -Category "ENISA - Incident Taxonomy" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "RICT Class: Configuration change tracking (audit policy changes logged)" `
+            -CrossReferences @{ ENISA='RICT-ConfigChange'; NIST='CM-3(5)' }
+    }
+    else {
+        Add-Result -Category "ENISA - Incident Taxonomy" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "RICT Class: Configuration change tracking inactive" `
+            -Remediation "auditpol /set /subcategory:'Audit Policy Change' /success:enable /failure:enable" `
+            -CrossReferences @{ ENISA='RICT-ConfigChange' }
+    }
+}
+catch {
+    Add-Result -Category "ENISA - Incident Taxonomy" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Incident taxonomy assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: ENISA IoC good practice and AI Threat Landscape
+# ===========================================================================
+Write-Host "[ENISA] Checking IoC and AI threat landscape indicators..." -ForegroundColor Yellow
+
+try {
+    $sysmonService = Get-Service -Name 'Sysmon*' -ErrorAction SilentlyContinue
+    if ($sysmonService) {
+        Add-Result -Category "ENISA - IoC Good Practice" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "IoC collection infrastructure present (Sysmon detected)" `
+            -Details "ENISA IoC good practice guide recommends process and network event monitoring" `
+            -CrossReferences @{ ENISA='IoC Guide' }
+    }
+    else {
+        Add-Result -Category "ENISA - IoC Good Practice" -Status "Info" `
+            -Severity "Informational" `
+            -Message "IoC collection: no Sysmon detected (alternate EDR may exist)" `
+            -CrossReferences @{ ENISA='IoC Guide' }
+    }
+
+    $auditProcess = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'Process Creation' }
+    if ($auditProcess -and $auditProcess.Setting -ne 'No Auditing') {
+        Add-Result -Category "ENISA - IoC Good Practice" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "IoC: Process creation auditing active for behavioral indicators" `
+            -CrossReferences @{ ENISA='IoC Guide'; NIST='AU-12' }
+    }
+    else {
+        Add-Result -Category "ENISA - IoC Good Practice" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "IoC: Process creation auditing not active" `
+            -Remediation "auditpol /set /subcategory:'Process Creation' /success:enable" `
+            -CrossReferences @{ ENISA='IoC Guide' }
+    }
+
+    $psLog = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging" -Name "EnableScriptBlockLogging" -Default 0
+    if ($psLog -eq 1) {
+        Add-Result -Category "ENISA - AI Threat Landscape" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "ETL-AI: PowerShell script logging supports detection of AI-generated payloads" `
+            -Details "ENISA AI Threat Landscape highlights AI-generated malicious scripts as an emerging vector" `
+            -CrossReferences @{ ENISA='ETL-AI' }
+    }
+    else {
+        Add-Result -Category "ENISA - AI Threat Landscape" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "ETL-AI: PowerShell script block logging disabled" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name 'EnableScriptBlockLogging' -Value 1 -Type DWord" `
+            -CrossReferences @{ ENISA='ETL-AI' }
+    }
+
+    $smartScreen = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Name "EnableSmartScreen" -Default 0
+    if ($smartScreen -eq 1 -or $smartScreen -eq 2) {
+        Add-Result -Category "ENISA - AI Threat Landscape" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "ETL-AI: SmartScreen enabled (AI-generated phishing site mitigation)" `
+            -CrossReferences @{ ENISA='ETL-AI' }
+    }
+    else {
+        Add-Result -Category "ENISA - AI Threat Landscape" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "ETL-AI: SmartScreen not enforcing (value: $smartScreen)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name 'EnableSmartScreen' -Value 1 -Type DWord" `
+            -CrossReferences @{ ENISA='ETL-AI' }
+    }
+}
+catch {
+    Add-Result -Category "ENISA - IoC Good Practice" -Status "Error" `
+        -Severity "Medium" `
+        -Message "IoC and AI landscape assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: EUCC and DORA alignment
+# ===========================================================================
+Write-Host "[ENISA] Checking EUCC and DORA technical alignment..." -ForegroundColor Yellow
+
+try {
+    $tpm = Get-CimInstance -Namespace 'root\CIMv2\Security\MicrosoftTpm' -ClassName Win32_Tpm -ErrorAction SilentlyContinue
+    if ($tpm -and $tpm.IsActivated_InitialValue) {
+        Add-Result -Category "ENISA - EUCC Scheme" -Status "Pass" `
+            -Severity "High" `
+            -Message "EUCC EAL-equivalent: hardware root of trust (TPM active)" `
+            -Details "EU Cybersecurity Act EUCC scheme references hardware-anchored security baselines" `
+            -CrossReferences @{ EUCC='Common Criteria'; CSA='Regulation 2019/881' }
+    }
+    else {
+        Add-Result -Category "ENISA - EUCC Scheme" -Status "Fail" `
+            -Severity "High" `
+            -Message "EUCC EAL-equivalent: TPM not activated (no hardware root of trust)" `
+            -CrossReferences @{ EUCC='Common Criteria' }
+    }
+
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "ENISA - DORA Alignment" -Status "Pass" `
+            -Severity "High" `
+            -Message "DORA Art. 9 ICT systems protection: at-rest encryption active" `
+            -Details "Regulation (EU) 2022/2554 Digital Operational Resilience Act applies to financial entities" `
+            -CrossReferences @{ DORA='Art.9'; Regulation='2022/2554' }
+    }
+    else {
+        Add-Result -Category "ENISA - DORA Alignment" -Status "Fail" `
+            -Severity "High" `
+            -Message "DORA Art. 9 No at-rest encryption" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ DORA='Art.9' }
+    }
+
+    $vssService = Get-Service -Name 'VSS' -ErrorAction SilentlyContinue
+    if ($vssService -and $vssService.StartType -in @('Manual','Automatic')) {
+        Add-Result -Category "ENISA - DORA Alignment" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "DORA Art. 12 ICT business continuity: backup infrastructure available" `
+            -CrossReferences @{ DORA='Art.12'; Regulation='2022/2554' }
+    }
+    else {
+        Add-Result -Category "ENISA - DORA Alignment" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "DORA Art. 12 VSS disabled (business continuity infrastructure gap)" `
+            -Remediation "Set-Service -Name VSS -StartupType Manual" `
+            -CrossReferences @{ DORA='Art.12' }
+    }
+}
+catch {
+    Add-Result -Category "ENISA - EUCC Scheme" -Status "Error" `
+        -Severity "Medium" `
+        -Message "EUCC and DORA assessment failed: $($_.Exception.Message)"
+}
+
 # ===========================================================================
 # Module Summary
 # ===========================================================================
@@ -1468,7 +1874,3 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
-
-# ============================================================================
-# End of ENISA Cybersecurity Guidelines Module (Module-ENISA.ps1)
-# ============================================================================
