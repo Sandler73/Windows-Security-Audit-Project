@@ -1,6 +1,6 @@
 # module-soc2.ps1
 # SOC 2 Trust Service Criteria Compliance Module for Windows Security Audit
-# Version: 6.0
+# Version: 6.1.2
 #
 # Evaluates Windows configuration against AICPA SOC 2 Type II Trust Service Criteria (2017)
 # with Severity ratings and cross-framework references.
@@ -30,7 +30,7 @@
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
     References: AICPA TSP Section 100 (2017), SOC 2 Type II Reporting Framework
-    Version: 6.0
+    Version: 6.1.2
 
 .EXAMPLE
     $results = & .\modules\module-soc2.ps1 -SharedData $sharedData
@@ -42,7 +42,7 @@ param(
 )
 
 $moduleName = "SOC2"
-$moduleVersion = "6.0"
+$moduleVersion = "6.1.2"
 $results = @()
 
 # ---------------------------------------------------------------------------
@@ -84,7 +84,7 @@ function Get-RegValue {
     try {
         $item = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
         if ($null -ne $item) { return $item.$Name }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
     return $Default
 }
 
@@ -1057,6 +1057,332 @@ Write-Host "[SOC2] Checking C1 -- Confidentiality..." -ForegroundColor Yellow
             -CrossReferences @{ SOC2='C1.5'; NIST='MP-7'; CIS='18.9.8.3' }
     }
 
+
+# ===========================================================================
+# v6.1: Processing Integrity (PI) Trust Service Criteria
+# ===========================================================================
+Write-Host "[SOC2] Checking Processing Integrity criteria..." -ForegroundColor Yellow
+
+try {
+    $auditPS = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging" -Name "EnableScriptBlockLogging" -Default 0
+    if ($auditPS -eq 1) {
+        Add-Result -Category "SOC2 - PI Processing Integrity" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "PI1.4 Process execution traceability via PowerShell logging" `
+            -Details "Script block logging enables verification of processing integrity for automated workflows" `
+            -CrossReferences @{ SOC2='PI1.4'; AICPA='TSP-100'; NIST='AU-12' }
+    }
+    else {
+        Add-Result -Category "SOC2 - PI Processing Integrity" -Status "Fail" `
+            -Severity "Medium" `
+            -Message "PI1.4 PowerShell script execution not logged" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name 'EnableScriptBlockLogging' -Value 1 -Type DWord" `
+            -CrossReferences @{ SOC2='PI1.4'; AICPA='TSP-100' }
+    }
+
+    $procAudit = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit" -Name "ProcessCreationIncludeCmdLine_Enabled" -Default 0
+    if ($procAudit -eq 1) {
+        Add-Result -Category "SOC2 - PI Processing Integrity" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "PI1.5 Process creation includes command line for input verification" `
+            -CrossReferences @{ SOC2='PI1.5'; AICPA='TSP-100'; NIST='AU-3' }
+    }
+    else {
+        Add-Result -Category "SOC2 - PI Processing Integrity" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "PI1.5 Process command line not captured in audit events" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name 'ProcessCreationIncludeCmdLine_Enabled' -Value 1 -Type DWord" `
+            -CrossReferences @{ SOC2='PI1.5'; AICPA='TSP-100' }
+    }
+
+    try {
+        $w32time = Get-Service -Name 'W32Time' -ErrorAction Stop
+        if ($w32time.Status -eq 'Running') {
+            Add-Result -Category "SOC2 - PI Processing Integrity" -Status "Pass" `
+                -Severity "Medium" `
+                -Message "PI1.1 Time synchronization service active for transaction sequencing" `
+                -CrossReferences @{ SOC2='PI1.1'; AICPA='TSP-100'; NIST='AU-8' }
+        }
+        else {
+            Add-Result -Category "SOC2 - PI Processing Integrity" -Status "Warning" `
+                -Severity "Medium" `
+                -Message "PI1.1 W32Time service not running" `
+                -Remediation "Start-Service -Name W32Time; Set-Service -Name W32Time -StartupType Automatic" `
+                -CrossReferences @{ SOC2='PI1.1' }
+        }
+    }
+    catch { <# Expected: service may not exist on minimal installations #> }
+}
+catch {
+    Add-Result -Category "SOC2 - PI Processing Integrity" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Processing Integrity assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Privacy (P) Trust Service Criteria
+# ===========================================================================
+Write-Host "[SOC2] Checking Privacy criteria..." -ForegroundColor Yellow
+
+try {
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "SOC2 - P Privacy" -Status "Pass" `
+            -Severity "High" `
+            -Message "P4.0 Personal information at-rest protection (drive encryption active)" `
+            -CrossReferences @{ SOC2='P4.0'; AICPA='TSP-100'; NIST='SC-28' }
+    }
+    else {
+        Add-Result -Category "SOC2 - P Privacy" -Status "Fail" `
+            -Severity "High" `
+            -Message "P4.0 Personal information at-rest unprotected" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ SOC2='P4.0'; AICPA='TSP-100' }
+    }
+
+    $tlsPath = "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server"
+    $tls12 = Get-RegValue -Path $tlsPath -Name "Enabled" -Default $null
+    if ($null -eq $tls12 -or $tls12 -eq 1) {
+        Add-Result -Category "SOC2 - P Privacy" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "P5.0 Personal information in-transit protection (TLS 1.2 available)" `
+            -CrossReferences @{ SOC2='P5.0'; AICPA='TSP-100'; NIST='SC-8' }
+    }
+    else {
+        Add-Result -Category "SOC2 - P Privacy" -Status "Fail" `
+            -Severity "High" `
+            -Message "P5.0 TLS 1.2 disabled, personal information in transit at risk" `
+            -Remediation "Set-ItemProperty -Path '$tlsPath' -Name 'Enabled' -Value 1 -Type DWord" `
+            -CrossReferences @{ SOC2='P5.0' }
+    }
+
+    $auditObjAccess = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -like '*File System*' }
+    if ($auditObjAccess -and $auditObjAccess.Setting -ne 'No Auditing') {
+        Add-Result -Category "SOC2 - P Privacy" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "P6.0 File access auditing enabled for accountability" `
+            -CrossReferences @{ SOC2='P6.0'; AICPA='TSP-100' }
+    }
+    else {
+        Add-Result -Category "SOC2 - P Privacy" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "P6.0 File system auditing not active" `
+            -Remediation "auditpol /set /subcategory:'File System' /success:enable /failure:enable" `
+            -CrossReferences @{ SOC2='P6.0' }
+    }
+
+    $autoPlay = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoDriveTypeAutoRun" -Default 0
+    if ($autoPlay -eq 255) {
+        Add-Result -Category "SOC2 - P Privacy" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "P7.0 Removable media AutoPlay disabled (data exfiltration risk reduced)" `
+            -CrossReferences @{ SOC2='P7.0'; AICPA='TSP-100' }
+    }
+    else {
+        Add-Result -Category "SOC2 - P Privacy" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "P7.0 AutoPlay not fully disabled (current value: $autoPlay)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name 'NoDriveTypeAutoRun' -Value 255 -Type DWord" `
+            -CrossReferences @{ SOC2='P7.0' }
+    }
+
+    $userListPolicy = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "DontDisplayLastUserName" -Default 0
+    if ($userListPolicy -eq 1) {
+        Add-Result -Category "SOC2 - P Privacy" -Status "Pass" `
+            -Severity "Low" `
+            -Message "P3.0 Last logged-on username hidden at sign-in screen" `
+            -CrossReferences @{ SOC2='P3.0'; AICPA='TSP-100' }
+    }
+    else {
+        Add-Result -Category "SOC2 - P Privacy" -Status "Warning" `
+            -Severity "Low" `
+            -Message "P3.0 Last logged-on username displayed at sign-in screen" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'DontDisplayLastUserName' -Value 1 -Type DWord" `
+            -CrossReferences @{ SOC2='P3.0' }
+    }
+}
+catch {
+    Add-Result -Category "SOC2 - P Privacy" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Privacy criteria assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Type II evidence collection mode
+# ===========================================================================
+Write-Host "[SOC2] Checking Type II evidence collection capability..." -ForegroundColor Yellow
+
+try {
+    $secEvtSize = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Security" -Name "MaxSize" -Default 0
+    $secEvtMB = [Math]::Round($secEvtSize / 1MB, 0)
+    $minTypeIIBytes = 1073741824
+    if ($secEvtSize -ge $minTypeIIBytes) {
+        Add-Result -Category "SOC2 - Type II Evidence" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Security log sized for Type II audit period evidence (${secEvtMB} MB)" `
+            -Details "Type II reports require operating effectiveness evidence over a 6-12 month period; large log sizes support this retention" `
+            -CrossReferences @{ SOC2='Type II'; AICPA='TSP-100' }
+    }
+    else {
+        Add-Result -Category "SOC2 - Type II Evidence" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Security log undersized for Type II 6-12 month retention (${secEvtMB} MB; recommend 1024 MB+)" `
+            -Remediation "wevtutil sl Security /ms:1073741824" `
+            -CrossReferences @{ SOC2='Type II' }
+    }
+
+    try {
+        $forwarderConfig = Get-CachedRegistryValue -Cache $SharedData.Cache -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\EventForwarding\SubscriptionManager" -Name "1" -Default $null
+        if ($forwarderConfig) {
+            Add-Result -Category "SOC2 - Type II Evidence" -Status "Pass" `
+                -Severity "Medium" `
+                -Message "Event forwarding configured (centralized evidence retention)" `
+                -Details "Forwarded events to a central collector support long-term Type II evidence requirements" `
+                -CrossReferences @{ SOC2='Type II Evidence' }
+        }
+        else {
+            Add-Result -Category "SOC2 - Type II Evidence" -Status "Info" `
+                -Severity "Informational" `
+                -Message "No event forwarding subscription detected at the endpoint" `
+                -Details "Centralized log collection may be implemented through alternative SIEM mechanisms" `
+                -CrossReferences @{ SOC2='Type II Evidence' }
+        }
+    }
+    catch { <# Expected: subscription manager may not exist #> }
+
+    $appLogSize = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Application" -Name "MaxSize" -Default 0
+    $sysLogSize = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\System" -Name "MaxSize" -Default 0
+    if ($appLogSize -ge 268435456 -and $sysLogSize -ge 268435456) {
+        Add-Result -Category "SOC2 - Type II Evidence" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Application and System logs sized for Type II evidence" `
+            -CrossReferences @{ SOC2='Type II' }
+    }
+    else {
+        Add-Result -Category "SOC2 - Type II Evidence" -Status "Warning" `
+            -Severity "Low" `
+            -Message "Application or System log undersized for extended audit periods" `
+            -Remediation "wevtutil sl Application /ms:268435456; wevtutil sl System /ms:268435456" `
+            -CrossReferences @{ SOC2='Type II' }
+    }
+}
+catch {
+    Add-Result -Category "SOC2 - Type II Evidence" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Type II evidence assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: AICPA TSP Section 100 explicit Points of Focus
+# ===========================================================================
+Write-Host "[SOC2] Checking AICPA TSP Section 100 Points of Focus..." -ForegroundColor Yellow
+
+try {
+    $cgEnabled = Test-CredentialGuardEnabled
+    if ($cgEnabled) {
+        Add-Result -Category "SOC2 - AICPA TSP Points of Focus" -Status "Pass" `
+            -Severity "High" `
+            -Message "CC6.1 Logical access requirements enforced through Credential Guard isolation" `
+            -CrossReferences @{ SOC2='CC6.1'; AICPA='TSP-100 PoF'; NIST='IA-2' }
+    }
+    else {
+        Add-Result -Category "SOC2 - AICPA TSP Points of Focus" -Status "Warning" `
+            -Severity "High" `
+            -Message "CC6.1 Credential Guard not active (privileged credential isolation gap)" `
+            -CrossReferences @{ SOC2='CC6.1'; AICPA='TSP-100 PoF' }
+    }
+
+    $defenderStatus = Get-DefenderStatus -Cache $SharedData.Cache
+    if ($defenderStatus -and $defenderStatus.RealTimeProtectionEnabled -and $defenderStatus.AntivirusSignatureLastUpdated) {
+        Add-Result -Category "SOC2 - AICPA TSP Points of Focus" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "CC7.1 System monitoring includes real-time malware detection" `
+            -CrossReferences @{ SOC2='CC7.1'; AICPA='TSP-100 PoF'; NIST='SI-3' }
+    }
+    else {
+        Add-Result -Category "SOC2 - AICPA TSP Points of Focus" -Status "Fail" `
+            -Severity "High" `
+            -Message "CC7.1 Real-time malware monitoring inactive or signatures unknown" `
+            -CrossReferences @{ SOC2='CC7.1'; AICPA='TSP-100 PoF' }
+    }
+
+    $vssService = Get-Service -Name 'VSS' -ErrorAction SilentlyContinue
+    if ($vssService -and $vssService.StartType -in @('Manual','Automatic')) {
+        Add-Result -Category "SOC2 - AICPA TSP Points of Focus" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "A1.2 Backup infrastructure available (Volume Shadow Copy service)" `
+            -CrossReferences @{ SOC2='A1.2'; AICPA='TSP-100 PoF'; NIST='CP-9' }
+    }
+    else {
+        Add-Result -Category "SOC2 - AICPA TSP Points of Focus" -Status "Fail" `
+            -Severity "Medium" `
+            -Message "A1.2 Volume Shadow Copy service disabled (backup infrastructure gap)" `
+            -Remediation "Set-Service -Name VSS -StartupType Manual" `
+            -CrossReferences @{ SOC2='A1.2'; AICPA='TSP-100 PoF' }
+    }
+
+    $auditPolicyChange = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'Audit Policy Change' }
+    if ($auditPolicyChange -and $auditPolicyChange.Setting -ne 'No Auditing') {
+        Add-Result -Category "SOC2 - AICPA TSP Points of Focus" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "CC8.1 Configuration change auditing active (audit policy changes tracked)" `
+            -CrossReferences @{ SOC2='CC8.1'; AICPA='TSP-100 PoF'; NIST='CM-3' }
+    }
+    else {
+        Add-Result -Category "SOC2 - AICPA TSP Points of Focus" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "CC8.1 Audit policy change tracking not active" `
+            -Remediation "auditpol /set /subcategory:'Audit Policy Change' /success:enable /failure:enable" `
+            -CrossReferences @{ SOC2='CC8.1'; AICPA='TSP-100 PoF' }
+    }
+}
+catch {
+    Add-Result -Category "SOC2 - AICPA TSP Points of Focus" -Status "Error" `
+        -Severity "Medium" `
+        -Message "TSP Section 100 assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: SOC 2 Common Subject Matter mappings
+# ===========================================================================
+Write-Host "[SOC2] Checking common subject matter mappings to other frameworks..." -ForegroundColor Yellow
+
+try {
+    $relatedHipaa = @($results | Where-Object { $_.Module -eq 'HIPAA' -and $_.Status -eq 'Pass' }).Count
+    $relatedIso = @($results | Where-Object { $_.Module -eq 'ISO27001' -and $_.Status -eq 'Pass' }).Count
+    $relatedNist = @($results | Where-Object { $_.Module -eq 'NIST' -and $_.Status -eq 'Pass' }).Count
+    $totalCrossModule = $relatedHipaa + $relatedIso + $relatedNist
+
+    if ($totalCrossModule -gt 0) {
+        Add-Result -Category "SOC2 - Common Subject Matter" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Cross-framework controls passing: $totalCrossModule (HIPAA: $relatedHipaa, ISO 27001: $relatedIso, NIST: $relatedNist)" `
+            -Details "SOC 2 plus reports may map controls to additional subject matter; passing controls in other modules support combined attestation" `
+            -CrossReferences @{ SOC2='SOC 2 Plus'; AICPA='AAG-SOP' }
+    }
+    else {
+        Add-Result -Category "SOC2 - Common Subject Matter" -Status "Info" `
+            -Severity "Informational" `
+            -Message "No additional framework modules executed for cross-mapping reference" `
+            -Details "Run with -Modules SOC2,HIPAA,ISO27001,NIST to compute cross-framework mappings" `
+            -CrossReferences @{ SOC2='SOC 2 Plus' }
+    }
+
+    $rpcRestrict = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\NetworkProvider\Order" -Name "ProviderOrder" -Default $null
+    if ($rpcRestrict) {
+        Add-Result -Category "SOC2 - Common Subject Matter" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Network provider order configured: $rpcRestrict" `
+            -Details "Documented network provider order supports COSO Internal Control Framework integration" `
+            -CrossReferences @{ SOC2='COSO'; AICPA='COSO Framework' }
+    }
+}
+catch {
+    Add-Result -Category "SOC2 - Common Subject Matter" -Status "Error" `
+        -Severity "Low" `
+        -Message "Common subject matter assessment failed: $($_.Exception.Message)"
+}
+
 # ===========================================================================
 # Module Summary
 # ===========================================================================
@@ -1087,15 +1413,11 @@ foreach ($cat in ($catGroups.Keys | Sort-Object)) {
 
 # Severity distribution for failures
 $failResults = @($results | Where-Object { $_.Status -eq "Fail" })
-if ($failResults.Count -gt 0) {
-    Write-Host "`n  Failed Check Severity Distribution:" -ForegroundColor Yellow
-    foreach ($sev in @("Critical","High","Medium","Low")) {
-        $sevCount = @($failResults | Where-Object { $_.Severity -eq $sev }).Count
-        if ($sevCount -gt 0) {
-            $color = switch ($sev) { "Critical" { "Red" }; "High" { "Red" }; "Medium" { "Yellow" }; default { "White" } }
-            Write-Host "    $($sev.PadRight(12)): $sevCount" -ForegroundColor $color
-        }
-    }
+Write-Host "`n  Failed Check Severity Distribution:" -ForegroundColor Yellow
+foreach ($sev in @("Critical","High","Medium","Low")) {
+    $sevCount = @($failResults | Where-Object { $_.Severity -eq $sev }).Count
+    $color = switch ($sev) { "Critical" { "Red" }; "High" { "Red" }; "Medium" { "Yellow" }; default { "White" } }
+    Write-Host "    $($sev.PadRight(12)): $sevCount" -ForegroundColor $color
 }
 Write-Host "$("=" * 80)`n" -ForegroundColor White
 
@@ -1182,7 +1504,3 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
-
-# ============================================================================
-# End of SOC2 Windows Security Baseline Module (Module-SOC2.ps1)
-# ============================================================================
