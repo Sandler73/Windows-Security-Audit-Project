@@ -24,7 +24,7 @@
     - Modules check $script:HAS_COMMON_LIB before calling shared functions.
 
 .NOTES
-    Version: 6.0
+    Version: 6.1.2
     Part of: Windows Security Audit Framework
     GitHub: https://github.com/Sandler73/Windows-Security-Audit-Script
     
@@ -43,7 +43,7 @@
 # ============================================================================
 # Library Configuration
 # ============================================================================
-$script:COMMON_LIB_VERSION = "6.0"
+$script:COMMON_LIB_VERSION = "6.1.2"
 $script:HAS_COMMON_LIB = $true
 
 # ============================================================================
@@ -62,6 +62,8 @@ $script:CurrentLogLevel = 20  # INFO default
 $script:LogFilePath = $null
 $script:LogJsonFormat = $false
 $script:LogLock = [System.Object]::new()
+$script:LogConsoleEnabled = $true   # v6.1.2: Console emission (toggle via Initialize-AuditLogging -Quiet)
+$script:LogStartTime = $null
 
 <#
 .SYNOPSIS
@@ -82,17 +84,40 @@ function Initialize-AuditLogging {
         [ValidateSet('DEBUG','INFO','WARNING','ERROR','CRITICAL')]
         [string]$LogLevel = 'INFO',
         [string]$LogFile = '',
-        [switch]$JsonFormat
+        [switch]$JsonFormat,
+        [switch]$Quiet,
+        [string]$ScriptRoot = ''
     )
 
     $script:CurrentLogLevel = $script:LogLevels[$LogLevel]
     $script:LogJsonFormat = $JsonFormat.IsPresent
+    $script:LogConsoleEnabled = -not $Quiet.IsPresent
+    $script:LogStartTime = Get-Date
 
+    # v6.1.2: Auto-generate log file path when none supplied (matches orchestrator
+    # built-in fallback behavior so logs are always captured by default).
     if ($LogFile) {
         $script:LogFilePath = $LogFile
     }
+    else {
+        # Choose a default log directory. Prefer the script's logs/ subfolder when
+        # the orchestrator passes its $PSScriptRoot; otherwise fall back to CWD.
+        $logDir = if ($ScriptRoot) { Join-Path $ScriptRoot 'logs' } else { Join-Path (Get-Location).Path 'logs' }
+        if (-not (Test-Path $logDir)) {
+            try {
+                New-Item -Path $logDir -ItemType Directory -Force | Out-Null
+            }
+            catch {
+                Write-Warning "Could not create log directory: $logDir"
+                $logDir = (Get-Location).Path
+            }
+        }
+        $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+        $extension = if ($script:LogJsonFormat) { 'json' } else { 'log' }
+        $script:LogFilePath = Join-Path $logDir "audit-$stamp.$extension"
+    }
 
-    # Ensure log directory exists
+    # Ensure log directory exists for explicit path
     if ($script:LogFilePath) {
         $logDir = Split-Path -Parent $script:LogFilePath
         if ($logDir -and -not (Test-Path $logDir)) {
@@ -101,6 +126,17 @@ function Initialize-AuditLogging {
             }
             catch {
                 Write-Warning "Could not create log directory: $logDir"
+            }
+        }
+
+        # Create the log file with a header on first use
+        if (-not (Test-Path $script:LogFilePath)) {
+            try {
+                $header = "# Windows Security Audit Log - Started $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+                Set-Content -Path $script:LogFilePath -Value $header -Encoding UTF8
+            }
+            catch {
+                Write-Warning "Could not create log file: $script:LogFilePath"
             }
         }
     }
@@ -130,6 +166,21 @@ function Write-AuditLog {
     if ($numericLevel -lt $script:CurrentLogLevel) { return }
 
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss.fff"
+
+    # v6.1.2: Console emission. Color by level. Suppressed via -Quiet on
+    # Initialize-AuditLogging or when console output is intentionally disabled.
+    if ($script:LogConsoleEnabled) {
+        $color = switch ($Level) {
+            'DEBUG'    { 'DarkGray' }
+            'INFO'     { 'Gray' }
+            'WARNING'  { 'Yellow' }
+            'ERROR'    { 'Red' }
+            'CRITICAL' { 'Magenta' }
+            default    { 'White' }
+        }
+        $consoleLine = "[$timestamp] [$Level] [$Module] $Message"
+        Write-Host $consoleLine -ForegroundColor $color
+    }
 
     # Write to file if configured
     if ($script:LogFilePath) {
@@ -165,7 +216,14 @@ function Write-AuditLog {
 #>
 function Get-OSInfo {
     [CmdletBinding()]
-    param()
+    param(
+        [hashtable]$Cache = $null
+    )
+
+    # Cache-aware: serve from $Cache.OSInfo if populated by warmup
+    if ($Cache -and $Cache.OSInfo -and $Cache.OSInfo.ComputerName) {
+        return $Cache.OSInfo
+    }
 
     $osInfo = @{
         ComputerName    = $env:COMPUTERNAME
@@ -693,25 +751,103 @@ function Get-CachedService {
 
 <#
 .SYNOPSIS
-    Query audit policy for a specific subcategory, using cache if available.
+    Query audit policy. Without -Subcategory, returns parsed objects for all
+    subcategories. With -Subcategory, returns the matching auditpol text line(s)
+    for backward compatibility with existing callers.
+.DESCRIPTION
+    auditpol output rows have the form:
+        System audit policy
+        Category/Subcategory                      Setting
+        ---------                                 -------
+        System
+          Security System Extension               No Auditing
+          System Integrity                        Success and Failure
+          ...
+
+    When -Subcategory is supplied, the original v6.0 behavior is retained: the
+    matching raw text line(s) are returned as a string. When -Subcategory is
+    omitted, the function parses the entire auditpol output and returns an array
+    of PSCustomObjects with Category, Subcategory, and Setting properties.
+.PARAMETER Subcategory
+    Optional. Specific subcategory name to query. When omitted, all subcategories
+    are returned as parsed objects.
+.PARAMETER Cache
+    Optional shared data cache hashtable.
+.OUTPUTS
+    With -Subcategory: System.String (raw auditpol line).
+    Without -Subcategory: PSCustomObject[] with Category, Subcategory, Setting.
 #>
 function Get-CachedAuditPolicy {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)][string]$Subcategory,
+        [string]$Subcategory = "",
         [hashtable]$Cache = $null
     )
 
-    if ($Cache -and $Cache.AuditPolicy) {
-        $match = $Cache.AuditPolicy | Select-String -Pattern $Subcategory -SimpleMatch
-        if ($match) { return $match.Line }
+    # Backward-compatible string-returning mode (Subcategory provided)
+    if ($Subcategory) {
+        if ($Cache -and $Cache.AuditPolicy) {
+            $match = $Cache.AuditPolicy | Select-String -Pattern $Subcategory -SimpleMatch
+            if ($match) { return $match.Line }
+        }
+        try {
+            $result = auditpol /get /subcategory:"$Subcategory" 2>$null
+            return $result
+        }
+        catch { return $null }
     }
 
-    try {
-        $result = auditpol /get /subcategory:"$Subcategory" 2>$null
-        return $result
+    # Object-returning mode (no Subcategory): parse all rows
+    $rawLines = $null
+    if ($Cache -and $Cache.AuditPolicy) {
+        $rawLines = $Cache.AuditPolicy
     }
-    catch { return $null }
+    else {
+        try {
+            $rawLines = auditpol /get /category:* 2>$null
+        }
+        catch {
+            return @()
+        }
+    }
+
+    if (-not $rawLines) { return @() }
+
+    $parsed = @()
+    $currentCategory = $null
+
+    foreach ($line in $rawLines) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+
+        # Skip header lines
+        if ($line -match '^System audit policy' -or
+            $line -match '^Category/Subcategory' -or
+            $line -match '^-{3,}' -or
+            $line -match '^Machine Name:' -or
+            $line -match '^Policy Target:') {
+            continue
+        }
+
+        # Category lines have no leading whitespace and no Setting column.
+        # Subcategory lines have leading whitespace and a Setting column.
+        if ($line -match '^\S' -and $line -notmatch '\s{2,}\S') {
+            $currentCategory = $line.Trim()
+            continue
+        }
+
+        # Subcategory row: split on multiple spaces
+        if ($line -match '^\s+(\S.*?)\s{2,}(.+)$') {
+            $sub = $matches[1].Trim()
+            $setting = $matches[2].Trim()
+            $parsed += [PSCustomObject]@{
+                Category    = $currentCategory
+                Subcategory = $sub
+                Setting     = $setting
+            }
+        }
+    }
+
+    return $parsed
 }
 
 <#
@@ -1045,29 +1181,54 @@ function Test-SecureBootEnabled {
 #>
 function Get-BitLockerStatus {
     [CmdletBinding()]
-    param([string]$DriveLetter = 'C:')
+    param(
+        [string]$DriveLetter = 'C:',
+        [hashtable]$Cache = $null
+    )
+
+    # Cache-aware: serve from $Cache.BitLocker if previously populated
+    if ($Cache -and $Cache.ContainsKey('BitLocker') -and $Cache.BitLocker -and $Cache.BitLocker.ContainsKey($DriveLetter)) {
+        return $Cache.BitLocker[$DriveLetter]
+    }
 
     try {
         $bl = Get-BitLockerVolume -MountPoint $DriveLetter -ErrorAction SilentlyContinue
         if ($bl) {
-            return @{
-                IsEncrypted      = ($bl.ProtectionStatus -eq 'On')
-                ProtectionStatus = $bl.ProtectionStatus.ToString()
-                EncryptionMethod = $bl.EncryptionMethod.ToString()
-                VolumeStatus     = $bl.VolumeStatus.ToString()
-                KeyProtectors    = @($bl.KeyProtector | ForEach-Object { $_.KeyProtectorType.ToString() })
+            $result = @{
+                IsEncrypted          = ($bl.ProtectionStatus -eq 'On')
+                SystemDriveProtected = ($bl.ProtectionStatus -eq 'On')
+                ProtectionStatus     = $bl.ProtectionStatus.ToString()
+                EncryptionMethod     = $bl.EncryptionMethod.ToString()
+                VolumeStatus         = $bl.VolumeStatus.ToString()
+                KeyProtectors        = @($bl.KeyProtector | ForEach-Object { $_.KeyProtectorType.ToString() })
             }
+            # Populate cache for subsequent callers
+            if ($Cache) {
+                if (-not $Cache.ContainsKey('BitLocker') -or -not $Cache.BitLocker) {
+                    $Cache.BitLocker = @{}
+                }
+                $Cache.BitLocker[$DriveLetter] = $result
+            }
+            return $result
         }
     }
     catch { <# BitLocker not available #> }
 
-    return @{
-        IsEncrypted      = $false
-        ProtectionStatus = 'Unknown'
-        EncryptionMethod = 'Unknown'
-        VolumeStatus     = 'Unknown'
-        KeyProtectors    = @()
+    $unavailable = @{
+        IsEncrypted          = $false
+        SystemDriveProtected = $false
+        ProtectionStatus     = 'Unknown'
+        EncryptionMethod     = 'Unknown'
+        VolumeStatus         = 'Unknown'
+        KeyProtectors        = @()
     }
+    if ($Cache) {
+        if (-not $Cache.ContainsKey('BitLocker') -or -not $Cache.BitLocker) {
+            $Cache.BitLocker = @{}
+        }
+        $Cache.BitLocker[$DriveLetter] = $unavailable
+    }
+    return $unavailable
 }
 
 <#
@@ -1124,11 +1285,679 @@ function Get-AuditCommonInfo {
             'Get-SystemIPAddresses', 'Get-InstalledSoftware', 'Test-WindowsFeatureEnabled',
             'ConvertTo-SafeInt', 'Get-DefenderStatus', 'Test-CredentialGuardEnabled',
             'Test-SecureBootEnabled', 'Get-BitLockerStatus', 'New-CheckId',
-            'Initialize-AuditLogging', 'Write-AuditLog', 'Get-CacheSummary'
+            'Initialize-AuditLogging', 'Write-AuditLog', 'Get-CacheSummary',
+            'ConvertTo-RegistryRollback', 'ConvertTo-ServiceRollback', 'Get-RemediationImpact',
+            'Get-RiskPriorityScore', 'Find-CompensatingControls', 'Find-CrossFrameworkCorrelations',
+            'Compare-ToBaseline', 'Export-RegistryPolicyFile', 'Test-InternetFacingHost',
+            'Test-DomainControllerHost'
         )
     }
 }
 
 # ============================================================================
-# End of audit-common.ps1
+# v6.1 Foundation Enhancements
+# Cross-cutting capability functions added in version 6.1.
+# All functions below are additive; no existing functions are modified.
 # ============================================================================
+
+<#
+.SYNOPSIS
+    Compute a registry-write rollback command from a forward Set-ItemProperty.
+.DESCRIPTION
+    Given a remediation string that performs Set-ItemProperty, query the current
+    value at the target path/name and produce the inverse command that would
+    restore the prior state. Supports DWord, QWord, String, ExpandString, and
+    MultiString value types. Returns $null when the target value does not exist
+    or when the input string is not a recognized registry write pattern.
+.PARAMETER ForwardCommand
+    The remediation command string (e.g., "Set-ItemProperty -Path 'HKLM:\...' ...").
+.OUTPUTS
+    System.String. Rollback command, or $null when not derivable.
+#>
+function ConvertTo-RegistryRollback {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ForwardCommand
+    )
+
+    $pattern = "Set-ItemProperty\s+-Path\s+['""]([^'""]+)['""].*?-Name\s+['""]?([\w\(\)\s\-\.]+?)['""]?\s+-Value\s+([^\s;]+)(?:\s+-Type\s+(\w+))?"
+    $match = [regex]::Match($ForwardCommand, $pattern)
+    if (-not $match.Success) { return $null }
+
+    $regPath = $match.Groups[1].Value
+    $regName = $match.Groups[2].Value.Trim()
+    $valueType = if ($match.Groups[4].Success) { $match.Groups[4].Value } else { 'DWord' }
+
+    try {
+        $existing = Get-ItemProperty -Path $regPath -Name $regName -ErrorAction Stop
+        $priorValue = $existing.$regName
+
+        if ($priorValue -is [array]) {
+            $valueLiteral = '@(' + (($priorValue | ForEach-Object { "'$_'" }) -join ',') + ')'
+        }
+        elseif ($priorValue -is [string]) {
+            $escaped = $priorValue -replace "'", "''"
+            $valueLiteral = "'$escaped'"
+        }
+        else {
+            $valueLiteral = $priorValue
+        }
+
+        return "Set-ItemProperty -Path '$regPath' -Name '$regName' -Value $valueLiteral -Type $valueType"
+    }
+    catch [System.Management.Automation.ItemNotFoundException] {
+        return "Remove-ItemProperty -Path '$regPath' -Name '$regName' -ErrorAction SilentlyContinue"
+    }
+    catch [System.Management.Automation.PSArgumentException] {
+        return "Remove-ItemProperty -Path '$regPath' -Name '$regName' -ErrorAction SilentlyContinue"
+    }
+    catch {
+        return $null
+    }
+}
+
+<#
+.SYNOPSIS
+    Generate a rollback command for a service state change.
+.DESCRIPTION
+    For a forward command that stops or sets a service, produce the inverse
+    based on the current observed service state. Returns $null when the
+    forward command is not a recognized service-state pattern or when the
+    service does not exist on the host.
+.PARAMETER ForwardCommand
+    The service-state command to invert (Stop-Service, Start-Service, Set-Service).
+.OUTPUTS
+    System.String. Rollback command, or $null when not derivable.
+#>
+function ConvertTo-ServiceRollback {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ForwardCommand
+    )
+
+    $svcMatch = [regex]::Match($ForwardCommand, "(?:Stop-Service|Start-Service|Set-Service|Restart-Service)\s+(?:-Name\s+)?['""]?([\w\-\$]+)['""]?")
+    if (-not $svcMatch.Success) { return $null }
+    $serviceName = $svcMatch.Groups[1].Value
+
+    try {
+        $svc = Get-Service -Name $serviceName -ErrorAction Stop
+        $currentStatus = $svc.Status
+        $currentStartType = (Get-CimInstance -ClassName Win32_Service -Filter "Name='$serviceName'" -ErrorAction Stop).StartMode
+
+        $statusInverse = switch ($currentStatus) {
+            'Running' { "Stop-Service -Name '$serviceName' -Force -ErrorAction SilentlyContinue" }
+            'Stopped' { "Start-Service -Name '$serviceName' -ErrorAction SilentlyContinue" }
+            default   { $null }
+        }
+
+        if ($ForwardCommand -match "Set-Service.*-StartupType") {
+            return "Set-Service -Name '$serviceName' -StartupType $currentStartType"
+        }
+        return $statusInverse
+    }
+    catch {
+        return $null
+    }
+}
+
+<#
+.SYNOPSIS
+    Classify the operational impact of a remediation command.
+.DESCRIPTION
+    Inspect a remediation string and return an impact classification used by
+    the orchestrator to summarize what an operator is committing to before
+    confirmation. The classification considers reboot requirements, session
+    impact, service disruption, and network effects.
+.PARAMETER Remediation
+    The remediation command string.
+.OUTPUTS
+    Hashtable with Category, RequiresReboot, RequiresLogoff, ServiceImpact,
+    NetworkImpact, and Reversible properties.
+#>
+function Get-RemediationImpact {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Remediation
+    )
+
+    $impact = @{
+        Category       = 'None'
+        RequiresReboot = $false
+        RequiresLogoff = $false
+        ServiceImpact  = $false
+        NetworkImpact  = $false
+        Reversible     = $true
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Remediation)) {
+        return $impact
+    }
+
+    $rem = $Remediation
+
+    if ($rem -match 'Restart-Computer|shutdown\s+/r|bcdedit') {
+        $impact.RequiresReboot = $true
+        $impact.Category = 'RequiresRestart'
+    }
+
+    $rebootRequiringRegistryNames = @(
+        'EnableLUA', 'RunAsPPL', 'LsaCfgFlags', 'NoLMHash', 'LmCompatibilityLevel',
+        'EnableVirtualizationBasedSecurity', 'RequirePlatformSecurityFeatures',
+        'NoAutoUpdate', 'fDenyTSConnections', 'RestrictAnonymous'
+    )
+    foreach ($rebootName in $rebootRequiringRegistryNames) {
+        if ($rem -match "\b$rebootName\b") {
+            $impact.RequiresReboot = $true
+            $impact.Category = 'RequiresRestart'
+            break
+        }
+    }
+
+    if ($rem -match 'logoff|gpupdate.*\/logoff|klist purge') {
+        $impact.RequiresLogoff = $true
+        if ($impact.Category -eq 'None') { $impact.Category = 'RequiresLogoff' }
+    }
+
+    if ($rem -match '(?:Stop|Restart|Set)-Service|net\s+stop|sc\s+(?:stop|config)') {
+        $impact.ServiceImpact = $true
+        if ($impact.Category -eq 'None') { $impact.Category = 'ServiceImpact' }
+    }
+
+    if ($rem -match 'Set-NetFirewall|netsh\s+advfirewall|Disable-NetAdapter|Set-NetAdapter|Disable-NetAdapterBinding') {
+        $impact.NetworkImpact = $true
+        if ($impact.Category -eq 'None') { $impact.Category = 'NetworkImpact' }
+    }
+
+    if ($rem -match 'Format-|Remove-Item.*-Recurse|Clear-Disk|Reset-') {
+        $impact.Reversible = $false
+        $impact.Category = 'Destructive'
+    }
+
+    if ($impact.Category -eq 'None' -and $rem -match 'Set-ItemProperty|New-ItemProperty|Remove-ItemProperty|reg\s+add|reg\s+delete') {
+        $impact.Category = 'Reversible'
+    }
+
+    return $impact
+}
+
+<#
+.SYNOPSIS
+    Calculate a 1-100 risk priority score for a single result object.
+.DESCRIPTION
+    Combine severity, exploitability heuristics, exposure heuristics, and asset
+    criticality into a normalized score that reflects which findings deserve
+    earliest remediation. Result is independent from raw severity and accounts
+    for environmental factors.
+.PARAMETER Result
+    A single audit result PSCustomObject.
+.PARAMETER ExposureContext
+    Optional hashtable. Recognized keys: IsDomainController (bool),
+    IsInternetFacing (bool), HasListeningServices (bool).
+.OUTPUTS
+    Integer between 1 and 100.
+#>
+function Get-RiskPriorityScore {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [PSCustomObject]$Result,
+        [hashtable]$ExposureContext = @{}
+    )
+
+    $severityWeight = switch ($Result.Severity) {
+        'Critical'      { 40 }
+        'High'          { 30 }
+        'Medium'        { 18 }
+        'Low'           { 8 }
+        'Informational' { 2 }
+        default         { 10 }
+    }
+
+    $exploitability = 0
+    $exploitableKeywords = 'SMBv1|TLS 1\.0|TLS 1\.1|SSL|RC4|MD5|NTLM|WDigest|LLMNR|NetBIOS|Anonymous|Guest|Print Spooler|RDP|WinRM'
+    if ($Result.Message -match $exploitableKeywords -or $Result.Category -match $exploitableKeywords) {
+        $exploitability = 25
+    }
+    elseif ($Result.Message -match 'enabled|allowed|permitted' -and $Result.Status -eq 'Fail') {
+        $exploitability = 15
+    }
+    else {
+        $exploitability = 5
+    }
+
+    $exposure = 5
+    if ($ExposureContext.ContainsKey('IsInternetFacing') -and $ExposureContext.IsInternetFacing) {
+        $exposure += 12
+    }
+    if ($ExposureContext.ContainsKey('HasListeningServices') -and $ExposureContext.HasListeningServices) {
+        $exposure += 5
+    }
+
+    $criticality = 5
+    if ($ExposureContext.ContainsKey('IsDomainController') -and $ExposureContext.IsDomainController) {
+        $criticality = 10
+    }
+
+    $statusModifier = switch ($Result.Status) {
+        'Fail'    { 1.0 }
+        'Warning' { 0.6 }
+        'Error'   { 0.5 }
+        'Info'    { 0.2 }
+        'Pass'    { 0.0 }
+        default   { 0.5 }
+    }
+
+    $rawScore = ($severityWeight + $exploitability + $exposure + $criticality) * $statusModifier
+    $bounded = [Math]::Max(1, [Math]::Min(100, [int][Math]::Round($rawScore)))
+    return $bounded
+}
+
+<#
+.SYNOPSIS
+    Detect compensating controls that mitigate a failed check.
+.DESCRIPTION
+    Inspect the full result set for known compensating-control pairs. When a
+    failed check has a corresponding compensating control passing elsewhere
+    in the audit, return information allowing the caller to display the
+    mitigation context or downgrade severity for prioritization.
+.PARAMETER Results
+    The complete audit result array (all modules).
+.OUTPUTS
+    Array of hashtables with FailedCheck, CompensatingControl, and Description.
+#>
+function Find-CompensatingControls {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$Results
+    )
+
+    $compensationMap = @(
+        @{
+            FailedPattern         = 'RunAsPPL|LSA Protection'
+            CompensatingPattern   = 'Credential Guard|EnableVirtualizationBasedSecurity'
+            Description           = 'Credential Guard provides comparable LSASS credential protection through VBS isolation.'
+        },
+        @{
+            FailedPattern         = 'WDigest'
+            CompensatingPattern   = 'Credential Guard|EnableVirtualizationBasedSecurity'
+            Description           = 'Credential Guard prevents WDigest credential extraction even when UseLogonCredential is permissive.'
+        },
+        @{
+            FailedPattern         = 'SMBv1'
+            CompensatingPattern   = 'firewall.*SMB|RequireSecuritySignature'
+            Description           = 'Network-layer SMB restrictions or signing requirements may compensate for legacy protocol exposure.'
+        },
+        @{
+            FailedPattern         = 'NoLMHash|LM Hash'
+            CompensatingPattern   = 'LmCompatibilityLevel.*5|NTLMv2 only'
+            Description           = 'Restricting authentication to NTLMv2 prevents LM hash use even when storage is permitted.'
+        },
+        @{
+            FailedPattern         = 'PasswordExpiry|Password.*Age'
+            CompensatingPattern   = 'Multi.?Factor|MFA|Windows Hello|Smart Card'
+            Description           = 'Multi-factor or certificate-based authentication reduces reliance on password rotation policy.'
+        }
+    )
+
+    $compensations = @()
+    $passResults = @($Results | Where-Object { $_.Status -eq 'Pass' })
+
+    foreach ($result in $Results) {
+        if ($result.Status -ne 'Fail' -and $result.Status -ne 'Warning') { continue }
+        $combined = "$($result.Category) $($result.Message)"
+
+        foreach ($mapping in $compensationMap) {
+            if ($combined -match $mapping.FailedPattern) {
+                $compensator = $passResults | Where-Object {
+                    "$($_.Category) $($_.Message)" -match $mapping.CompensatingPattern
+                } | Select-Object -First 1
+
+                if ($compensator) {
+                    $compensations += @{
+                        FailedCheck         = $result
+                        CompensatingControl = $compensator
+                        Description         = $mapping.Description
+                    }
+                }
+            }
+        }
+    }
+
+    return $compensations
+}
+
+<#
+.SYNOPSIS
+    Identify check results sharing the same underlying technical assertion.
+.DESCRIPTION
+    Group results across multiple compliance modules that test the same
+    underlying control (same registry value, service, or audit subcategory).
+    The returned grouping enables a consolidated view that shows one finding
+    per real-world control state with all framework references attached,
+    reducing duplicate noise in remediation planning.
+.PARAMETER Results
+    The complete audit result array (all modules).
+.OUTPUTS
+    Array of hashtables with Signature, Frameworks, Status, and Members.
+#>
+function Find-CrossFrameworkCorrelations {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$Results
+    )
+
+    $signaturePatterns = @{
+        'SMBv1 Disabled'                    = 'SMBv1|SMB.*1\.0|SMB.*Version 1'
+        'TLS 1.0 Disabled'                  = 'TLS\s*1\.0'
+        'TLS 1.1 Disabled'                  = 'TLS\s*1\.1'
+        'LLMNR Disabled'                    = 'LLMNR|EnableMulticast'
+        'NetBIOS over TCP/IP Disabled'      = 'NetBIOS|NodeType'
+        'WDigest Credential Storage'        = 'WDigest|UseLogonCredential'
+        'NTLMv1 Restricted'                 = 'LmCompatibilityLevel|NTLMv1'
+        'Anonymous Access Restricted'       = 'RestrictAnonymous|Anonymous'
+        'UAC Enabled'                       = 'EnableLUA|UAC'
+        'LSA Protection (RunAsPPL)'         = 'RunAsPPL|LSA Protection'
+        'Credential Guard Active'           = 'Credential Guard|EnableVirtualizationBasedSecurity'
+        'BitLocker on System Drive'         = 'BitLocker.*(?:C:|System|OS Drive)'
+        'Secure Boot Enabled'               = 'Secure Boot|SecureBoot'
+        'Defender Real-Time Protection'     = 'Real.?Time.*Protection|DisableRealtimeMonitoring'
+        'Firewall Profile Enabled'          = 'Firewall.*(?:Domain|Private|Public)'
+        'PowerShell Script Block Logging'   = 'ScriptBlockLogging'
+        'Audit Process Creation'            = 'Process Creation.*Audit|Audit.*Process Creation'
+        'RDP NLA Required'                  = 'NLA|UserAuthentication.*1|Network Level Authentication'
+        'Print Spooler Restricted'          = 'Print Spooler|Spooler.*service'
+        'Remote Registry Service'           = 'RemoteRegistry'
+    }
+
+    $correlations = @()
+    foreach ($signature in $signaturePatterns.Keys) {
+        $pattern = $signaturePatterns[$signature]
+        $matchingResults = @($Results | Where-Object {
+            "$($_.Category) $($_.Message)" -match $pattern
+        })
+
+        if ($matchingResults.Count -ge 2) {
+            $frameworks = @($matchingResults | Select-Object -ExpandProperty Module -Unique)
+            $statuses = @($matchingResults | Select-Object -ExpandProperty Status -Unique)
+            $consensusStatus = if ($statuses -contains 'Fail') { 'Fail' }
+                              elseif ($statuses -contains 'Warning') { 'Warning' }
+                              elseif ($statuses -contains 'Pass') { 'Pass' }
+                              else { $statuses[0] }
+
+            $correlations += @{
+                Signature   = $signature
+                Frameworks  = $frameworks
+                Status      = $consensusStatus
+                MemberCount = $matchingResults.Count
+                Members     = $matchingResults
+            }
+        }
+    }
+
+    return $correlations
+}
+
+<#
+.SYNOPSIS
+    Compare current audit results against a stored baseline.
+.DESCRIPTION
+    Load a baseline JSON produced by a previous audit and identify drift:
+    new failures (absent from baseline), resolved findings (failing in baseline,
+    now passing), regressions (passing in baseline, now failing), and stable
+    findings (status unchanged). The comparison key is Module+Category+Message.
+.PARAMETER CurrentResults
+    The current audit result array.
+.PARAMETER BaselinePath
+    Path to a baseline JSON file.
+.OUTPUTS
+    Hashtable with NewFailures, Resolved, Regressions, Stable, BaselineDate,
+    and BaselineHost properties.
+#>
+function Compare-ToBaseline {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$CurrentResults,
+        [Parameter(Mandatory = $true)]
+        [string]$BaselinePath
+    )
+
+    if (-not (Test-Path $BaselinePath)) {
+        throw "Baseline file not found: $BaselinePath"
+    }
+
+    $baseline = $null
+    try {
+        $baseline = Get-Content $BaselinePath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+        throw "Failed to parse baseline file: $($_.Exception.Message)"
+    }
+
+    $baselineResults = if ($baseline.Results) { $baseline.Results } else { $baseline }
+    $baselineDate = if ($baseline.GeneratedAt) { $baseline.GeneratedAt } else { 'Unknown' }
+    $baselineHost = if ($baseline.ComputerName) { $baseline.ComputerName } else { 'Unknown' }
+
+    $makeKey = { param($r) "$($r.Module)|$($r.Category)|$($r.Message)" }
+
+    $baselineMap = @{}
+    foreach ($br in $baselineResults) {
+        $key = & $makeKey $br
+        $baselineMap[$key] = $br
+    }
+
+    $currentMap = @{}
+    foreach ($cr in $CurrentResults) {
+        $key = & $makeKey $cr
+        $currentMap[$key] = $cr
+    }
+
+    $newFailures = @()
+    $resolved = @()
+    $regressions = @()
+    $stable = @()
+
+    foreach ($key in $currentMap.Keys) {
+        $current = $currentMap[$key]
+        if (-not $baselineMap.ContainsKey($key)) {
+            if ($current.Status -in @('Fail', 'Warning')) {
+                $newFailures += $current
+            }
+            continue
+        }
+        $prior = $baselineMap[$key]
+        if ($prior.Status -in @('Fail', 'Warning') -and $current.Status -eq 'Pass') {
+            $resolved += $current
+        }
+        elseif ($prior.Status -eq 'Pass' -and $current.Status -in @('Fail', 'Warning')) {
+            $regressions += $current
+        }
+        else {
+            $stable += $current
+        }
+    }
+
+    return @{
+        NewFailures   = $newFailures
+        Resolved      = $resolved
+        Regressions   = $regressions
+        Stable        = $stable
+        BaselineDate  = $baselineDate
+        BaselineHost  = $baselineHost
+        BaselineCount = $baselineResults.Count
+        CurrentCount  = $CurrentResults.Count
+    }
+}
+
+<#
+.SYNOPSIS
+    Construct a binary registry policy file (.pol) from remediation entries.
+.DESCRIPTION
+    Generate a Group Policy registry.pol file from a collection of registry-based
+    remediations. The output follows the Microsoft .pol binary format: signature
+    PReg (50 52 65 67 in UTF-16LE) plus version (1 00 00 00 LE), followed by
+    null-delimited UTF-16LE policy entries with the structure
+    [;key;value;type;size;data;]. Only registry-modifying remediations are
+    converted; non-registry remediations are skipped with a warning return.
+.PARAMETER Remediations
+    Array of remediation strings.
+.PARAMETER OutputPath
+    Destination path for the .pol file.
+.OUTPUTS
+    Hashtable with WrittenCount, SkippedCount, and OutputPath.
+#>
+function Export-RegistryPolicyFile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$Remediations,
+        [Parameter(Mandatory = $true)]
+        [string]$OutputPath
+    )
+
+    $regTypeMap = @{
+        'String'       = 1
+        'ExpandString' = 2
+        'Binary'       = 3
+        'DWord'        = 4
+        'DWordBE'      = 5
+        'MultiString'  = 7
+        'QWord'        = 11
+    }
+
+    $polEntries = New-Object System.Collections.Generic.List[byte]
+    $headerBytes = [System.Text.Encoding]::Unicode.GetBytes('PReg')
+    $polEntries.AddRange([byte[]]$headerBytes)
+    $polEntries.AddRange([byte[]]@(0x01, 0x00, 0x00, 0x00))
+
+    $written = 0
+    $skipped = 0
+
+    foreach ($rem in $Remediations) {
+        $pattern = "Set-ItemProperty\s+-Path\s+['""]([^'""]+)['""].*?-Name\s+['""]?([\w\(\)\s\-\.]+?)['""]?\s+-Value\s+([^\s;]+)(?:\s+-Type\s+(\w+))?"
+        $match = [regex]::Match($rem, $pattern)
+        if (-not $match.Success) { $skipped++; continue }
+
+        $regPath = $match.Groups[1].Value
+        $regName = $match.Groups[2].Value.Trim()
+        $regValue = $match.Groups[3].Value
+        $regTypeName = if ($match.Groups[4].Success) { $match.Groups[4].Value } else { 'DWord' }
+
+        $hivePrefix = ''
+        if ($regPath -match '^HKLM:\\(.+)$') {
+            $relativePath = $matches[1]
+        }
+        elseif ($regPath -match '^HKCU:\\(.+)$') {
+            $relativePath = $matches[1]
+        }
+        else {
+            $skipped++
+            continue
+        }
+
+        if (-not $regTypeMap.ContainsKey($regTypeName)) {
+            $skipped++
+            continue
+        }
+        $typeCode = $regTypeMap[$regTypeName]
+
+        $valueBytes = $null
+        switch ($regTypeName) {
+            'DWord' {
+                $intValue = 0
+                if (-not [int]::TryParse($regValue, [ref]$intValue)) { $skipped++; continue }
+                $valueBytes = [System.BitConverter]::GetBytes([uint32]$intValue)
+            }
+            'QWord' {
+                $longValue = 0L
+                if (-not [long]::TryParse($regValue, [ref]$longValue)) { $skipped++; continue }
+                $valueBytes = [System.BitConverter]::GetBytes([uint64]$longValue)
+            }
+            default {
+                $stringValue = $regValue.Trim("'", '"')
+                $valueBytes = [System.Text.Encoding]::Unicode.GetBytes($stringValue + "`0")
+            }
+        }
+
+        $entryBytes = New-Object System.Collections.Generic.List[byte]
+        $entryBytes.AddRange([byte[]]@(0x5B, 0x00))
+        $entryBytes.AddRange([byte[]]([System.Text.Encoding]::Unicode.GetBytes($relativePath + "`0")))
+        $entryBytes.AddRange([byte[]]@(0x3B, 0x00))
+        $entryBytes.AddRange([byte[]]([System.Text.Encoding]::Unicode.GetBytes($regName + "`0")))
+        $entryBytes.AddRange([byte[]]@(0x3B, 0x00))
+        $entryBytes.AddRange([byte[]]([System.BitConverter]::GetBytes([uint32]$typeCode)))
+        $entryBytes.AddRange([byte[]]@(0x3B, 0x00))
+        $entryBytes.AddRange([byte[]]([System.BitConverter]::GetBytes([uint32]$valueBytes.Length)))
+        $entryBytes.AddRange([byte[]]@(0x3B, 0x00))
+        $entryBytes.AddRange([byte[]]$valueBytes)
+        $entryBytes.AddRange([byte[]]@(0x5D, 0x00))
+
+        $polEntries.AddRange($entryBytes)
+        $written++
+    }
+
+    [System.IO.File]::WriteAllBytes($OutputPath, $polEntries.ToArray())
+
+    return @{
+        WrittenCount = $written
+        SkippedCount = $skipped
+        OutputPath   = $OutputPath
+    }
+}
+
+<#
+.SYNOPSIS
+    Determine whether the host appears internet-facing for risk scoring.
+.DESCRIPTION
+    Heuristic check used to inform Get-RiskPriorityScore exposure context.
+    Inspects routing table for default gateway with a public next-hop and
+    confirms public IP assignment on at least one active adapter.
+.OUTPUTS
+    Boolean.
+#>
+function Test-InternetFacingHost {
+    [CmdletBinding()]
+    param()
+
+    try {
+        $routes = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue
+        if (-not $routes) { return $false }
+
+        $adapters = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue
+        foreach ($addr in $adapters) {
+            $ip = $addr.IPAddress
+            $isPrivate = $ip -match '^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|127\.|169\.254\.|0\.)'
+            if (-not $isPrivate) { return $true }
+        }
+        return $false
+    }
+    catch {
+        return $false
+    }
+}
+
+<#
+.SYNOPSIS
+    Determine whether the host is a domain controller for risk scoring.
+.OUTPUTS
+    Boolean.
+#>
+function Test-DomainControllerHost {
+    [CmdletBinding()]
+    param()
+
+    try {
+        $cs = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
+        if ($cs.DomainRole -in @(4, 5)) { return $true }
+        return $false
+    }
+    catch {
+        return $false
+    }
+}
