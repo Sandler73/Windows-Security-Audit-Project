@@ -1,6 +1,6 @@
 # Module-CIS.ps1
 # CIS (Center for Internet Security) Benchmarks Compliance Module for Windows Security Audit
-# Version: 6.0
+# Version: 6.1.2
 #
 # Evaluates Windows configuration against CIS Microsoft Windows Benchmarks v3.0+
 # across 15 security domains with Severity ratings and cross-framework references.
@@ -36,7 +36,7 @@
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
     References: CIS Microsoft Windows 10/11 Enterprise Benchmark v3.0.0
-    Version: 6.0
+    Version: 6.1.2
 
 .EXAMPLE
     $results = & .\modules\module-cis.ps1 -SharedData $sharedData
@@ -48,7 +48,7 @@ param(
 )
 
 $moduleName = "CIS"
-$moduleVersion = "6.0"
+$moduleVersion = "6.1.2"
 $results = @()
 
 # Helper function to add results
@@ -59,6 +59,7 @@ function Add-Result {
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
+        [ValidateSet("Critical","High","Medium","Low","Informational")]
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
@@ -87,7 +88,7 @@ function Get-RegValue {
     try {
         $item = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
         if ($item) { return $item.$Name }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
     return $Default
 }
 
@@ -130,7 +131,7 @@ try {
         # Parse minimum password length
         $minPasswordLength = ($netAccounts | Select-String "Minimum password length").ToString().Split(":")[1].Trim()
         
-        if ([int]$minPasswordLength -ge 14) {
+        if ((ConvertTo-SafeInt $minPasswordLength) -ge 14) {
             Add-Result -Category "CIS - Account Policy" -Status "Pass" `
                 -Message "Minimum password length is $minPasswordLength characters" `
                 -Details "CIS Benchmark: Require minimum password length of 14 or more characters" `
@@ -155,7 +156,7 @@ try {
                 -Remediation "net accounts /maxpwage:365" `
                 -Severity "High" `
                 -CrossReferences @{ NIST='IA-5'; STIG='V-220903' }
-        } elseif ([int]$maxPasswordAge -le 365 -and [int]$maxPasswordAge -gt 0) {
+        } elseif ((ConvertTo-SafeInt $maxPasswordAge) -le 365 -and (ConvertTo-SafeInt $maxPasswordAge) -gt 0) {
             Add-Result -Category "CIS - Account Policy" -Status "Pass" `
                 -Message "Maximum password age is $maxPasswordAge days" `
                 -Details "CIS Benchmark: Password expiration is configured appropriately" `
@@ -172,7 +173,7 @@ try {
         # Parse minimum password age
         $minPasswordAge = ($netAccounts | Select-String "Minimum password age").ToString().Split(":")[1].Trim().Split(" ")[0]
         
-        if ([int]$minPasswordAge -ge 1) {
+        if ((ConvertTo-SafeInt $minPasswordAge) -ge 1) {
             Add-Result -Category "CIS - Account Policy" -Status "Pass" `
                 -Message "Minimum password age is $minPasswordAge day(s)" `
                 -Details "CIS Benchmark: Prevents rapid password changes to bypass history" `
@@ -190,7 +191,7 @@ try {
         # Parse password history
         $passwordHistory = ($netAccounts | Select-String "Length of password history maintained").ToString().Split(":")[1].Trim()
         
-        if ([int]$passwordHistory -ge 24) {
+        if ((ConvertTo-SafeInt $passwordHistory) -ge 24) {
             Add-Result -Category "CIS - Account Policy" -Status "Pass" `
                 -Message "Password history remembers $passwordHistory passwords" `
                 -Details "CIS Benchmark: Enforce password history of 24 or more passwords" `
@@ -277,7 +278,7 @@ try {
                 -Remediation "net accounts /lockoutthreshold:5" `
                 -Severity "High" `
                 -CrossReferences @{ NIST='IA-5'; STIG='V-220903' }
-        } elseif ([int]$lockoutThreshold -le 5 -and [int]$lockoutThreshold -gt 0) {
+        } elseif ((ConvertTo-SafeInt $lockoutThreshold) -le 5 -and (ConvertTo-SafeInt $lockoutThreshold) -gt 0) {
             Add-Result -Category "CIS - Account Policy" -Status "Pass" `
                 -Message "Account lockout threshold is $lockoutThreshold invalid logon attempts" `
                 -Details "CIS Benchmark: Account lockout protects against brute force attacks" `
@@ -294,7 +295,7 @@ try {
         # Parse lockout duration
         $lockoutDuration = ($netAccounts | Select-String "Lockout duration").ToString().Split(":")[1].Trim().Split(" ")[0]
         
-        if ([int]$lockoutDuration -ge 15) {
+        if ((ConvertTo-SafeInt $lockoutDuration) -ge 15) {
             Add-Result -Category "CIS - Account Policy" -Status "Pass" `
                 -Message "Account lockout duration is $lockoutDuration minutes" `
                 -Details "CIS Benchmark: Lockout duration of 15 or more minutes slows brute force" `
@@ -312,7 +313,7 @@ try {
         # Parse lockout observation window
         $lockoutWindow = ($netAccounts | Select-String "Lockout observation window").ToString().Split(":")[1].Trim().Split(" ")[0]
         
-        if ([int]$lockoutWindow -ge 15) {
+        if ((ConvertTo-SafeInt $lockoutWindow) -ge 15) {
             Add-Result -Category "CIS - Account Policy" -Status "Pass" `
                 -Message "Reset account lockout counter after $lockoutWindow minutes" `
                 -Details "CIS Benchmark: Observation window is properly configured" `
@@ -1115,7 +1116,7 @@ try {
                         -CrossReferences @{ CIS=$svc.CIS; NIST='CM-7'; STIG=$svc.STIG }
                 }
             }
-        } catch { }
+        } catch { <# Expected: item may not exist #> }
     }
 
     # CIS: Services that SHOULD be running for security
@@ -1145,7 +1146,7 @@ try {
                         -CrossReferences @{ CIS=$svc.CIS; NIST='SI-3'; STIG=$svc.STIG }
                 }
             }
-        } catch { }
+        } catch { <# Expected: item may not exist #> }
     }
 } catch {
     Add-Result -Category "CIS - Services" -Status "Error" `
@@ -1838,7 +1839,7 @@ try {
 
     # MSS: (ScreenSaverGracePeriod) Machine inactivity limit (CIS 18.4.9)
     $ssGrace = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "ScreenSaverGracePeriod" -Default "5"
-    if ([int]$ssGrace -le 5) {
+    if ((ConvertTo-SafeInt $ssGrace) -le 5) {
         Add-Result -Category "CIS - MSS Registry" -Status "Pass" `
             -Message "Screen saver grace period is $ssGrace seconds" `
             -Details "CIS 18.4.9: Short grace period reduces unauthorized access window" `
@@ -2066,7 +2067,7 @@ try {
                 -Severity "High" `
                 -CrossReferences @{ NIST='CM-7'; STIG='V-220953'; NSA='PowerShell Security' }
         }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
 
     # PowerShell execution policy
     try {
@@ -2091,7 +2092,7 @@ try {
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='SI-7'; NSA='PowerShell Security' }
         }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
 
     # AMSI (Antimalware Scan Interface) enabled
     $amsiDisabled = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\AMSI" -Name "AmsiEnable" -Default 1
@@ -2214,6 +2215,324 @@ try {
         -Severity "Medium"
 }
 
+
+# ============================================================================
+# v6.1: CIS Controls v8 IG2/IG3 maturity gap analysis
+# ============================================================================
+Write-Host "[CIS] Checking CIS Controls v8 IG2/IG3 maturity..." -ForegroundColor Yellow
+
+try {
+    $cgEnabled = Test-CredentialGuardEnabled
+    if ($cgEnabled) {
+        Add-Result -Category "CIS - v8 IG2/IG3 Maturity" -Status "Pass" `
+            -Severity "High" `
+            -Message "CIS v8 Control 6.7 (IG2): centralized authentication with MFA-supporting infrastructure" `
+            -Details "CIS Implementation Group 2 expects organizations with moderate sensitivity and resources to implement Credential Guard or equivalent" `
+            -CrossReferences @{ CIS='6.7'; CISv8='IG2' }
+    }
+    else {
+        Add-Result -Category "CIS - v8 IG2/IG3 Maturity" -Status "Warning" `
+            -Severity "High" `
+            -Message "CIS v8 Control 6.7 (IG2): Credential Guard not active" `
+            -CrossReferences @{ CIS='6.7'; CISv8='IG2' }
+    }
+
+    $auditPS = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging" -Name "EnableScriptBlockLogging" -Default 0
+    if ($auditPS -eq 1) {
+        Add-Result -Category "CIS - v8 IG2/IG3 Maturity" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "CIS v8 Control 8.5 (IG2): detailed logging via PowerShell script block" `
+            -CrossReferences @{ CIS='8.5'; CISv8='IG2' }
+    }
+    else {
+        Add-Result -Category "CIS - v8 IG2/IG3 Maturity" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "CIS v8 Control 8.5 (IG2): script block logging disabled" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name 'EnableScriptBlockLogging' -Value 1 -Type DWord" `
+            -CrossReferences @{ CIS='8.5'; CISv8='IG2' }
+    }
+
+    $vbsEnabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" -Name "EnableVirtualizationBasedSecurity" -Default 0
+    $hvciEnabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" -Name "Enabled" -Default 0
+    if ($vbsEnabled -eq 1 -and $hvciEnabled -eq 1) {
+        Add-Result -Category "CIS - v8 IG2/IG3 Maturity" -Status "Pass" `
+            -Severity "High" `
+            -Message "CIS v8 Control 4.5 (IG3): hardware-enforced isolation (VBS + HVCI)" `
+            -Details "CIS Implementation Group 3 expects organizations with sensitive data and significant resources to deploy hardware-anchored isolation" `
+            -CrossReferences @{ CIS='4.5'; CISv8='IG3' }
+    }
+    else {
+        Add-Result -Category "CIS - v8 IG2/IG3 Maturity" -Status "Warning" `
+            -Severity "High" `
+            -Message "CIS v8 Control 4.5 (IG3): VBS/HVCI not active" `
+            -CrossReferences @{ CIS='4.5'; CISv8='IG3' }
+    }
+
+    $appLockerSvc = Get-Service -Name 'AppIDSvc' -ErrorAction SilentlyContinue
+    if ($appLockerSvc -and $appLockerSvc.Status -eq 'Running') {
+        Add-Result -Category "CIS - v8 IG2/IG3 Maturity" -Status "Pass" `
+            -Severity "High" `
+            -Message "CIS v8 Control 2.5 (IG3): allowlisting infrastructure operational (AppLocker)" `
+            -CrossReferences @{ CIS='2.5'; CISv8='IG3' }
+    }
+    else {
+        Add-Result -Category "CIS - v8 IG2/IG3 Maturity" -Status "Warning" `
+            -Severity "High" `
+            -Message "CIS v8 Control 2.5 (IG3): AppIDSvc not running (allowlisting cannot enforce)" `
+            -Remediation "Set-Service -Name AppIDSvc -StartupType Automatic; Start-Service -Name AppIDSvc" `
+            -CrossReferences @{ CIS='2.5'; CISv8='IG3' }
+    }
+}
+catch {
+    Add-Result -Category "CIS - v8 IG2/IG3 Maturity" -Status "Error" `
+        -Severity "Medium" `
+        -Message "IG maturity assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: CIS Cloud Companion Guide alignment
+# ============================================================================
+Write-Host "[CIS] Checking CIS Cloud Companion Guide alignment..." -ForegroundColor Yellow
+
+try {
+    $tlsv12 = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server" -Name "Enabled" -Default $null
+    if ($null -eq $tlsv12 -or $tlsv12 -eq 1) {
+        Add-Result -Category "CIS - Cloud Companion" -Status "Pass" `
+            -Severity "High" `
+            -Message "Cloud Control 3.10: encrypt sensitive data in transit (TLS 1.2 available)" `
+            -Details "CIS Cloud Companion Guide extends CIS Controls v8 to cloud-native and hybrid deployments" `
+            -CrossReferences @{ CIS='3.10'; CISCloud='Companion Guide' }
+    }
+    else {
+        Add-Result -Category "CIS - Cloud Companion" -Status "Fail" `
+            -Severity "High" `
+            -Message "Cloud Control 3.10: TLS 1.2 disabled (cloud transit encryption gap)" `
+            -CrossReferences @{ CIS='3.10' }
+    }
+
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "CIS - Cloud Companion" -Status "Pass" `
+            -Severity "High" `
+            -Message "Cloud Control 3.11: encrypt sensitive data at rest (drive encryption active)" `
+            -CrossReferences @{ CIS='3.11'; CISCloud='Companion Guide' }
+    }
+    else {
+        Add-Result -Category "CIS - Cloud Companion" -Status "Fail" `
+            -Severity "High" `
+            -Message "Cloud Control 3.11: drive encryption not active" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ CIS='3.11' }
+    }
+
+    $w32time = Get-Service -Name 'W32Time' -ErrorAction SilentlyContinue
+    if ($w32time -and $w32time.Status -eq 'Running') {
+        Add-Result -Category "CIS - Cloud Companion" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Cloud Control 8.4: time synchronization for cloud event correlation" `
+            -CrossReferences @{ CIS='8.4'; CISCloud='Companion Guide' }
+    }
+    else {
+        Add-Result -Category "CIS - Cloud Companion" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Cloud Control 8.4: W32Time service not running" `
+            -Remediation "Start-Service -Name W32Time; Set-Service -Name W32Time -StartupType Automatic" `
+            -CrossReferences @{ CIS='8.4' }
+    }
+}
+catch {
+    Add-Result -Category "CIS - Cloud Companion" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Cloud Companion assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: CIS Mobile Companion (BYOD/MDM signal extraction)
+# ============================================================================
+Write-Host "[CIS] Checking CIS Mobile Companion device management indicators..." -ForegroundColor Yellow
+
+try {
+    $mdmEnrollPath = "HKLM:\SOFTWARE\Microsoft\Enrollments"
+    $mdmEnrollments = Get-ChildItem -Path $mdmEnrollPath -ErrorAction SilentlyContinue | Where-Object {
+        $_.PSChildName -ne 'Context' -and $null -ne $_.GetValue('UPN', $null)
+    }
+    if ($mdmEnrollments) {
+        $enrollCount = @($mdmEnrollments).Count
+        Add-Result -Category "CIS - Mobile Companion" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Mobile Control 4.1: device under MDM enrollment ($enrollCount enrollment record(s))" `
+            -Details "CIS Mobile Companion Guide covers MDM-managed endpoints" `
+            -CrossReferences @{ CIS='4.1'; CISMobile='Companion Guide' }
+    }
+    else {
+        Add-Result -Category "CIS - Mobile Companion" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Mobile Control 4.1: no MDM enrollment detected (standalone or domain-only management)" `
+            -CrossReferences @{ CIS='4.1' }
+    }
+
+    $autopilotPath = "HKLM:\SOFTWARE\Microsoft\Provisioning\AutopilotPolicy"
+    if (Test-Path $autopilotPath -ErrorAction SilentlyContinue) {
+        Add-Result -Category "CIS - Mobile Companion" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Mobile Control 4.2: Autopilot provisioning evidence present" `
+            -CrossReferences @{ CIS='4.2'; CISMobile='Companion Guide' }
+    }
+    else {
+        Add-Result -Category "CIS - Mobile Companion" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Mobile Control 4.2: no Autopilot policy detected" `
+            -CrossReferences @{ CIS='4.2' }
+    }
+
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "CIS - Mobile Companion" -Status "Pass" `
+            -Severity "High" `
+            -Message "Mobile Control 3.12: device encryption (lost-device data protection)" `
+            -CrossReferences @{ CIS='3.12'; CISMobile='Companion Guide' }
+    }
+    else {
+        Add-Result -Category "CIS - Mobile Companion" -Status "Fail" `
+            -Severity "High" `
+            -Message "Mobile Control 3.12: device encryption not active (lost-device data exposure)" `
+            -CrossReferences @{ CIS='3.12' }
+    }
+}
+catch {
+    Add-Result -Category "CIS - Mobile Companion" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Mobile Companion assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: CIS ICS/OT Companion Guide indicators
+# ============================================================================
+Write-Host "[CIS] Checking CIS ICS/OT Companion indicators..." -ForegroundColor Yellow
+
+try {
+    $smbv1 = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "SMB1" -Default 1
+    if ($smbv1 -eq 0) {
+        Add-Result -Category "CIS - ICS/OT Companion" -Status "Pass" `
+            -Severity "High" `
+            -Message "ICS/OT Control 12.1: legacy protocol restriction (SMBv1 disabled)" `
+            -Details "ICS/OT environments may retain legacy protocols for compatibility; CIS guidance recommends segmenting and removing where feasible" `
+            -CrossReferences @{ CIS='12.1'; CISICS='Companion Guide' }
+    }
+    else {
+        Add-Result -Category "CIS - ICS/OT Companion" -Status "Warning" `
+            -Severity "High" `
+            -Message "ICS/OT Control 12.1: SMBv1 enabled (legacy protocol; verify segmentation)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'SMB1' -Value 0 -Type DWord" `
+            -CrossReferences @{ CIS='12.1' }
+    }
+
+    $fwProfiles = Get-CachedFirewallStatus -Cache $SharedData.Cache
+    if ($fwProfiles) {
+        $disabled = @($fwProfiles | Where-Object { -not $_.Enabled })
+        if ($disabled.Count -eq 0) {
+            Add-Result -Category "CIS - ICS/OT Companion" -Status "Pass" `
+                -Severity "High" `
+                -Message "ICS/OT Control 13.4: host firewall enforced (segmentation foundation)" `
+                -CrossReferences @{ CIS='13.4'; CISICS='Companion Guide' }
+        }
+        else {
+            $names = ($disabled.Name -join ', ')
+            Add-Result -Category "CIS - ICS/OT Companion" -Status "Fail" `
+                -Severity "High" `
+                -Message "ICS/OT Control 13.4: firewall disabled on $names" `
+                -CrossReferences @{ CIS='13.4' }
+        }
+    }
+}
+catch {
+    Add-Result -Category "CIS - ICS/OT Companion" -Status "Error" `
+        -Severity "Medium" `
+        -Message "ICS/OT Companion assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: CIS Microsoft 365 / Exchange / IIS workload signals
+# ============================================================================
+Write-Host "[CIS] Checking workload-specific CIS Benchmark indicators..." -ForegroundColor Yellow
+
+try {
+    $iisService = Get-Service -Name 'W3SVC' -ErrorAction SilentlyContinue
+    if ($iisService -and $iisService.Status -eq 'Running') {
+        Add-Result -Category "CIS - Workload Benchmarks" -Status "Info" `
+            -Severity "Informational" `
+            -Message "IIS Web Server detected: apply CIS Microsoft IIS 10 Benchmark separately" `
+            -Details "CIS publishes a dedicated IIS 10 Benchmark; this audit scope is OS-level" `
+            -CrossReferences @{ CIS='Workload'; CISBench='IIS' }
+    }
+
+    $exchangeService = Get-Service -Name 'MSExchange*' -ErrorAction SilentlyContinue
+    if ($exchangeService) {
+        $runningEx = @($exchangeService | Where-Object { $_.Status -eq 'Running' }).Count
+        Add-Result -Category "CIS - Workload Benchmarks" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Exchange detected ($runningEx services running): apply CIS Exchange Benchmark separately" `
+            -CrossReferences @{ CIS='Workload'; CISBench='Exchange' }
+    }
+
+    $sqlService = Get-Service -Name 'MSSQLSERVER' -ErrorAction SilentlyContinue
+    $sqlExpress = Get-Service -Name 'MSSQL$*' -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Running' }
+    if (($sqlService -and $sqlService.Status -eq 'Running') -or $sqlExpress) {
+        Add-Result -Category "CIS - Workload Benchmarks" -Status "Info" `
+            -Severity "Informational" `
+            -Message "SQL Server detected: apply CIS SQL Server Benchmark separately" `
+            -CrossReferences @{ CIS='Workload'; CISBench='SQL Server' }
+    }
+}
+catch {
+    Add-Result -Category "CIS - Workload Benchmarks" -Status "Error" `
+        -Severity "Low" `
+        -Message "Workload detection failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: CIS Critical Security Controls - Asset and Software Inventory
+# ============================================================================
+Write-Host "[CIS] Checking inventory enumeration capability..." -ForegroundColor Yellow
+
+try {
+    $hotfixes = @(Get-CimInstance -ClassName Win32_QuickFixEngineering -ErrorAction SilentlyContinue)
+    if ($hotfixes.Count -gt 0) {
+        Add-Result -Category "CIS - Asset Inventory" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "CIS Control 1.1: hardware/software inventory enumerable ($($hotfixes.Count) hotfixes catalogued)" `
+            -CrossReferences @{ CIS='1.1'; CISv8='IG1' }
+    }
+    else {
+        Add-Result -Category "CIS - Asset Inventory" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "CIS Control 1.1: hotfix enumeration unavailable" `
+            -CrossReferences @{ CIS='1.1' }
+    }
+
+    $services = Get-Service -ErrorAction SilentlyContinue
+    if ($services) {
+        $serviceCount = @($services).Count
+        Add-Result -Category "CIS - Asset Inventory" -Status "Pass" `
+            -Severity "Low" `
+            -Message "CIS Control 2.1: service inventory enumerable ($serviceCount services)" `
+            -CrossReferences @{ CIS='2.1' }
+    }
+
+    $netConfigs = @(Get-NetIPConfiguration -ErrorAction SilentlyContinue)
+    if ($netConfigs.Count -gt 0) {
+        Add-Result -Category "CIS - Asset Inventory" -Status "Pass" `
+            -Severity "Low" `
+            -Message "CIS Control 12.5: network interface inventory enumerable ($($netConfigs.Count) interfaces)" `
+            -CrossReferences @{ CIS='12.5' }
+    }
+}
+catch {
+    Add-Result -Category "CIS - Asset Inventory" -Status "Error" `
+        -Severity "Low" `
+        -Message "Asset inventory assessment failed: $($_.Exception.Message)"
+}
+
 # ============================================================================
 # Summary Statistics
 # ============================================================================
@@ -2255,15 +2574,11 @@ Write-Host "[CIS] Check Categories:" -ForegroundColor Cyan
 foreach ($cat in ($categoryStats.Keys | Sort-Object)) {
     Write-Host "[CIS]   $($cat.PadRight(45)): $($categoryStats[$cat].ToString().PadLeft(3)) checks" -ForegroundColor Gray
 }
-if ($failCount -gt 0) {
-    Write-Host "[CIS]" -ForegroundColor Cyan
-    Write-Host "[CIS] Failed Check Severity:" -ForegroundColor Cyan
-    foreach ($sev in @('Critical', 'High', 'Medium', 'Low', 'Informational')) {
-        if ($severityStats[$sev] -gt 0) {
-            $sevColor = switch ($sev) { 'Critical' { 'Red' }; 'High' { 'DarkYellow' }; 'Medium' { 'Yellow' }; 'Low' { 'Cyan' }; default { 'Gray' } }
-            Write-Host "[CIS]   $($sev.PadRight(15)): $($severityStats[$sev])" -ForegroundColor $sevColor
-        }
-    }
+Write-Host "[CIS]" -ForegroundColor Cyan
+Write-Host "[CIS] Failed Check Severity:" -ForegroundColor Cyan
+foreach ($sev in @('Critical', 'High', 'Medium', 'Low', 'Informational')) {
+    $sevColor = switch ($sev) { 'Critical' { 'Red' }; 'High' { 'DarkYellow' }; 'Medium' { 'Yellow' }; 'Low' { 'Cyan' }; default { 'Gray' } }
+    Write-Host "[CIS]   $($sev.PadRight(15)): $($severityStats[$sev])" -ForegroundColor $sevColor
 }
 Write-Host "[CIS] ======================================================================`n" -ForegroundColor Cyan
 
@@ -2394,7 +2709,3 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
-
-# ============================================================================
-# End of CIS Compliance Benchmarking Module (Module-CIS.ps1)
-# ============================================================================
