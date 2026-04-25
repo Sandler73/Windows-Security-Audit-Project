@@ -1,6 +1,6 @@
 # Module-CISA.ps1
 # CISA Cybersecurity Performance Goals Compliance Module for Windows Security Audit
-# Version: 6.0
+# Version: 6.1.2
 #
 # Evaluates Windows configuration against CISA Cybersecurity Performance Goals (CPG),
 # Binding Operational Directives (BOD), and Zero Trust guidance across 12 domains.
@@ -38,7 +38,7 @@
     References: CISA Cybersecurity Performance Goals v1.0.1,
                 CISA BOD 22-01 (KEV), BOD 23-01 (Asset Visibility),
                 CISA Zero Trust Maturity Model v2.0
-    Version: 6.0
+    Version: 6.1.2
 
 .EXAMPLE
     $results = & .\modules\module-cisa.ps1 -SharedData $sharedData
@@ -50,7 +50,7 @@ param(
 )
 
 $moduleName = "CISA"
-$moduleVersion = "6.0"
+$moduleVersion = "6.1.2"
 $results = @()
 
 # ---------------------------------------------------------------------------
@@ -63,6 +63,7 @@ function Add-Result {
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
+        [ValidateSet("Critical","High","Medium","Low","Informational")]
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
@@ -91,7 +92,7 @@ function Get-RegValue {
     try {
         $item = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
         if ($item) { return $item.$Name }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
     return $Default
 }
 
@@ -1833,7 +1834,7 @@ try {
                     -CrossReferences @{ CISA='Supply Chain'; NIST='SA-12'; NSA='Supply Chain Guidance' }
             }
         }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
 
     # Code signing enforcement for drivers
     $driverSigning = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Driver Signing" -Name "Policy" -Default 0
@@ -1952,7 +1953,7 @@ try {
                 -Severity "High" `
                 -CrossReferences @{ CISA='Zero Trust'; NIST='SC-7'; CIS='9.1.1' }
         }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
 
     # Network pillar: SMB signing required (verify-then-trust)
     $smbSigning = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "RequireSecuritySignature" -Default 0
@@ -1988,7 +1989,7 @@ try {
                 -Severity "High" `
                 -CrossReferences @{ CISA='Zero Trust'; NIST='SC-28'; CIS='3.11' }
         }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
 
     # Visibility/Analytics pillar: Comprehensive audit logging
     $cmdLineAudit = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit" -Name "ProcessCreationIncludeCmdLine_Enabled" -Default 0
@@ -2149,6 +2150,495 @@ try {
         -Severity "Medium"
 }
 
+
+# ============================================================================
+# v6.1: CISA Known Exploited Vulnerabilities (KEV) catalog alignment
+# ============================================================================
+Write-Host "[CISA] Checking Known Exploited Vulnerabilities mitigations..." -ForegroundColor Yellow
+
+try {
+    $smbv1 = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "SMB1" -Default 1
+    if ($smbv1 -eq 0) {
+        Add-Result -Category "CISA - KEV Catalog" -Status "Pass" `
+            -Severity "High" `
+            -Message "KEV CVE-2017-0144 mitigated (SMBv1 disabled)" `
+            -Details "EternalBlue is in the CISA KEV catalog with active exploitation in the wild" `
+            -CrossReferences @{ CISA='KEV'; CVE='CVE-2017-0144'; KEV='EternalBlue' }
+    }
+    else {
+        Add-Result -Category "CISA - KEV Catalog" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "KEV CVE-2017-0144 unmitigated (SMBv1 enabled)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'SMB1' -Value 0 -Type DWord; Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" `
+            -CrossReferences @{ CISA='KEV'; CVE='CVE-2017-0144' }
+    }
+
+    $printSpooler = Get-Service -Name 'Spooler' -ErrorAction SilentlyContinue
+    $isDc = $false
+    try {
+        $cs = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
+        $isDc = ($cs.DomainRole -in @(4,5))
+    } catch { <# Expected: CIM may fail on minimal systems #> }
+
+    if ($isDc -and $printSpooler -and $printSpooler.Status -eq 'Running') {
+        Add-Result -Category "CISA - KEV Catalog" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "KEV CVE-2021-34527 PrintNightmare exposure (Print Spooler running on domain controller)" `
+            -Remediation "Stop-Service -Name Spooler; Set-Service -Name Spooler -StartupType Disabled" `
+            -CrossReferences @{ CISA='KEV'; CVE='CVE-2021-34527'; KEV='PrintNightmare' }
+    }
+    elseif ($isDc) {
+        Add-Result -Category "CISA - KEV Catalog" -Status "Pass" `
+            -Severity "High" `
+            -Message "KEV CVE-2021-34527 mitigated (Print Spooler disabled on domain controller)" `
+            -CrossReferences @{ CISA='KEV'; CVE='CVE-2021-34527' }
+    }
+
+    $sbDeployed = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Secureboot" -Name "AvailableUpdates" -Default 0
+    if ($sbDeployed -eq 0x10) {
+        Add-Result -Category "CISA - KEV Catalog" -Status "Pass" `
+            -Severity "High" `
+            -Message "KEV CVE-2023-24932 BlackLotus mitigation deployed (KB5025885 revocations active)" `
+            -CrossReferences @{ CISA='KEV'; CVE='CVE-2023-24932'; KB='5025885' }
+    }
+    else {
+        Add-Result -Category "CISA - KEV Catalog" -Status "Warning" `
+            -Severity "High" `
+            -Message "KEV CVE-2023-24932 BlackLotus mitigation flag not detected" `
+            -Details "KB5025885 deploys bootloader revocation entries; verify deployment status" `
+            -CrossReferences @{ CISA='KEV'; CVE='CVE-2023-24932' }
+    }
+
+    $netLogonZerologon = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Netlogon\Parameters" -Name "FullSecureChannelProtection" -Default $null
+    if ($netLogonZerologon -eq 1) {
+        Add-Result -Category "CISA - KEV Catalog" -Status "Pass" `
+            -Severity "High" `
+            -Message "KEV CVE-2020-1472 Zerologon enforcement mode active" `
+            -CrossReferences @{ CISA='KEV'; CVE='CVE-2020-1472'; KEV='Zerologon' }
+    }
+    else {
+        Add-Result -Category "CISA - KEV Catalog" -Status "Warning" `
+            -Severity "High" `
+            -Message "KEV CVE-2020-1472 Zerologon enforcement mode not explicitly set" `
+            -Details "Domain controllers should run in enforcement mode after the August 2020 patch" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\Netlogon\Parameters' -Name 'FullSecureChannelProtection' -Value 1 -Type DWord" `
+            -CrossReferences @{ CISA='KEV'; CVE='CVE-2020-1472' }
+    }
+}
+catch {
+    Add-Result -Category "CISA - KEV Catalog" -Status "Error" `
+        -Severity "Medium" `
+        -Message "KEV catalog assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: BOD 23-02 Network Management Interface Exposure
+# ============================================================================
+Write-Host "[CISA] Checking BOD 23-02 management interface exposure..." -ForegroundColor Yellow
+
+try {
+    $rdpEnabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Default 1
+    if ($rdpEnabled -eq 0) {
+        $rdpFwRules = Get-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue | Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' -and $_.Profile -match 'Public' }
+        if ($rdpFwRules) {
+            Add-Result -Category "CISA - BOD 23-02" -Status "Fail" `
+                -Severity "Critical" `
+                -Message "RDP exposed to Public profile (BOD 23-02 violation)" `
+                -Details "Binding Operational Directive 23-02 prohibits federal civilian agency exposure of network management interfaces to public internet" `
+                -Remediation "Set-NetFirewallRule -DisplayGroup 'Remote Desktop' -Profile Domain,Private -Enabled True; Set-NetFirewallRule -DisplayGroup 'Remote Desktop' -Profile Public -Enabled False" `
+                -CrossReferences @{ CISA='BOD-23-02'; BOD='23-02' }
+        }
+        else {
+            Add-Result -Category "CISA - BOD 23-02" -Status "Pass" `
+                -Severity "Medium" `
+                -Message "RDP enabled but not exposed to Public profile" `
+                -CrossReferences @{ CISA='BOD-23-02' }
+        }
+    }
+    else {
+        Add-Result -Category "CISA - BOD 23-02" -Status "Pass" `
+            -Severity "Low" `
+            -Message "RDP disabled (no management interface exposure)" `
+            -CrossReferences @{ CISA='BOD-23-02' }
+    }
+
+    $winrmService = Get-Service -Name 'WinRM' -ErrorAction SilentlyContinue
+    if ($winrmService -and $winrmService.Status -eq 'Running') {
+        $winrmHttpRule = Get-NetFirewallRule -Name "WINRM-HTTP-In-TCP-PUBLIC" -ErrorAction SilentlyContinue
+        if ($winrmHttpRule -and $winrmHttpRule.Enabled -eq 'True') {
+            Add-Result -Category "CISA - BOD 23-02" -Status "Fail" `
+                -Severity "High" `
+                -Message "WinRM HTTP exposed to Public profile" `
+                -Remediation "Disable-NetFirewallRule -Name WINRM-HTTP-In-TCP-PUBLIC" `
+                -CrossReferences @{ CISA='BOD-23-02' }
+        }
+        else {
+            Add-Result -Category "CISA - BOD 23-02" -Status "Pass" `
+                -Severity "Low" `
+                -Message "WinRM running but not exposed to Public profile" `
+                -CrossReferences @{ CISA='BOD-23-02' }
+        }
+    }
+
+    $smbInbound = Get-NetFirewallRule -DisplayGroup "File and Printer Sharing" -ErrorAction SilentlyContinue | Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' -and $_.Profile -match 'Public' }
+    if ($smbInbound) {
+        Add-Result -Category "CISA - BOD 23-02" -Status "Warning" `
+            -Severity "High" `
+            -Message "SMB exposed to Public profile (management/file sharing surface)" `
+            -Remediation "Set-NetFirewallRule -DisplayGroup 'File and Printer Sharing' -Profile Public -Enabled False" `
+            -CrossReferences @{ CISA='BOD-23-02' }
+    }
+    else {
+        Add-Result -Category "CISA - BOD 23-02" -Status "Pass" `
+            -Severity "Low" `
+            -Message "SMB not exposed to Public profile" `
+            -CrossReferences @{ CISA='BOD-23-02' }
+    }
+}
+catch {
+    Add-Result -Category "CISA - BOD 23-02" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Management interface exposure assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Secure by Design principles assessment
+# ============================================================================
+Write-Host "[CISA] Checking Secure by Design technical principles..." -ForegroundColor Yellow
+
+try {
+    $luaSetting = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "EnableLUA" -Default 0
+    if ($luaSetting -eq 1) {
+        Add-Result -Category "CISA - Secure by Design" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "SbD Principle 1 Take ownership: secure default configuration (UAC active)" `
+            -Details "CISA Secure by Design urges manufacturers to ship with secure defaults requiring no customer hardening" `
+            -CrossReferences @{ CISA='SecureByDesign'; Principle='1' }
+    }
+    else {
+        Add-Result -Category "CISA - Secure by Design" -Status "Fail" `
+            -Severity "High" `
+            -Message "SbD Principle 1: UAC disabled (insecure default exposure)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'EnableLUA' -Value 1 -Type DWord; Restart-Computer" `
+            -CrossReferences @{ CISA='SecureByDesign'; Principle='1' }
+    }
+
+    $autoUpdate = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "NoAutoUpdate" -Default 0
+    if ($autoUpdate -eq 0) {
+        Add-Result -Category "CISA - Secure by Design" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "SbD Principle 2 Embrace radical transparency: automatic security updates active" `
+            -CrossReferences @{ CISA='SecureByDesign'; Principle='2' }
+    }
+    else {
+        Add-Result -Category "CISA - Secure by Design" -Status "Fail" `
+            -Severity "High" `
+            -Message "SbD Principle 2: Automatic updates disabled" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name 'NoAutoUpdate' -Value 0 -Type DWord" `
+            -CrossReferences @{ CISA='SecureByDesign'; Principle='2' }
+    }
+
+    $sbEnabled = Test-SecureBootEnabled
+    if ($sbEnabled) {
+        Add-Result -Category "CISA - Secure by Design" -Status "Pass" `
+            -Severity "High" `
+            -Message "SbD Principle 3 Lead from the top: hardware-anchored boot integrity (Secure Boot)" `
+            -CrossReferences @{ CISA='SecureByDesign'; Principle='3' }
+    }
+    else {
+        Add-Result -Category "CISA - Secure by Design" -Status "Fail" `
+            -Severity "High" `
+            -Message "SbD Principle 3: Secure Boot disabled (no hardware boot integrity)" `
+            -CrossReferences @{ CISA='SecureByDesign'; Principle='3' }
+    }
+}
+catch {
+    Add-Result -Category "CISA - Secure by Design" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Secure by Design assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Zero Trust Maturity Model pillar mapping
+# ============================================================================
+Write-Host "[CISA] Checking Zero Trust Maturity Model pillars..." -ForegroundColor Yellow
+
+try {
+    $cgEnabled = Test-CredentialGuardEnabled
+    if ($cgEnabled) {
+        Add-Result -Category "CISA - Zero Trust Maturity" -Status "Pass" `
+            -Severity "High" `
+            -Message "ZTMM Identity Pillar: credential isolation (Advanced/Optimal level)" `
+            -Details "CISA ZTMM v2.0 Identity pillar advances from Traditional toward Optimal through privileged credential protection" `
+            -CrossReferences @{ CISA='ZTMM'; Pillar='Identity'; Level='Advanced' }
+    }
+    else {
+        Add-Result -Category "CISA - Zero Trust Maturity" -Status "Warning" `
+            -Severity "High" `
+            -Message "ZTMM Identity Pillar: Credential Guard inactive (Initial/Traditional level)" `
+            -CrossReferences @{ CISA='ZTMM'; Pillar='Identity' }
+    }
+
+    $vbsEnabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" -Name "EnableVirtualizationBasedSecurity" -Default 0
+    $hvciEnabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" -Name "Enabled" -Default 0
+    if ($vbsEnabled -eq 1 -and $hvciEnabled -eq 1) {
+        Add-Result -Category "CISA - Zero Trust Maturity" -Status "Pass" `
+            -Severity "High" `
+            -Message "ZTMM Devices Pillar: hardware isolation active (Optimal level)" `
+            -CrossReferences @{ CISA='ZTMM'; Pillar='Devices'; Level='Optimal' }
+    }
+    else {
+        Add-Result -Category "CISA - Zero Trust Maturity" -Status "Warning" `
+            -Severity "High" `
+            -Message "ZTMM Devices Pillar: VBS/HVCI not active (Traditional level)" `
+            -CrossReferences @{ CISA='ZTMM'; Pillar='Devices' }
+    }
+
+    $netProt = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Windows Defender Exploit Guard\Network Protection" -Name "EnableNetworkProtection" -Default 0
+    if ($netProt -eq 1) {
+        Add-Result -Category "CISA - Zero Trust Maturity" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "ZTMM Networks Pillar: outbound network protection (Advanced level)" `
+            -CrossReferences @{ CISA='ZTMM'; Pillar='Networks'; Level='Advanced' }
+    }
+    else {
+        Add-Result -Category "CISA - Zero Trust Maturity" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "ZTMM Networks Pillar: Network Protection not in block mode" `
+            -Remediation "Set-MpPreference -EnableNetworkProtection Enabled" `
+            -CrossReferences @{ CISA='ZTMM'; Pillar='Networks' }
+    }
+
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "CISA - Zero Trust Maturity" -Status "Pass" `
+            -Severity "High" `
+            -Message "ZTMM Data Pillar: at-rest encryption (Advanced level)" `
+            -CrossReferences @{ CISA='ZTMM'; Pillar='Data'; Level='Advanced' }
+    }
+    else {
+        Add-Result -Category "CISA - Zero Trust Maturity" -Status "Warning" `
+            -Severity "High" `
+            -Message "ZTMM Data Pillar: drive encryption not active (Traditional level)" `
+            -CrossReferences @{ CISA='ZTMM'; Pillar='Data' }
+    }
+
+    $auditPS = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging" -Name "EnableScriptBlockLogging" -Default 0
+    if ($auditPS -eq 1) {
+        Add-Result -Category "CISA - Zero Trust Maturity" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "ZTMM Visibility & Analytics: PowerShell logging supports analytics (Advanced level)" `
+            -CrossReferences @{ CISA='ZTMM'; Pillar='Visibility'; Level='Advanced' }
+    }
+    else {
+        Add-Result -Category "CISA - Zero Trust Maturity" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "ZTMM Visibility: script block logging disabled" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name 'EnableScriptBlockLogging' -Value 1 -Type DWord" `
+            -CrossReferences @{ CISA='ZTMM'; Pillar='Visibility' }
+    }
+}
+catch {
+    Add-Result -Category "CISA - Zero Trust Maturity" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Zero Trust Maturity Model assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Cross-Sector Cybersecurity Performance Goals (CPGs) v1.0.1
+# ============================================================================
+Write-Host "[CISA] Checking Cross-Sector Cybersecurity Performance Goals..." -ForegroundColor Yellow
+
+try {
+    $admins = Get-LocalAdministrators -Cache $SharedData.Cache
+    $localAdminCount = if ($admins) { @($admins).Count } else { 0 }
+    if ($localAdminCount -le 3) {
+        Add-Result -Category "CISA - CPGs v1.0.1" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "CPG 2.A Changing default passwords / 2.E Separating user and privileged accounts" `
+            -Details "CISA Cross-Sector Cybersecurity Performance Goals v1.0.1 minimize privileged account count" `
+            -CrossReferences @{ CISA='CPGs'; CPG='2.A,2.E' }
+    }
+    else {
+        Add-Result -Category "CISA - CPGs v1.0.1" -Status "Warning" `
+            -Severity "High" `
+            -Message "CPG 2.E Excessive local administrators ($localAdminCount)" `
+            -CrossReferences @{ CISA='CPGs'; CPG='2.E' }
+    }
+
+    $defenderStatus = Get-DefenderStatus -Cache $SharedData.Cache
+    if ($defenderStatus -and $defenderStatus.RealTimeProtectionEnabled) {
+        Add-Result -Category "CISA - CPGs v1.0.1" -Status "Pass" `
+            -Severity "High" `
+            -Message "CPG 2.W Detect Relevant Threats (real-time AV active)" `
+            -CrossReferences @{ CISA='CPGs'; CPG='2.W' }
+    }
+    else {
+        Add-Result -Category "CISA - CPGs v1.0.1" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "CPG 2.W Threat detection inactive" `
+            -CrossReferences @{ CISA='CPGs'; CPG='2.W' }
+    }
+
+    $secLogSize = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Security" -Name "MaxSize" -Default 0
+    if ($secLogSize -ge 268435456) {
+        Add-Result -Category "CISA - CPGs v1.0.1" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "CPG 2.T Log Collection capacity adequate" `
+            -CrossReferences @{ CISA='CPGs'; CPG='2.T' }
+    }
+    else {
+        Add-Result -Category "CISA - CPGs v1.0.1" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "CPG 2.T Security log undersized for adequate retention" `
+            -Remediation "wevtutil sl Security /ms:268435456" `
+            -CrossReferences @{ CISA='CPGs'; CPG='2.T' }
+    }
+
+    $autoUpdate = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "NoAutoUpdate" -Default 0
+    if ($autoUpdate -eq 0) {
+        Add-Result -Category "CISA - CPGs v1.0.1" -Status "Pass" `
+            -Severity "High" `
+            -Message "CPG 1.E Mitigating Known Vulnerabilities (auto updates enabled)" `
+            -CrossReferences @{ CISA='CPGs'; CPG='1.E' }
+    }
+    else {
+        Add-Result -Category "CISA - CPGs v1.0.1" -Status "Fail" `
+            -Severity "High" `
+            -Message "CPG 1.E Vulnerability mitigation impeded (auto updates disabled)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name 'NoAutoUpdate' -Value 0 -Type DWord" `
+            -CrossReferences @{ CISA='CPGs'; CPG='1.E' }
+    }
+}
+catch {
+    Add-Result -Category "CISA - CPGs v1.0.1" -Status "Error" `
+        -Severity "Medium" `
+        -Message "CPGs assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: CISA Bad Practices catalog
+# ============================================================================
+Write-Host "[CISA] Checking CISA Bad Practices catalog..." -ForegroundColor Yellow
+
+try {
+    $unsupportedOS = $false
+    try {
+        $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+        $buildNum = [int]$os.BuildNumber
+        if ($buildNum -lt 17763) {
+            $unsupportedOS = $true
+        }
+    } catch { <# Expected: CIM may fail #> }
+
+    if ($unsupportedOS) {
+        Add-Result -Category "CISA - Bad Practices" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "Bad Practice: Unsupported OS version detected" `
+            -Details "CISA Bad Practices catalog identifies use of end-of-life operating systems as exceptionally dangerous" `
+            -CrossReferences @{ CISA='Bad Practices' }
+    }
+    else {
+        Add-Result -Category "CISA - Bad Practices" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "OS version within current support window" `
+            -CrossReferences @{ CISA='Bad Practices' }
+    }
+
+    $blankPasswordPolicy = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LimitBlankPasswordUse" -Default 1
+    if ($blankPasswordPolicy -eq 1) {
+        Add-Result -Category "CISA - Bad Practices" -Status "Pass" `
+            -Severity "High" `
+            -Message "Bad Practice avoided: blank passwords restricted to console" `
+            -CrossReferences @{ CISA='Bad Practices' }
+    }
+    else {
+        Add-Result -Category "CISA - Bad Practices" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "Bad Practice: blank passwords usable over network" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name 'LimitBlankPasswordUse' -Value 1 -Type DWord" `
+            -CrossReferences @{ CISA='Bad Practices' }
+    }
+
+    $guestAccount = Get-CachedLocalUsers -Cache $SharedData.Cache | Where-Object { $_.Name -eq 'Guest' }
+    if ($guestAccount -and -not $guestAccount.Disabled) {
+        Add-Result -Category "CISA - Bad Practices" -Status "Fail" `
+            -Severity "High" `
+            -Message "Bad Practice: Guest account is enabled" `
+            -Remediation "Disable-LocalUser -Name 'Guest'" `
+            -CrossReferences @{ CISA='Bad Practices' }
+    }
+    else {
+        Add-Result -Category "CISA - Bad Practices" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Bad Practice avoided: Guest account disabled" `
+            -CrossReferences @{ CISA='Bad Practices' }
+    }
+}
+catch {
+    Add-Result -Category "CISA - Bad Practices" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Bad Practices assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Pre-Ransomware Notification Initiative checklist
+# ============================================================================
+Write-Host "[CISA] Checking Pre-Ransomware Notification readiness..." -ForegroundColor Yellow
+
+try {
+    $cfaState = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Windows Defender Exploit Guard\Controlled Folder Access" -Name "EnableControlledFolderAccess" -Default 0
+    if ($cfaState -in @(1,3)) {
+        Add-Result -Category "CISA - Pre-Ransomware Notification" -Status "Pass" `
+            -Severity "High" `
+            -Message "PRNI: Controlled Folder Access blocking ransomware writes" `
+            -Details "CISA Pre-Ransomware Notification Initiative provides early warnings of ransomware activity" `
+            -CrossReferences @{ CISA='PRNI'; StopRansomware='CISA' }
+    }
+    else {
+        Add-Result -Category "CISA - Pre-Ransomware Notification" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "PRNI: Controlled Folder Access not blocking" `
+            -Remediation "Set-MpPreference -EnableControlledFolderAccess Enabled" `
+            -CrossReferences @{ CISA='PRNI' }
+    }
+
+    $vssService = Get-Service -Name 'VSS' -ErrorAction SilentlyContinue
+    if ($vssService -and $vssService.StartType -in @('Manual','Automatic')) {
+        Add-Result -Category "CISA - Pre-Ransomware Notification" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "PRNI: VSS available for ransomware recovery" `
+            -CrossReferences @{ CISA='PRNI' }
+    }
+    else {
+        Add-Result -Category "CISA - Pre-Ransomware Notification" -Status "Warning" `
+            -Severity "High" `
+            -Message "PRNI: Volume Shadow Copy disabled (recovery infrastructure gap)" `
+            -Remediation "Set-Service -Name VSS -StartupType Manual" `
+            -CrossReferences @{ CISA='PRNI' }
+    }
+
+    $shadowCopyOpt = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" -Name "DisableSR" -Default 0
+    if ($shadowCopyOpt -eq 0) {
+        Add-Result -Category "CISA - Pre-Ransomware Notification" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "PRNI: System Restore enabled for ransomware rollback" `
+            -CrossReferences @{ CISA='PRNI' }
+    }
+    else {
+        Add-Result -Category "CISA - Pre-Ransomware Notification" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "PRNI: System Restore disabled" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore' -Name 'DisableSR' -Value 0 -Type DWord; Enable-ComputerRestore -Drive 'C:\\'" `
+            -CrossReferences @{ CISA='PRNI' }
+    }
+}
+catch {
+    Add-Result -Category "CISA - Pre-Ransomware Notification" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Pre-Ransomware Notification assessment failed: $($_.Exception.Message)"
+}
+
 # ============================================================================
 # Summary Statistics
 # ============================================================================
@@ -2190,15 +2680,11 @@ Write-Host "[CISA] Check Categories:" -ForegroundColor Cyan
 foreach ($cat in ($categoryStats.Keys | Sort-Object)) {
     Write-Host "[CISA]   $($cat.PadRight(45)): $($categoryStats[$cat].ToString().PadLeft(3)) checks" -ForegroundColor Gray
 }
-if ($failCount -gt 0) {
-    Write-Host "[CISA]" -ForegroundColor Cyan
-    Write-Host "[CISA] Failed Check Severity:" -ForegroundColor Cyan
-    foreach ($sev in @('Critical', 'High', 'Medium', 'Low', 'Informational')) {
-        if ($severityStats[$sev] -gt 0) {
-            $sevColor = switch ($sev) { 'Critical' { 'Red' }; 'High' { 'DarkYellow' }; 'Medium' { 'Yellow' }; 'Low' { 'Cyan' }; default { 'Gray' } }
-            Write-Host "[CISA]   $($sev.PadRight(15)): $($severityStats[$sev])" -ForegroundColor $sevColor
-        }
-    }
+Write-Host "[CISA]" -ForegroundColor Cyan
+Write-Host "[CISA] Failed Check Severity:" -ForegroundColor Cyan
+foreach ($sev in @('Critical', 'High', 'Medium', 'Low', 'Informational')) {
+    $sevColor = switch ($sev) { 'Critical' { 'Red' }; 'High' { 'DarkYellow' }; 'Medium' { 'Yellow' }; 'Low' { 'Cyan' }; default { 'Gray' } }
+    Write-Host "[CISA]   $($sev.PadRight(15)): $($severityStats[$sev])" -ForegroundColor $sevColor
 }
 Write-Host "[CISA] ======================================================================`n" -ForegroundColor Cyan
 
@@ -2305,7 +2791,3 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
-
-# ============================================================================
-# End of CISA Cybersecurity Performance Goals Module (Module-CISA.ps1)
-# ============================================================================
