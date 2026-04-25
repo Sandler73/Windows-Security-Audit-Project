@@ -1,6 +1,6 @@
 # module-iso27001.ps1
 # ISO/IEC 27001:2022 Compliance Module for Windows Security Audit
-# Version: 6.0
+# Version: 6.1.2
 #
 # Evaluates Windows configuration against ISO/IEC 27001:2022 Annex A controls
 # with Severity ratings and cross-framework references.
@@ -29,7 +29,7 @@
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
     References: ISO/IEC 27001:2022, ISO/IEC 27002:2022
-    Version: 6.0
+    Version: 6.1.2
 
 .EXAMPLE
     $results = & .\modules\module-iso27001.ps1 -SharedData $sharedData
@@ -41,7 +41,7 @@ param(
 )
 
 $moduleName = "ISO27001"
-$moduleVersion = "6.0"
+$moduleVersion = "6.1.2"
 $results = @()
 
 # ---------------------------------------------------------------------------
@@ -83,7 +83,7 @@ function Get-RegValue {
     try {
         $item = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
         if ($null -ne $item) { return $item.$Name }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
     return $Default
 }
 
@@ -210,14 +210,14 @@ Write-Host "[ISO27001] Checking A.5 Organizational Controls..." -ForegroundColor
                 -Message "A.5.17: Minimum password length is $minLen characters" `
                 -Details "A.5.17 Authentication information: Strong password policy enforced" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.5.17'; NIST='IA-5'; CIS='1.1.4'; STIG='V-220718'; PCIDSS='8.3.6' }
+                -CrossReferences @{ ISO27001='A.5.17'; NIST='IA-5'; CIS='1.1.4'; STIG='V-220718'; 'PCI-DSS'='8.3.6' }
         } else {
             Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Fail" `
                 -Message "A.5.17: Minimum password length is $minLen (requires `>= 14)" `
                 -Details "A.5.17 Authentication information: Weak passwords undermine access control" `
                 -Remediation "net accounts /minpwlen:14" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.5.17'; NIST='IA-5'; CIS='1.1.4'; STIG='V-220718'; PCIDSS='8.3.6' }
+                -CrossReferences @{ ISO27001='A.5.17'; NIST='IA-5'; CIS='1.1.4'; STIG='V-220718'; 'PCI-DSS'='8.3.6' }
         }
     } catch {
         Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Error" `
@@ -260,14 +260,14 @@ Write-Host "[ISO27001] Checking A.5 Organizational Controls..." -ForegroundColor
                 -Message "A.5.17c: Account lockout threshold is $lockThresh attempts" `
                 -Details "A.5.17 Authentication information: Brute-force protection enabled" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.5.17'; NIST='AC-7'; CIS='1.2.1'; PCIDSS='8.3.4' }
+                -CrossReferences @{ ISO27001='A.5.17'; NIST='AC-7'; CIS='1.2.1'; 'PCI-DSS'='8.3.4' }
         } else {
             Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Fail" `
                 -Message "A.5.17c: Account lockout threshold is $lockThresh (requires 1-5)" `
                 -Details "A.5.17 Authentication information: No lockout enables brute-force attacks" `
                 -Remediation "net accounts /lockoutthreshold:5" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.5.17'; NIST='AC-7'; CIS='1.2.1'; PCIDSS='8.3.4' }
+                -CrossReferences @{ ISO27001='A.5.17'; NIST='AC-7'; CIS='1.2.1'; 'PCI-DSS'='8.3.4' }
         }
     } catch {
         Add-Result -Category "ISO27001 - A.5 Organizational" -Status "Error" `
@@ -1030,20 +1030,20 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- Authentication & C
                 -Message "A.8.24a: Use of cryptography -- TLS 1.2 enabled -- properly configured" `
                 -Details "A.8.24 Use of cryptography: TLS 1.2 must be enabled for secure communications" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; PCIDSS='4.1'; STIG='V-220964' }
+                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1'; STIG='V-220964' }
         } else {
             Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Fail" `
                 -Message "A.8.24a: Use of cryptography -- TLS 1.2 enabled -- not configured (Value=$val)" `
                 -Details "A.8.24 Use of cryptography: TLS 1.2 must be enabled for secure communications" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client' -Name Enabled -Value 1" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; PCIDSS='4.1'; STIG='V-220964' }
+                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1'; STIG='V-220964' }
         }
     } catch {
         Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Error" `
             -Message "A.8.24a: Use of cryptography -- TLS 1.2 enabled -- check failed: $_" `
             -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; PCIDSS='4.1'; STIG='V-220964' }
+            -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1'; STIG='V-220964' }
     }
     # A.8.24b: Use of cryptography -- SSL 2.0 disabled
     try {
@@ -1053,20 +1053,20 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- Authentication & C
                 -Message "A.8.24b: Use of cryptography -- SSL 2.0 disabled -- properly configured" `
                 -Details "A.8.24 Use of cryptography: SSL 2.0 is insecure and must be disabled" `
                 -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; PCIDSS='4.1' }
+                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
         } else {
             Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Fail" `
                 -Message "A.8.24b: Use of cryptography -- SSL 2.0 disabled -- not configured (Value=$val)" `
                 -Details "A.8.24 Use of cryptography: SSL 2.0 is insecure and must be disabled" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 2.0\Server' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 2.0\Server' -Name Enabled -Value 0" `
                 -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; PCIDSS='4.1' }
+                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
         }
     } catch {
         Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Error" `
             -Message "A.8.24b: Use of cryptography -- SSL 2.0 disabled -- check failed: $_" `
             -Severity "Critical" `
-            -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; PCIDSS='4.1' }
+            -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
     }
     # A.8.24c: Use of cryptography -- SSL 3.0 disabled
     try {
@@ -1076,20 +1076,20 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- Authentication & C
                 -Message "A.8.24c: Use of cryptography -- SSL 3.0 disabled -- properly configured" `
                 -Details "A.8.24 Use of cryptography: SSL 3.0 (POODLE vulnerability) must be disabled" `
                 -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; PCIDSS='4.1' }
+                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
         } else {
             Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Fail" `
                 -Message "A.8.24c: Use of cryptography -- SSL 3.0 disabled -- not configured (Value=$val)" `
                 -Details "A.8.24 Use of cryptography: SSL 3.0 (POODLE vulnerability) must be disabled" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Server' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Server' -Name Enabled -Value 0" `
                 -Severity "Critical" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; PCIDSS='4.1' }
+                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
         }
     } catch {
         Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Error" `
             -Message "A.8.24c: Use of cryptography -- SSL 3.0 disabled -- check failed: $_" `
             -Severity "Critical" `
-            -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; PCIDSS='4.1' }
+            -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
     }
     # A.8.24d: Use of cryptography -- TLS 1.0 disabled
     try {
@@ -1099,20 +1099,20 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- Authentication & C
                 -Message "A.8.24d: Use of cryptography -- TLS 1.0 disabled -- properly configured" `
                 -Details "A.8.24 Use of cryptography: TLS 1.0 has known vulnerabilities and should be disabled" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; PCIDSS='4.1' }
+                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
         } else {
             Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Fail" `
                 -Message "A.8.24d: Use of cryptography -- TLS 1.0 disabled -- not configured (Value=$val)" `
                 -Details "A.8.24 Use of cryptography: TLS 1.0 has known vulnerabilities and should be disabled" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server' -Name Enabled -Value 0" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; PCIDSS='4.1' }
+                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
         }
     } catch {
         Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Error" `
             -Message "A.8.24d: Use of cryptography -- TLS 1.0 disabled -- check failed: $_" `
             -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; PCIDSS='4.1' }
+            -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
     }
     # A.8.24e: Use of cryptography -- TLS 1.1 disabled
     try {
@@ -1122,20 +1122,20 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- Authentication & C
                 -Message "A.8.24e: Use of cryptography -- TLS 1.1 disabled -- properly configured" `
                 -Details "A.8.24 Use of cryptography: TLS 1.1 is deprecated and should be disabled" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; PCIDSS='4.1' }
+                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
         } else {
             Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Fail" `
                 -Message "A.8.24e: Use of cryptography -- TLS 1.1 disabled -- not configured (Value=$val)" `
                 -Details "A.8.24 Use of cryptography: TLS 1.1 is deprecated and should be disabled" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server' -Name Enabled -Value 0" `
                 -Severity "High" `
-                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; PCIDSS='4.1' }
+                -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
         }
     } catch {
         Add-Result -Category "ISO27001 - A.8 Cryptography" -Status "Error" `
             -Message "A.8.24e: Use of cryptography -- TLS 1.1 disabled -- check failed: $_" `
             -Severity "High" `
-            -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; PCIDSS='4.1' }
+            -CrossReferences @{ ISO27001='A.8.24'; NIST='SC-13'; 'PCI-DSS'='4.1' }
     }
 
 # ===========================================================================
@@ -2049,6 +2049,354 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- SDLC & Hardening..
             -CrossReferences @{ ISO27001='A.8.3'; NIST='IA-5'; CIS='2.3.11.1' }
     }
 
+
+# ===========================================================================
+# v6.1: ISO 27002:2022 implementation guidance references
+# ===========================================================================
+Write-Host "[ISO27001] Checking ISO 27002:2022 implementation references..." -ForegroundColor Yellow
+
+try {
+    $cgEnabled = Test-CredentialGuardEnabled
+    if ($cgEnabled) {
+        Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Pass" `
+            -Severity "High" `
+            -Message "27002 Sec.5.16 Identity management: privileged identity isolation active" `
+            -Details "ISO/IEC 27002:2022 Sec.5.16 covers identity management implementation guidance" `
+            -CrossReferences @{ ISO27001='A.5.16'; ISO27002='5.16'; NIST='IA-5' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Warning" `
+            -Severity "High" `
+            -Message "27002 Sec.5.16 Credential Guard inactive (identity management gap)" `
+            -CrossReferences @{ ISO27001='A.5.16'; ISO27002='5.16' }
+    }
+
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Pass" `
+            -Severity "High" `
+            -Message "27002 Sec.8.24 Use of cryptography: at-rest encryption operational" `
+            -CrossReferences @{ ISO27001='A.8.24'; ISO27002='8.24'; NIST='SC-28' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Fail" `
+            -Severity "High" `
+            -Message "27002 Sec.8.24 No at-rest encryption implementation" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ ISO27001='A.8.24'; ISO27002='8.24' }
+    }
+
+    $defenderStatus = Get-DefenderStatus -Cache $SharedData.Cache
+    if ($defenderStatus -and $defenderStatus.RealTimeProtectionEnabled) {
+        Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Pass" `
+            -Severity "High" `
+            -Message "27002 Sec.8.7 Protection against malware: real-time protection active" `
+            -CrossReferences @{ ISO27001='A.8.7'; ISO27002='8.7'; NIST='SI-3' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "27002 Sec.8.7 Malware protection inactive" `
+            -CrossReferences @{ ISO27001='A.8.7'; ISO27002='8.7' }
+    }
+
+    $auditPS = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging" -Name "EnableScriptBlockLogging" -Default 0
+    if ($auditPS -eq 1) {
+        Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "27002 Sec.8.15 Logging: PowerShell script block logging operational" `
+            -CrossReferences @{ ISO27001='A.8.15'; ISO27002='8.15'; NIST='AU-12' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "27002 Sec.8.15 Logging gap: PowerShell script block logging disabled" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name 'EnableScriptBlockLogging' -Value 1 -Type DWord" `
+            -CrossReferences @{ ISO27001='A.8.15'; ISO27002='8.15' }
+    }
+}
+catch {
+    Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Error" `
+        -Severity "Medium" `
+        -Message "ISO 27002:2022 guidance assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: ISO/IEC 27017 (Cloud Services) and 27018 (PII in Cloud)
+# ===========================================================================
+Write-Host "[ISO27001] Checking ISO 27017/27018 cloud-extension controls..." -ForegroundColor Yellow
+
+try {
+    $tlsv12Server = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server" -Name "Enabled" -Default $null
+    if ($null -eq $tlsv12Server -or $tlsv12Server -eq 1) {
+        Add-Result -Category "ISO27001 - 27017/27018 Cloud" -Status "Pass" `
+            -Severity "High" `
+            -Message "27017 CLD.13.1 Network segregation in cloud: TLS 1.2 available" `
+            -Details "ISO/IEC 27017 Cloud Services adds cloud-specific guidance to ISO 27002 controls" `
+            -CrossReferences @{ ISO27017='CLD.13.1'; ISO27001='A.8.20' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - 27017/27018 Cloud" -Status "Fail" `
+            -Severity "High" `
+            -Message "27017 CLD.13.1 TLS 1.2 disabled (cloud transit encryption gap)" `
+            -CrossReferences @{ ISO27017='CLD.13.1' }
+    }
+
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "ISO27001 - 27017/27018 Cloud" -Status "Pass" `
+            -Severity "High" `
+            -Message "27018 PII protection in cloud: at-rest encryption (Sec.7 Data minimization)" `
+            -Details "ISO/IEC 27018 PII processor controls require encryption of PII in cloud environments" `
+            -CrossReferences @{ ISO27018='Sec.7'; ISO27001='A.8.24' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - 27017/27018 Cloud" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "27018 PII at-rest encryption inactive" `
+            -CrossReferences @{ ISO27018='Sec.7' }
+    }
+
+    $secLogSize = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Security" -Name "MaxSize" -Default 0
+    if ($secLogSize -ge 268435456) {
+        Add-Result -Category "ISO27001 - 27017/27018 Cloud" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "27018 Sec.A.10 Customer monitoring: audit retention adequate" `
+            -CrossReferences @{ ISO27018='A.10'; ISO27001='A.8.15' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - 27017/27018 Cloud" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "27018 Sec.A.10 Audit log retention below customer monitoring baseline" `
+            -Remediation "wevtutil sl Security /ms:268435456" `
+            -CrossReferences @{ ISO27018='A.10' }
+    }
+}
+catch {
+    Add-Result -Category "ISO27001 - 27017/27018 Cloud" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Cloud extension assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: ISO/IEC 27701 (Privacy Information Management)
+# ===========================================================================
+Write-Host "[ISO27001] Checking ISO 27701 privacy management controls..." -ForegroundColor Yellow
+
+try {
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "ISO27001 - 27701 Privacy" -Status "Pass" `
+            -Severity "High" `
+            -Message "27701 Sec.6.13.2 Privacy by design: PII protection through encryption" `
+            -CrossReferences @{ ISO27701='6.13.2'; ISO27001='A.8.24' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - 27701 Privacy" -Status "Fail" `
+            -Severity "High" `
+            -Message "27701 Sec.6.13.2 Privacy by design gap: PII at-rest unprotected" `
+            -CrossReferences @{ ISO27701='6.13.2' }
+    }
+
+    $auditUserMgmt = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'User Account Management' }
+    if ($auditUserMgmt -and $auditUserMgmt.Setting -ne 'No Auditing') {
+        Add-Result -Category "ISO27001 - 27701 Privacy" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "27701 Sec.7.2.7 PII transfer recording: account management audited" `
+            -CrossReferences @{ ISO27701='7.2.7'; ISO27001='A.5.34' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - 27701 Privacy" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "27701 Sec.7.2.7 User account management auditing not active" `
+            -Remediation "auditpol /set /subcategory:'User Account Management' /success:enable /failure:enable" `
+            -CrossReferences @{ ISO27701='7.2.7' }
+    }
+
+    $userListPolicy = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "DontDisplayLastUserName" -Default 0
+    if ($userListPolicy -eq 1) {
+        Add-Result -Category "ISO27001 - 27701 Privacy" -Status "Pass" `
+            -Severity "Low" `
+            -Message "27701 Sec.7.4.5 PII minimisation: previous user not displayed at sign-in" `
+            -CrossReferences @{ ISO27701='7.4.5' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - 27701 Privacy" -Status "Warning" `
+            -Severity "Low" `
+            -Message "27701 Sec.7.4.5 Previous user displayed at sign-in (PII exposure)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'DontDisplayLastUserName' -Value 1 -Type DWord" `
+            -CrossReferences @{ ISO27701='7.4.5' }
+    }
+}
+catch {
+    Add-Result -Category "ISO27001 - 27701 Privacy" -Status "Error" `
+        -Severity "Medium" `
+        -Message "ISO 27701 privacy assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Statement of Applicability (SoA) generation support
+# ===========================================================================
+Write-Host "[ISO27001] Computing Statement of Applicability summary..." -ForegroundColor Yellow
+
+try {
+    $isoResults = @($results | Where-Object { $_.Module -eq 'ISO27001' })
+    $applicableControls = @($isoResults | Where-Object { $_.Status -in @('Pass','Fail','Warning') })
+    $passedControls = @($isoResults | Where-Object { $_.Status -eq 'Pass' })
+    $failedControls = @($isoResults | Where-Object { $_.Status -eq 'Fail' })
+
+    $applicabilityRate = if ($applicableControls.Count -gt 0) {
+        [Math]::Round(($passedControls.Count / $applicableControls.Count) * 100, 1)
+    } else { 0 }
+
+    Add-Result -Category "ISO27001 - SoA Summary" -Status "Info" `
+        -Severity "Informational" `
+        -Message "SoA: ${applicabilityRate}% of $($applicableControls.Count) applicable controls implemented ($($passedControls.Count) pass, $($failedControls.Count) fail)" `
+        -Details "ISO 27001 Sec.6.1.3(d) Statement of Applicability documents control implementation status. This is an automated technical-control summary; full SoA requires organizational assessment." `
+        -CrossReferences @{ ISO27001='Sec.6.1.3(d)' }
+
+    if ($failedControls.Count -gt 0) {
+        Add-Result -Category "ISO27001 - SoA Summary" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "SoA: $($failedControls.Count) controls require risk treatment plan documentation" `
+            -Details "Failed controls require corresponding entries in the risk treatment plan (Sec.6.1.3(b))" `
+            -CrossReferences @{ ISO27001='Sec.6.1.3(b)' }
+    }
+}
+catch {
+    Add-Result -Category "ISO27001 - SoA Summary" -Status "Error" `
+        -Severity "Low" `
+        -Message "SoA computation failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: ISO/IEC 27005 (Risk Management) and 27031 (ICT Continuity)
+# ===========================================================================
+Write-Host "[ISO27001] Checking ISO 27005 risk and 27031 ICT continuity evidence..." -ForegroundColor Yellow
+
+try {
+    $secLogSize = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Security" -Name "MaxSize" -Default 0
+    if ($secLogSize -ge 268435456) {
+        Add-Result -Category "ISO27001 - 27005 Risk" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "27005 Sec.8 Risk monitoring: audit log capacity supports trend analysis" `
+            -CrossReferences @{ ISO27005='Sec.8'; ISO27001='A.8.16' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - 27005 Risk" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "27005 Sec.8 Audit log undersized for risk trend analysis" `
+            -CrossReferences @{ ISO27005='Sec.8' }
+    }
+
+    $vssService = Get-Service -Name 'VSS' -ErrorAction SilentlyContinue
+    if ($vssService -and $vssService.StartType -in @('Manual','Automatic')) {
+        Add-Result -Category "ISO27001 - 27031 ICT Continuity" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "27031 Sec.7 ICT readiness: backup/restore infrastructure operational" `
+            -CrossReferences @{ ISO27031='Sec.7'; ISO27001='A.5.30' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - 27031 ICT Continuity" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "27031 Sec.7 VSS disabled (ICT recovery readiness gap)" `
+            -Remediation "Set-Service -Name VSS -StartupType Manual" `
+            -CrossReferences @{ ISO27031='Sec.7' }
+    }
+
+    $w32time = Get-Service -Name 'W32Time' -ErrorAction SilentlyContinue
+    if ($w32time -and $w32time.Status -eq 'Running') {
+        Add-Result -Category "ISO27001 - 27031 ICT Continuity" -Status "Pass" `
+            -Severity "Low" `
+            -Message "27031 Time synchronization for incident reconstruction" `
+            -CrossReferences @{ ISO27031='Sec.6'; ISO27001='A.8.17' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - 27031 ICT Continuity" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "27031 Time service inactive (incident reconstruction impaired)" `
+            -Remediation "Start-Service -Name W32Time; Set-Service -Name W32Time -StartupType Automatic" `
+            -CrossReferences @{ ISO27031='Sec.6' }
+    }
+
+    $sysRestore = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" -Name "DisableSR" -Default 0
+    if ($sysRestore -eq 0) {
+        Add-Result -Category "ISO27001 - 27031 ICT Continuity" -Status "Pass" `
+            -Severity "Low" `
+            -Message "27031 System restore enabled for rollback recovery" `
+            -CrossReferences @{ ISO27031='Sec.7'; ISO27001='A.8.13' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - 27031 ICT Continuity" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "27031 System Restore disabled" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore' -Name 'DisableSR' -Value 0 -Type DWord; Enable-ComputerRestore -Drive 'C:\\'" `
+            -CrossReferences @{ ISO27031='Sec.7' }
+    }
+}
+catch {
+    Add-Result -Category "ISO27001 - 27005 Risk" -Status "Error" `
+        -Severity "Medium" `
+        -Message "ISO 27005 / 27031 assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Annex A.5 Organizational and A.7 Physical control evidence
+# ===========================================================================
+Write-Host "[ISO27001] Checking Annex A.5/A.7 control technical evidence..." -ForegroundColor Yellow
+
+try {
+    $auditPolicyChange = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'Audit Policy Change' }
+    if ($auditPolicyChange -and $auditPolicyChange.Setting -ne 'No Auditing') {
+        Add-Result -Category "ISO27001 - Annex A.5/A.7" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "A.5.37 Documented operating procedures: change tracking active" `
+            -CrossReferences @{ ISO27001='A.5.37' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - Annex A.5/A.7" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "A.5.37 Audit policy change tracking inactive" `
+            -Remediation "auditpol /set /subcategory:'Audit Policy Change' /success:enable /failure:enable" `
+            -CrossReferences @{ ISO27001='A.5.37' }
+    }
+
+    $autoPlay = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoDriveTypeAutoRun" -Default 0
+    if ($autoPlay -eq 255) {
+        Add-Result -Category "ISO27001 - Annex A.5/A.7" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "A.7.10 Storage media: AutoPlay restricted on all drive types" `
+            -CrossReferences @{ ISO27001='A.7.10' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - Annex A.5/A.7" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "A.7.10 Storage media: AutoPlay not fully disabled" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name 'NoDriveTypeAutoRun' -Value 255 -Type DWord" `
+            -CrossReferences @{ ISO27001='A.7.10' }
+    }
+
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "ISO27001 - Annex A.5/A.7" -Status "Pass" `
+            -Severity "High" `
+            -Message "A.7.5 Physical security perimeter: drive encryption mitigates physical theft risk" `
+            -CrossReferences @{ ISO27001='A.7.5' }
+    }
+    else {
+        Add-Result -Category "ISO27001 - Annex A.5/A.7" -Status "Fail" `
+            -Severity "High" `
+            -Message "A.7.5 Physical security gap: no drive encryption (theft exposure)" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ ISO27001='A.7.5' }
+    }
+}
+catch {
+    Add-Result -Category "ISO27001 - Annex A.5/A.7" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Annex A.5/A.7 evidence assessment failed: $($_.Exception.Message)"
+}
+
 # ===========================================================================
 # Module Summary
 # ===========================================================================
@@ -2079,15 +2427,11 @@ foreach ($cat in ($catGroups.Keys | Sort-Object)) {
 
 # Severity distribution for failures
 $failResults = @($results | Where-Object { $_.Status -eq "Fail" })
-if ($failResults.Count -gt 0) {
-    Write-Host "`n  Failed Check Severity Distribution:" -ForegroundColor Yellow
-    foreach ($sev in @("Critical","High","Medium","Low")) {
-        $sevCount = @($failResults | Where-Object { $_.Severity -eq $sev }).Count
-        if ($sevCount -gt 0) {
-            $color = switch ($sev) { "Critical" { "Red" }; "High" { "Red" }; "Medium" { "Yellow" }; default { "White" } }
-            Write-Host "    $($sev.PadRight(12)): $sevCount" -ForegroundColor $color
-        }
-    }
+Write-Host "`n  Failed Check Severity Distribution:" -ForegroundColor Yellow
+foreach ($sev in @("Critical","High","Medium","Low")) {
+    $sevCount = @($failResults | Where-Object { $_.Severity -eq $sev }).Count
+    $color = switch ($sev) { "Critical" { "Red" }; "High" { "Red" }; "Medium" { "Yellow" }; default { "White" } }
+    Write-Host "    $($sev.PadRight(12)): $sevCount" -ForegroundColor $color
 }
 Write-Host "$("=" * 80)`n" -ForegroundColor White
 
@@ -2174,7 +2518,3 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
-
-# ============================================================================
-# End of ISO27001 Compliance Module (Module-ISO27001.ps1)
-# ============================================================================
