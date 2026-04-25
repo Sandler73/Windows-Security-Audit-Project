@@ -1,6 +1,6 @@
 # module-hipaa.ps1
 # HIPAA Security Rule Compliance Module for Windows Security Audit
-# Version: 6.0
+# Version: 6.1.2
 #
 # Evaluates Windows configuration against HIPAA Security Rule (45 CFR Part 164 Subpart C)
 # with Severity ratings and cross-framework references.
@@ -32,7 +32,7 @@
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
     References: HIPAA Security Rule (45 CFR 164.302-318), HITECH Act, HHS Guidance on Risk Analysis
-    Version: 6.0
+    Version: 6.1.2
 
 .EXAMPLE
     $results = & .\modules\module-hipaa.ps1 -SharedData $sharedData
@@ -44,7 +44,7 @@ param(
 )
 
 $moduleName = "HIPAA"
-$moduleVersion = "6.0"
+$moduleVersion = "6.1.2"
 $results = @()
 
 # ---------------------------------------------------------------------------
@@ -86,7 +86,7 @@ function Get-RegValue {
     try {
         $item = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
         if ($null -ne $item) { return $item.$Name }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
     return $Default
 }
 
@@ -105,20 +105,20 @@ Write-Host "[HIPAA] Checking 164.312(a) Access Control..." -ForegroundColor Yell
                 -Message "164.312(a)(1): Access control -- UAC enforcement -- properly configured" `
                 -Details "164.312(a)(1): Access control mechanisms must enforce authorized access to ePHI" `
                 -Severity "Critical" `
-                -CrossReferences @{ HIPAA='164.312(a)(1)'; NIST='AC-3'; ISO27001='A.5.15'; PCIDSS='2.2.1' }
+                -CrossReferences @{ HIPAA='164.312(a)(1)'; NIST='AC-3'; ISO27001='A.5.15'; 'PCI-DSS'='2.2.1' }
         } else {
             Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
                 -Message "164.312(a)(1): Access control -- UAC enforcement -- not configured (Value=$val)" `
                 -Details "164.312(a)(1): Access control mechanisms must enforce authorized access to ePHI" `
                 -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1" `
                 -Severity "Critical" `
-                -CrossReferences @{ HIPAA='164.312(a)(1)'; NIST='AC-3'; ISO27001='A.5.15'; PCIDSS='2.2.1' }
+                -CrossReferences @{ HIPAA='164.312(a)(1)'; NIST='AC-3'; ISO27001='A.5.15'; 'PCI-DSS'='2.2.1' }
         }
     } catch {
         Add-Result -Category "HIPAA - Access Control" -Status "Error" `
             -Message "164.312(a)(1): Access control -- UAC enforcement -- check failed: $_" `
             -Severity "Critical" `
-            -CrossReferences @{ HIPAA='164.312(a)(1)'; NIST='AC-3'; ISO27001='A.5.15'; PCIDSS='2.2.1' }
+            -CrossReferences @{ HIPAA='164.312(a)(1)'; NIST='AC-3'; ISO27001='A.5.15'; 'PCI-DSS'='2.2.1' }
     }
     # 164.312(a)(2)(i): Unique user identification -- local account inventory
     try {
@@ -128,7 +128,7 @@ Write-Host "[HIPAA] Checking 164.312(a) Access Control..." -ForegroundColor Yell
             -Message "164.312(a)(2)(i): $userCount enabled local user accounts found" `
             -Details "164.312(a)(2)(i) Unique User Identification: Each user accessing ePHI must have a unique ID" `
             -Severity "Informational" `
-            -CrossReferences @{ HIPAA='164.312(a)(2)(i)'; NIST='IA-2'; PCIDSS='8.1.1' }
+            -CrossReferences @{ HIPAA='164.312(a)(2)(i)'; NIST='IA-2'; 'PCI-DSS'='8.1.1' }
     } catch {
         Add-Result -Category "HIPAA - Access Control" -Status "Error" `
             -Message "164.312(a)(2)(i): Unique user identification -- local account inventory -- check failed: $_" `
@@ -167,14 +167,14 @@ Write-Host "[HIPAA] Checking 164.312(a) Access Control..." -ForegroundColor Yell
                 -Message "164.312(a)(2)(i)c: $adminCount local administrator accounts (appropriate)" `
                 -Details "164.312(a)(2)(i): Administrative access to ePHI systems is limited" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(a)(2)(i)'; NIST='AC-6'; PCIDSS='7.1.1' }
+                -CrossReferences @{ HIPAA='164.312(a)(2)(i)'; NIST='AC-6'; 'PCI-DSS'='7.1.1' }
         } else {
             Add-Result -Category "HIPAA - Access Control" -Status "Warning" `
                 -Message "164.312(a)(2)(i)c: $adminCount local administrator accounts (review needed)" `
                 -Details "164.312(a)(2)(i): Excessive admin accounts increase ePHI exposure risk" `
                 -Remediation "Review and minimize administrator group membership" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(a)(2)(i)'; NIST='AC-6'; PCIDSS='7.1.1' }
+                -CrossReferences @{ HIPAA='164.312(a)(2)(i)'; NIST='AC-6'; 'PCI-DSS'='7.1.1' }
         }
     } catch {
         Add-Result -Category "HIPAA - Access Control" -Status "Error" `
@@ -190,20 +190,20 @@ Write-Host "[HIPAA] Checking 164.312(a) Access Control..." -ForegroundColor Yell
                 -Message "164.312(a)(2)(iii): Automatic logoff -- inactivity timeout -- properly configured" `
                 -Details "164.312(a)(2)(iii): Automatic logoff protects ePHI on unattended workstations" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(a)(2)(iii)'; NIST='AC-11'; PCIDSS='8.3.9'; CIS='2.3.7.3' }
+                -CrossReferences @{ HIPAA='164.312(a)(2)(iii)'; NIST='AC-11'; 'PCI-DSS'='8.3.9'; CIS='2.3.7.3' }
         } else {
             Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
                 -Message "164.312(a)(2)(iii): Automatic logoff -- inactivity timeout -- not configured (Value=$val)" `
                 -Details "164.312(a)(2)(iii): Automatic logoff protects ePHI on unattended workstations" `
                 -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name InactivityTimeoutSecs -Value 900" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(a)(2)(iii)'; NIST='AC-11'; PCIDSS='8.3.9'; CIS='2.3.7.3' }
+                -CrossReferences @{ HIPAA='164.312(a)(2)(iii)'; NIST='AC-11'; 'PCI-DSS'='8.3.9'; CIS='2.3.7.3' }
         }
     } catch {
         Add-Result -Category "HIPAA - Access Control" -Status "Error" `
             -Message "164.312(a)(2)(iii): Automatic logoff -- inactivity timeout -- check failed: $_" `
             -Severity "High" `
-            -CrossReferences @{ HIPAA='164.312(a)(2)(iii)'; NIST='AC-11'; PCIDSS='8.3.9'; CIS='2.3.7.3' }
+            -CrossReferences @{ HIPAA='164.312(a)(2)(iii)'; NIST='AC-11'; 'PCI-DSS'='8.3.9'; CIS='2.3.7.3' }
     }
     # 164.312(a)(2)(iii)b: Automatic logoff -- screen saver lock
     try {
@@ -259,14 +259,14 @@ Write-Host "[HIPAA] Checking 164.312(a) Access Control..." -ForegroundColor Yell
                 -Message "164.312(a)(2)(iv): BitLocker encryption active on system drive" `
                 -Details "164.312(a)(2)(iv) Encryption/Decryption: ePHI at rest is encrypted" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-28'; PCIDSS='3.4.1'; ISO27001='A.8.24' }
+                -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-28'; 'PCI-DSS'='3.4.1'; ISO27001='A.8.24' }
         } else {
             Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
                 -Message "164.312(a)(2)(iv): BitLocker NOT active -- ePHI at rest may be unencrypted" `
                 -Details "164.312(a)(2)(iv) Encryption/Decryption: Addressable but strongly recommended" `
                 -Remediation "Enable-BitLocker -MountPoint C: -EncryptionMethod XtsAes256" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-28'; PCIDSS='3.4.1'; ISO27001='A.8.24' }
+                -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-28'; 'PCI-DSS'='3.4.1'; ISO27001='A.8.24' }
         }
     } catch {
         Add-Result -Category "HIPAA - Access Control" -Status "Error" `
@@ -282,20 +282,20 @@ Write-Host "[HIPAA] Checking 164.312(a) Access Control..." -ForegroundColor Yell
                 -Message "164.312(a)(2)(iv)b: Encryption of ePHI -- BitLocker encryption method -- properly configured" `
                 -Details "164.312(a)(2)(iv): Encryption must use AES-256 or equivalent for ePHI protection" `
                 -Severity "Medium" `
-                -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-13'; PCIDSS='3.4.2' }
+                -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-13'; 'PCI-DSS'='3.4.2' }
         } else {
             Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
                 -Message "164.312(a)(2)(iv)b: Encryption of ePHI -- BitLocker encryption method -- not configured (Value=$val)" `
                 -Details "164.312(a)(2)(iv): Encryption must use AES-256 or equivalent for ePHI protection" `
                 -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\FVE' -Name EncryptionMethodWithXtsOs -Value 7" `
                 -Severity "Medium" `
-                -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-13'; PCIDSS='3.4.2' }
+                -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-13'; 'PCI-DSS'='3.4.2' }
         }
     } catch {
         Add-Result -Category "HIPAA - Access Control" -Status "Error" `
             -Message "164.312(a)(2)(iv)b: Encryption of ePHI -- BitLocker encryption method -- check failed: $_" `
             -Severity "Medium" `
-            -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-13'; PCIDSS='3.4.2' }
+            -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-13'; 'PCI-DSS'='3.4.2' }
     }
     # 164.312(a)(3): Access control -- anonymous enumeration restricted
     try {
@@ -449,7 +449,7 @@ Write-Host "[HIPAA] Checking 164.312(b) Audit Controls..." -ForegroundColor Yell
                 -Message "164.312(b)(1): Audit controls -- Event Log service -- service running" `
                 -Details "164.312(b): Hardware/software/procedural mechanisms to record ePHI access" `
                 -Severity "Critical" `
-                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; ISO27001='A.8.15'; PCIDSS='10.2.1' }
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; ISO27001='A.8.15'; 'PCI-DSS'='10.2.1' }
         } else {
             $svcSt = if ($null -ne $svc) { $svc.Status } else { "Not Found" }
             Add-Result -Category "HIPAA - Audit Controls" -Status "Fail" `
@@ -457,13 +457,13 @@ Write-Host "[HIPAA] Checking 164.312(b) Audit Controls..." -ForegroundColor Yell
                 -Details "164.312(b): Hardware/software/procedural mechanisms to record ePHI access" `
                 -Remediation "Start-Service -Name EventLog; Set-Service -Name EventLog -StartupType Automatic" `
                 -Severity "Critical" `
-                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; ISO27001='A.8.15'; PCIDSS='10.2.1' }
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; ISO27001='A.8.15'; 'PCI-DSS'='10.2.1' }
         }
     } catch {
         Add-Result -Category "HIPAA - Audit Controls" -Status "Error" `
             -Message "164.312(b)(1): Audit controls -- Event Log service -- check failed: $_" `
             -Severity "Critical" `
-            -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; ISO27001='A.8.15'; PCIDSS='10.2.1' }
+            -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; ISO27001='A.8.15'; 'PCI-DSS'='10.2.1' }
     }
     # 164.312(b)(2): Audit controls -- Logon event auditing
     try {
@@ -475,14 +475,14 @@ Write-Host "[HIPAA] Checking 164.312(b) Audit Controls..." -ForegroundColor Yell
                 -Message "164.312(b)(2): Logon event auditing enabled for ePHI access tracking" `
                 -Details "164.312(b): All ePHI access attempts must generate audit records" `
                 -Severity "Critical" `
-                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; CIS='17.5.1'; PCIDSS='10.2.1' }
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; CIS='17.5.1'; 'PCI-DSS'='10.2.1' }
         } else {
             Add-Result -Category "HIPAA - Audit Controls" -Status "Fail" `
                 -Message "164.312(b)(2): Logon auditing NOT enabled -- ePHI access untracked" `
                 -Details "164.312(b): Cannot demonstrate access accountability without logon auditing" `
                 -Remediation "auditpol /set /subcategory:'Logon' /success:enable /failure:enable" `
                 -Severity "Critical" `
-                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; CIS='17.5.1'; PCIDSS='10.2.1' }
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-2'; CIS='17.5.1'; 'PCI-DSS'='10.2.1' }
         }
     } catch {
         Add-Result -Category "HIPAA - Audit Controls" -Status "Error" `
@@ -574,14 +574,14 @@ Write-Host "[HIPAA] Checking 164.312(b) Audit Controls..." -ForegroundColor Yell
                 -Message "164.312(b)(6): Security log size is ${secLogMB}MB (`>= 1024MB)" `
                 -Details "164.312(b): HIPAA requires 6-year retention; adequate local log size supports this" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-4'; PCIDSS='10.3.1' }
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-4'; 'PCI-DSS'='10.3.1' }
         } else {
             Add-Result -Category "HIPAA - Audit Controls" -Status "Fail" `
                 -Message "164.312(b)(6): Security log size is ${secLogMB}MB (requires `>= 1024MB)" `
                 -Details "164.312(b): Insufficient log capacity for HIPAA retention requirements" `
                 -Remediation "wevtutil sl Security /ms:1073741824" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-4'; PCIDSS='10.3.1' }
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-4'; 'PCI-DSS'='10.3.1' }
         }
     } catch {
         Add-Result -Category "HIPAA - Audit Controls" -Status "Error" `
@@ -643,7 +643,7 @@ Write-Host "[HIPAA] Checking 164.312(b) Audit Controls..." -ForegroundColor Yell
                 -Message "164.312(b)(9): Time synchronization -- W32Time -- service running" `
                 -Details "164.312(b): Accurate timestamps are essential for audit trail integrity and correlation" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-8'; PCIDSS='10.6.1' }
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-8'; 'PCI-DSS'='10.6.1' }
         } else {
             $svcSt = if ($null -ne $svc) { $svc.Status } else { "Not Found" }
             Add-Result -Category "HIPAA - Audit Controls" -Status "Fail" `
@@ -651,13 +651,13 @@ Write-Host "[HIPAA] Checking 164.312(b) Audit Controls..." -ForegroundColor Yell
                 -Details "164.312(b): Accurate timestamps are essential for audit trail integrity and correlation" `
                 -Remediation "Start-Service -Name W32Time; Set-Service -Name W32Time -StartupType Automatic" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-8'; PCIDSS='10.6.1' }
+                -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-8'; 'PCI-DSS'='10.6.1' }
         }
     } catch {
         Add-Result -Category "HIPAA - Audit Controls" -Status "Error" `
             -Message "164.312(b)(9): Time synchronization -- W32Time -- check failed: $_" `
             -Severity "High" `
-            -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-8'; PCIDSS='10.6.1' }
+            -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-8'; 'PCI-DSS'='10.6.1' }
     }
 
 # ===========================================================================
@@ -804,14 +804,14 @@ Write-Host "[HIPAA] Checking 164.312(d) Person or Entity Authentication..." -For
                 -Message "164.312(d)(1): Minimum password length is $minLen characters" `
                 -Details "164.312(d): Strong authentication ensures proper ePHI access verification" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(d)'; NIST='IA-5'; CIS='1.1.4'; PCIDSS='8.3.6' }
+                -CrossReferences @{ HIPAA='164.312(d)'; NIST='IA-5'; CIS='1.1.4'; 'PCI-DSS'='8.3.6' }
         } else {
             Add-Result -Category "HIPAA - Authentication" -Status "Fail" `
                 -Message "164.312(d)(1): Minimum password length is $minLen (requires `>= 14)" `
                 -Details "164.312(d): Weak passwords allow unauthorized ePHI access" `
                 -Remediation "net accounts /minpwlen:14" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(d)'; NIST='IA-5'; CIS='1.1.4'; PCIDSS='8.3.6' }
+                -CrossReferences @{ HIPAA='164.312(d)'; NIST='IA-5'; CIS='1.1.4'; 'PCI-DSS'='8.3.6' }
         }
     } catch {
         Add-Result -Category "HIPAA - Authentication" -Status "Error" `
@@ -829,14 +829,14 @@ Write-Host "[HIPAA] Checking 164.312(d) Person or Entity Authentication..." -For
                 -Message "164.312(d)(2): Account lockout threshold is $lockThresh attempts" `
                 -Details "164.312(d): Lockout policy prevents brute-force access to ePHI systems" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(d)'; NIST='AC-7'; CIS='1.2.1'; PCIDSS='8.3.4' }
+                -CrossReferences @{ HIPAA='164.312(d)'; NIST='AC-7'; CIS='1.2.1'; 'PCI-DSS'='8.3.4' }
         } else {
             Add-Result -Category "HIPAA - Authentication" -Status "Fail" `
                 -Message "164.312(d)(2): Account lockout threshold is $lockThresh (requires 1-5)" `
                 -Details "164.312(d): No lockout allows unlimited authentication attempts" `
                 -Remediation "net accounts /lockoutthreshold:5" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(d)'; NIST='AC-7'; CIS='1.2.1'; PCIDSS='8.3.4' }
+                -CrossReferences @{ HIPAA='164.312(d)'; NIST='AC-7'; CIS='1.2.1'; 'PCI-DSS'='8.3.4' }
         }
     } catch {
         Add-Result -Category "HIPAA - Authentication" -Status "Error" `
@@ -906,20 +906,20 @@ Write-Host "[HIPAA] Checking 164.312(e) Transmission Security..." -ForegroundCol
                 -Message "164.312(e)(1)a: Transmission security -- TLS 1.2 enabled -- properly configured" `
                 -Details "164.312(e)(1): ePHI transmitted over electronic networks must be encrypted" `
                 -Severity "Critical" `
-                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-8'; PCIDSS='4.2.1'; ISO27001='A.8.24' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-8'; 'PCI-DSS'='4.2.1'; ISO27001='A.8.24' }
         } else {
             Add-Result -Category "HIPAA - Transmission Security" -Status "Fail" `
                 -Message "164.312(e)(1)a: Transmission security -- TLS 1.2 enabled -- not configured (Value=$val)" `
                 -Details "164.312(e)(1): ePHI transmitted over electronic networks must be encrypted" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Client' -Name Enabled -Value 1" `
                 -Severity "Critical" `
-                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-8'; PCIDSS='4.2.1'; ISO27001='A.8.24' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-8'; 'PCI-DSS'='4.2.1'; ISO27001='A.8.24' }
         }
     } catch {
         Add-Result -Category "HIPAA - Transmission Security" -Status "Error" `
             -Message "164.312(e)(1)a: Transmission security -- TLS 1.2 enabled -- check failed: $_" `
             -Severity "Critical" `
-            -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-8'; PCIDSS='4.2.1'; ISO27001='A.8.24' }
+            -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-8'; 'PCI-DSS'='4.2.1'; ISO27001='A.8.24' }
     }
     # 164.312(e)(1)b: Transmission security -- SSL 2.0 disabled
     try {
@@ -929,20 +929,20 @@ Write-Host "[HIPAA] Checking 164.312(e) Transmission Security..." -ForegroundCol
                 -Message "164.312(e)(1)b: Transmission security -- SSL 2.0 disabled -- properly configured" `
                 -Details "164.312(e)(1): Insecure protocols must be disabled to protect ePHI in transit" `
                 -Severity "Critical" `
-                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; PCIDSS='4.2.2' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
         } else {
             Add-Result -Category "HIPAA - Transmission Security" -Status "Fail" `
                 -Message "164.312(e)(1)b: Transmission security -- SSL 2.0 disabled -- not configured (Value=$val)" `
                 -Details "164.312(e)(1): Insecure protocols must be disabled to protect ePHI in transit" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 2.0\Server' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 2.0\Server' -Name Enabled -Value 0" `
                 -Severity "Critical" `
-                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; PCIDSS='4.2.2' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
         }
     } catch {
         Add-Result -Category "HIPAA - Transmission Security" -Status "Error" `
             -Message "164.312(e)(1)b: Transmission security -- SSL 2.0 disabled -- check failed: $_" `
             -Severity "Critical" `
-            -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; PCIDSS='4.2.2' }
+            -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
     }
     # 164.312(e)(1)c: Transmission security -- SSL 3.0 disabled
     try {
@@ -952,20 +952,20 @@ Write-Host "[HIPAA] Checking 164.312(e) Transmission Security..." -ForegroundCol
                 -Message "164.312(e)(1)c: Transmission security -- SSL 3.0 disabled -- properly configured" `
                 -Details "164.312(e)(1): SSL 3.0 POODLE vulnerability threatens ePHI confidentiality" `
                 -Severity "Critical" `
-                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; PCIDSS='4.2.2' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
         } else {
             Add-Result -Category "HIPAA - Transmission Security" -Status "Fail" `
                 -Message "164.312(e)(1)c: Transmission security -- SSL 3.0 disabled -- not configured (Value=$val)" `
                 -Details "164.312(e)(1): SSL 3.0 POODLE vulnerability threatens ePHI confidentiality" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Server' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Server' -Name Enabled -Value 0" `
                 -Severity "Critical" `
-                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; PCIDSS='4.2.2' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
         }
     } catch {
         Add-Result -Category "HIPAA - Transmission Security" -Status "Error" `
             -Message "164.312(e)(1)c: Transmission security -- SSL 3.0 disabled -- check failed: $_" `
             -Severity "Critical" `
-            -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; PCIDSS='4.2.2' }
+            -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
     }
     # 164.312(e)(1)d: Transmission security -- TLS 1.0 disabled
     try {
@@ -975,20 +975,20 @@ Write-Host "[HIPAA] Checking 164.312(e) Transmission Security..." -ForegroundCol
                 -Message "164.312(e)(1)d: Transmission security -- TLS 1.0 disabled -- properly configured" `
                 -Details "164.312(e)(1): TLS 1.0 known vulnerabilities endanger ePHI transmission security" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; PCIDSS='4.2.2' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
         } else {
             Add-Result -Category "HIPAA - Transmission Security" -Status "Fail" `
                 -Message "164.312(e)(1)d: Transmission security -- TLS 1.0 disabled -- not configured (Value=$val)" `
                 -Details "164.312(e)(1): TLS 1.0 known vulnerabilities endanger ePHI transmission security" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server' -Name Enabled -Value 0" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; PCIDSS='4.2.2' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
         }
     } catch {
         Add-Result -Category "HIPAA - Transmission Security" -Status "Error" `
             -Message "164.312(e)(1)d: Transmission security -- TLS 1.0 disabled -- check failed: $_" `
             -Severity "High" `
-            -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; PCIDSS='4.2.2' }
+            -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
     }
     # 164.312(e)(1)e: Transmission security -- TLS 1.1 disabled
     try {
@@ -998,20 +998,20 @@ Write-Host "[HIPAA] Checking 164.312(e) Transmission Security..." -ForegroundCol
                 -Message "164.312(e)(1)e: Transmission security -- TLS 1.1 disabled -- properly configured" `
                 -Details "164.312(e)(1): TLS 1.1 is deprecated and should not be used for ePHI" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; PCIDSS='4.2.2' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
         } else {
             Add-Result -Category "HIPAA - Transmission Security" -Status "Fail" `
                 -Message "164.312(e)(1)e: Transmission security -- TLS 1.1 disabled -- not configured (Value=$val)" `
                 -Details "164.312(e)(1): TLS 1.1 is deprecated and should not be used for ePHI" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server' -Name Enabled -Value 0" `
                 -Severity "High" `
-                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; PCIDSS='4.2.2' }
+                -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
         }
     } catch {
         Add-Result -Category "HIPAA - Transmission Security" -Status "Error" `
             -Message "164.312(e)(1)e: Transmission security -- TLS 1.1 disabled -- check failed: $_" `
             -Severity "High" `
-            -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; PCIDSS='4.2.2' }
+            -CrossReferences @{ HIPAA='164.312(e)(1)'; NIST='SC-13'; 'PCI-DSS'='4.2.2' }
     }
     # 164.312(e)(2)a: Transmission security -- WinRM encryption required
     try {
@@ -1566,6 +1566,443 @@ Write-Host "[HIPAA] Checking HITECH Act & ePHI Protection..." -ForegroundColor Y
             -CrossReferences @{ HIPAA='HITECH'; NIST='SC-7'; GDPR='Art.25' }
     }
 
+
+# ===========================================================================
+# v6.1: HHS Recognized Security Practices (RSP) alignment
+# ===========================================================================
+Write-Host "[HIPAA] Checking HHS Recognized Security Practices alignment..." -ForegroundColor Yellow
+
+try {
+    $defenderStatus = Get-DefenderStatus -Cache $SharedData.Cache
+    if ($defenderStatus -and $defenderStatus.RealTimeProtectionEnabled) {
+        Add-Result -Category "HIPAA - HHS RSP" -Status "Pass" `
+            -Severity "High" `
+            -Message "RSP: Endpoint protection active (NIST 800-66 R2 SI-3 alignment)" `
+            -Details "PL 116-321 Section 13412 recognizes implementation of NIST-based practices for HIPAA enforcement discretion" `
+            -CrossReferences @{ HIPAA='HHS-RSP'; NIST66R2='SI-3'; PL='116-321' }
+    }
+    else {
+        Add-Result -Category "HIPAA - HHS RSP" -Status "Fail" `
+            -Severity "High" `
+            -Message "RSP: Endpoint protection inactive" `
+            -CrossReferences @{ HIPAA='HHS-RSP'; PL='116-321' }
+    }
+
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "HIPAA - HHS RSP" -Status "Pass" `
+            -Severity "High" `
+            -Message "RSP: Encryption controls active (NIST 800-66 R2 SC-28 alignment)" `
+            -CrossReferences @{ HIPAA='HHS-RSP'; NIST66R2='SC-28'; PL='116-321' }
+    }
+    else {
+        Add-Result -Category "HIPAA - HHS RSP" -Status "Fail" `
+            -Severity "High" `
+            -Message "RSP: Drive encryption not active" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ HIPAA='HHS-RSP'; NIST66R2='SC-28' }
+    }
+
+    $cgEnabled = Test-CredentialGuardEnabled
+    if ($cgEnabled) {
+        Add-Result -Category "HIPAA - HHS RSP" -Status "Pass" `
+            -Severity "High" `
+            -Message "RSP: Authentication controls hardened (Credential Guard active)" `
+            -CrossReferences @{ HIPAA='HHS-RSP'; NIST66R2='IA-5' }
+    }
+    else {
+        Add-Result -Category "HIPAA - HHS RSP" -Status "Warning" `
+            -Severity "High" `
+            -Message "RSP: Credential Guard not active" `
+            -CrossReferences @{ HIPAA='HHS-RSP'; NIST66R2='IA-5' }
+    }
+}
+catch {
+    Add-Result -Category "HIPAA - HHS RSP" -Status "Error" `
+        -Severity "Medium" `
+        -Message "HHS RSP assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: NIST 800-66 Rev 2 explicit mapping
+# ===========================================================================
+Write-Host "[HIPAA] Checking NIST SP 800-66 Rev 2 control mappings..." -ForegroundColor Yellow
+
+try {
+    $auditAccount = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'User Account Management' }
+    if ($auditAccount -and $auditAccount.Setting -ne 'No Auditing') {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "AC-2 Account management auditing (164.308(a)(4) Information Access Management)" `
+            -CrossReferences @{ NIST66R2='AC-2'; HIPAA='164.308(a)(4)' }
+    }
+    else {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Fail" `
+            -Severity "High" `
+            -Message "AC-2 User account management auditing not active" `
+            -Remediation "auditpol /set /subcategory:'User Account Management' /success:enable /failure:enable" `
+            -CrossReferences @{ NIST66R2='AC-2'; HIPAA='164.308(a)(4)' }
+    }
+
+    $auditLogon = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'Logon' }
+    if ($auditLogon -and $auditLogon.Setting -ne 'No Auditing') {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "AC-7 Unsuccessful logon attempts auditing (164.312(a)(2)(i) Unique User ID)" `
+            -CrossReferences @{ NIST66R2='AC-7'; HIPAA='164.312(a)(2)(i)' }
+    }
+    else {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Fail" `
+            -Severity "High" `
+            -Message "AC-7 Logon auditing not active" `
+            -Remediation "auditpol /set /subcategory:'Logon' /success:enable /failure:enable" `
+            -CrossReferences @{ NIST66R2='AC-7'; HIPAA='164.312(a)(2)(i)' }
+    }
+
+    $idleTimeout = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "InactivityTimeoutSecs" -Default 0
+    if ($idleTimeout -gt 0 -and $idleTimeout -le 900) {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "AC-11 Session lock at $idleTimeout seconds (164.312(a)(2)(iii) Automatic Logoff)" `
+            -CrossReferences @{ NIST66R2='AC-11'; HIPAA='164.312(a)(2)(iii)' }
+    }
+    elseif ($idleTimeout -eq 0) {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Fail" `
+            -Severity "High" `
+            -Message "AC-11 No automatic session lock configured" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'InactivityTimeoutSecs' -Value 900 -Type DWord" `
+            -CrossReferences @{ NIST66R2='AC-11'; HIPAA='164.312(a)(2)(iii)' }
+    }
+    else {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "AC-11 Session lock at $idleTimeout seconds (exceeds 900 second baseline)" `
+            -CrossReferences @{ NIST66R2='AC-11'; HIPAA='164.312(a)(2)(iii)' }
+    }
+
+    $auditObjAccess = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -like '*File System*' }
+    if ($auditObjAccess -and $auditObjAccess.Setting -ne 'No Auditing') {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "AU-2 Audit events captured (164.312(b) Audit Controls)" `
+            -CrossReferences @{ NIST66R2='AU-2'; HIPAA='164.312(b)' }
+    }
+    else {
+        Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Fail" `
+            -Severity "High" `
+            -Message "AU-2 File system audit events not captured" `
+            -Remediation "auditpol /set /subcategory:'File System' /success:enable /failure:enable" `
+            -CrossReferences @{ NIST66R2='AU-2'; HIPAA='164.312(b)' }
+    }
+}
+catch {
+    Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Error" `
+        -Severity "Medium" `
+        -Message "NIST 800-66 R2 mapping assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: HITECH Act technical safeguards
+# ===========================================================================
+Write-Host "[HIPAA] Checking HITECH Act technical safeguards..." -ForegroundColor Yellow
+
+try {
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "HIPAA - HITECH Act" -Status "Pass" `
+            -Severity "High" `
+            -Message "HITECH 13402(h) Encryption renders ePHI unusable (safe harbor for breach notification)" `
+            -Details "ARRA 2009 HITECH Section 13402 provides safe harbor for breaches involving encrypted ePHI" `
+            -CrossReferences @{ HITECH='13402(h)'; HIPAA='164.402'; ARRA='2009' }
+    }
+    else {
+        Add-Result -Category "HIPAA - HITECH Act" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "HITECH 13402(h) No encryption safe harbor (breaches require notification)" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ HITECH='13402(h)'; HIPAA='164.402' }
+    }
+
+    $accessLogging = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -like '*File System*' }
+    if ($accessLogging -and $accessLogging.Setting -ne 'No Auditing') {
+        Add-Result -Category "HIPAA - HITECH Act" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "HITECH 13405(c) Accounting of disclosures supported by file access auditing" `
+            -CrossReferences @{ HITECH='13405(c)'; HIPAA='164.528' }
+    }
+    else {
+        Add-Result -Category "HIPAA - HITECH Act" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "HITECH 13405(c) File access auditing not supporting disclosure accounting" `
+            -CrossReferences @{ HITECH='13405(c)' }
+    }
+}
+catch {
+    Add-Result -Category "HIPAA - HITECH Act" -Status "Error" `
+        -Severity "Medium" `
+        -Message "HITECH Act assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: 405(d) Health Industry Cybersecurity Practices (HICP)
+# ===========================================================================
+Write-Host "[HIPAA] Checking 405(d) HICP technical practice alignment..." -ForegroundColor Yellow
+
+try {
+    $netProt = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Windows Defender Exploit Guard\Network Protection" -Name "EnableNetworkProtection" -Default 0
+    if ($netProt -eq 1) {
+        Add-Result -Category "HIPAA - 405(d) HICP" -Status "Pass" `
+            -Severity "High" `
+            -Message "HICP TV1 Email phishing mitigation: Network Protection blocking malicious domains" `
+            -Details "405(d) Health Industry Cybersecurity Practices Technical Volume 1 addresses email phishing as Top Threat #1" `
+            -CrossReferences @{ HICP='TV1'; CARES='405(d)' }
+    }
+    else {
+        Add-Result -Category "HIPAA - 405(d) HICP" -Status "Warning" `
+            -Severity "High" `
+            -Message "HICP TV1 Network Protection not in block mode (phishing exposure)" `
+            -Remediation "Set-MpPreference -EnableNetworkProtection Enabled" `
+            -CrossReferences @{ HICP='TV1' }
+    }
+
+    $cfaState = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Windows Defender Exploit Guard\Controlled Folder Access" -Name "EnableControlledFolderAccess" -Default 0
+    if ($cfaState -in @(1,3)) {
+        Add-Result -Category "HIPAA - 405(d) HICP" -Status "Pass" `
+            -Severity "High" `
+            -Message "HICP TV2 Ransomware mitigation: Controlled Folder Access blocking" `
+            -Details "405(d) HICP TV2 addresses ransomware as Top Threat #2" `
+            -CrossReferences @{ HICP='TV2'; CARES='405(d)' }
+    }
+    else {
+        Add-Result -Category "HIPAA - 405(d) HICP" -Status "Fail" `
+            -Severity "High" `
+            -Message "HICP TV2 Ransomware exposure (CFA not blocking)" `
+            -Remediation "Set-MpPreference -EnableControlledFolderAccess Enabled" `
+            -CrossReferences @{ HICP='TV2' }
+    }
+
+    $smbv1 = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "SMB1" -Default 1
+    if ($smbv1 -eq 0) {
+        Add-Result -Category "HIPAA - 405(d) HICP" -Status "Pass" `
+            -Severity "High" `
+            -Message "HICP TV5 Network connected medical device protection: SMBv1 disabled" `
+            -Details "405(d) HICP TV5 addresses connected medical devices as Top Threat #5" `
+            -CrossReferences @{ HICP='TV5'; CVE='CVE-2017-0144' }
+    }
+    else {
+        Add-Result -Category "HIPAA - 405(d) HICP" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "HICP TV5 SMBv1 enabled (wormable malware exposure to medical devices)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'SMB1' -Value 0 -Type DWord" `
+            -CrossReferences @{ HICP='TV5' }
+    }
+}
+catch {
+    Add-Result -Category "HIPAA - 405(d) HICP" -Status "Error" `
+        -Severity "Medium" `
+        -Message "405(d) HICP assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Sec.164.312(a)(2)(iv) Encryption and Decryption (Addressable)
+# ===========================================================================
+Write-Host "[HIPAA] Checking Sec.164.312(a)(2)(iv) Encryption controls..." -ForegroundColor Yellow
+
+try {
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "HIPAA - Sec.164.312(a)(2)(iv)" -Status "Pass" `
+            -Severity "High" `
+            -Message "Addressable specification implemented: ePHI at rest encrypted" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; CFR='45 CFR 164.312' }
+    }
+    else {
+        Add-Result -Category "HIPAA - Sec.164.312(a)(2)(iv)" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "Addressable specification not implemented: ePHI at rest unencrypted" `
+            -Details "If implementation determined not reasonable and appropriate, document rationale and equivalent alternative" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(iv)' }
+    }
+
+    $fipsPolicy = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy" -Name "Enabled" -Default 0
+    if ($fipsPolicy -eq 1) {
+        Add-Result -Category "HIPAA - Sec.164.312(a)(2)(iv)" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "FIPS-validated cryptography policy enforced (NIST 800-66 R2 alignment)" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST66R2='SC-13' }
+    }
+    else {
+        Add-Result -Category "HIPAA - Sec.164.312(a)(2)(iv)" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "FIPS-only cryptography mode not enforced" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy' -Name 'Enabled' -Value 1 -Type DWord; Restart-Computer" `
+            -CrossReferences @{ HIPAA='164.312(a)(2)(iv)' }
+    }
+}
+catch {
+    Add-Result -Category "HIPAA - Sec.164.312(a)(2)(iv)" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Encryption specification assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Sec.164.312(e)(2)(ii) Encryption (Transmission Security)
+# ===========================================================================
+Write-Host "[HIPAA] Checking Sec.164.312(e)(2)(ii) Transmission Security..." -ForegroundColor Yellow
+
+try {
+    $tlsv12Server = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server" -Name "Enabled" -Default $null
+    if ($null -eq $tlsv12Server -or $tlsv12Server -eq 1) {
+        Add-Result -Category "HIPAA - Sec.164.312(e)(2)(ii)" -Status "Pass" `
+            -Severity "High" `
+            -Message "Transmission encryption available (TLS 1.2 enabled server-side)" `
+            -CrossReferences @{ HIPAA='164.312(e)(2)(ii)' }
+    }
+    else {
+        Add-Result -Category "HIPAA - Sec.164.312(e)(2)(ii)" -Status "Fail" `
+            -Severity "High" `
+            -Message "TLS 1.2 disabled server-side (ePHI transmission encryption gap)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server' -Name 'Enabled' -Value 1 -Type DWord" `
+            -CrossReferences @{ HIPAA='164.312(e)(2)(ii)' }
+    }
+
+    $tlsv10 = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server" -Name "Enabled" -Default $null
+    if ($tlsv10 -eq 0) {
+        Add-Result -Category "HIPAA - Sec.164.312(e)(2)(ii)" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "TLS 1.0 explicitly disabled (legacy protocol removed)" `
+            -CrossReferences @{ HIPAA='164.312(e)(2)(ii)' }
+    }
+    elseif ($tlsv10 -eq 1) {
+        Add-Result -Category "HIPAA - Sec.164.312(e)(2)(ii)" -Status "Fail" `
+            -Severity "High" `
+            -Message "TLS 1.0 enabled (legacy protocol; ePHI transmission risk)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.0\Server' -Name 'Enabled' -Value 0 -Type DWord" `
+            -CrossReferences @{ HIPAA='164.312(e)(2)(ii)' }
+    }
+
+    $smbSigning = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "RequireSecuritySignature" -Default 0
+    if ($smbSigning -eq 1) {
+        Add-Result -Category "HIPAA - Sec.164.312(e)(2)(ii)" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "SMB signing required (transmission integrity for ePHI)" `
+            -CrossReferences @{ HIPAA='164.312(e)(2)(i)' }
+    }
+    else {
+        Add-Result -Category "HIPAA - Sec.164.312(e)(2)(ii)" -Status "Fail" `
+            -Severity "Medium" `
+            -Message "SMB signing not required (transmission integrity gap)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'RequireSecuritySignature' -Value 1 -Type DWord" `
+            -CrossReferences @{ HIPAA='164.312(e)(2)(i)' }
+    }
+}
+catch {
+    Add-Result -Category "HIPAA - Sec.164.312(e)(2)(ii)" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Transmission security assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: Breach Notification Rule Sec.164.402 technical indicators
+# ===========================================================================
+Write-Host "[HIPAA] Checking Breach Notification Rule technical indicators..." -ForegroundColor Yellow
+
+try {
+    $secLogSize = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog\Security" -Name "MaxSize" -Default 0
+    if ($secLogSize -ge 268435456) {
+        $secLogMB = [Math]::Round($secLogSize / 1MB, 0)
+        Add-Result -Category "HIPAA - Breach Notification" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Sec.164.402 Breach risk assessment: audit log retention adequate (${secLogMB} MB)" `
+            -CrossReferences @{ HIPAA='164.402'; CFR='45 CFR 164.402' }
+    }
+    else {
+        Add-Result -Category "HIPAA - Breach Notification" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Sec.164.402 Audit log undersized for breach forensic timeline" `
+            -Remediation "wevtutil sl Security /ms:268435456" `
+            -CrossReferences @{ HIPAA='164.402' }
+    }
+
+    $auditPolicyChange = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'Audit Policy Change' }
+    if ($auditPolicyChange -and $auditPolicyChange.Setting -ne 'No Auditing') {
+        Add-Result -Category "HIPAA - Breach Notification" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Sec.164.402 Tamper indicator: audit policy changes tracked" `
+            -CrossReferences @{ HIPAA='164.402' }
+    }
+    else {
+        Add-Result -Category "HIPAA - Breach Notification" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Sec.164.402 Audit policy changes not tracked (tamper detection gap)" `
+            -Remediation "auditpol /set /subcategory:'Audit Policy Change' /success:enable /failure:enable" `
+            -CrossReferences @{ HIPAA='164.402' }
+    }
+}
+catch {
+    Add-Result -Category "HIPAA - Breach Notification" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Breach Notification Rule assessment failed: $($_.Exception.Message)"
+}
+
+# ===========================================================================
+# v6.1: 21st Century Cures Act and ONC Health IT Certification
+# ===========================================================================
+Write-Host "[HIPAA] Checking 21st Century Cures Act and ONC technical controls..." -ForegroundColor Yellow
+
+try {
+    $autoUpdate = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "NoAutoUpdate" -Default 0
+    if ($autoUpdate -eq 0) {
+        Add-Result -Category "HIPAA - 21st Century Cures" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Information blocking exception: security updates applied automatically" `
+            -Details "21st Century Cures Act Sec. 4004 information blocking provisions allow security update activities" `
+            -CrossReferences @{ Cures='4004'; ONC='Cures Final Rule' }
+    }
+    else {
+        Add-Result -Category "HIPAA - 21st Century Cures" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Automatic updates disabled (security exception use must be documented)" `
+            -CrossReferences @{ Cures='4004' }
+    }
+
+    $defenderStatus = Get-DefenderStatus -Cache $SharedData.Cache
+    if ($defenderStatus -and $defenderStatus.AntivirusEnabled) {
+        Add-Result -Category "HIPAA - ONC Health IT" -Status "Pass" `
+            -Severity "High" `
+            -Message "ONC Sec. 170.315(d)(2) Auditable events: malicious code detection active" `
+            -Details "ONC Health IT Certification 2015 Edition requires audit log content including malicious code events" `
+            -CrossReferences @{ ONC='170.315(d)(2)'; Cures='ONC Cures Update' }
+    }
+    else {
+        Add-Result -Category "HIPAA - ONC Health IT" -Status "Fail" `
+            -Severity "High" `
+            -Message "ONC Sec. 170.315(d)(2) Antivirus not enabled" `
+            -CrossReferences @{ ONC='170.315(d)(2)' }
+    }
+
+    $auditLogon = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'Logon' }
+    if ($auditLogon -and $auditLogon.Setting -ne 'No Auditing') {
+        Add-Result -Category "HIPAA - ONC Health IT" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "ONC Sec. 170.315(d)(3) Audit log content: authentication events captured" `
+            -CrossReferences @{ ONC='170.315(d)(3)' }
+    }
+    else {
+        Add-Result -Category "HIPAA - ONC Health IT" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "ONC Sec. 170.315(d)(3) Authentication audit content gap" `
+            -Remediation "auditpol /set /subcategory:'Logon' /success:enable /failure:enable" `
+            -CrossReferences @{ ONC='170.315(d)(3)' }
+    }
+}
+catch {
+    Add-Result -Category "HIPAA - 21st Century Cures" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Cures Act and ONC assessment failed: $($_.Exception.Message)"
+}
+
 # ===========================================================================
 # Module Summary
 # ===========================================================================
@@ -1596,15 +2033,11 @@ foreach ($cat in ($catGroups.Keys | Sort-Object)) {
 
 # Severity distribution for failures
 $failResults = @($results | Where-Object { $_.Status -eq "Fail" })
-if ($failResults.Count -gt 0) {
-    Write-Host "`n  Failed Check Severity Distribution:" -ForegroundColor Yellow
-    foreach ($sev in @("Critical","High","Medium","Low")) {
-        $sevCount = @($failResults | Where-Object { $_.Severity -eq $sev }).Count
-        if ($sevCount -gt 0) {
-            $color = switch ($sev) { "Critical" { "Red" }; "High" { "Red" }; "Medium" { "Yellow" }; default { "White" } }
-            Write-Host "    $($sev.PadRight(12)): $sevCount" -ForegroundColor $color
-        }
-    }
+Write-Host "`n  Failed Check Severity Distribution:" -ForegroundColor Yellow
+foreach ($sev in @("Critical","High","Medium","Low")) {
+    $sevCount = @($failResults | Where-Object { $_.Severity -eq $sev }).Count
+    $color = switch ($sev) { "Critical" { "Red" }; "High" { "Red" }; "Medium" { "Yellow" }; default { "White" } }
+    Write-Host "    $($sev.PadRight(12)): $sevCount" -ForegroundColor $color
 }
 Write-Host "$("=" * 80)`n" -ForegroundColor White
 
@@ -1691,7 +2124,3 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
-
-# ============================================================================
-# End of HIPAA Compliance Module (Module-HIPAA.ps1)
-# ============================================================================
