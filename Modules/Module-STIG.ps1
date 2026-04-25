@@ -1,6 +1,6 @@
 # Module-STIG.ps1
 # DISA STIG (Security Technical Implementation Guide) Compliance Module for Windows Security Audit
-# Version: 6.0
+# Version: 6.1.2
 #
 # Evaluates Windows configuration against DISA Windows 10/11 STIG and
 # Windows Server STIG with CAT I/II/III severity mapping and cross-framework references.
@@ -41,7 +41,7 @@
     Dependencies: audit-common.ps1 (optional, for caching)
     References: DISA Windows 10 STIG V2R8, Windows 11 STIG V1R6,
                 Windows Server 2019 STIG V2R8, Windows Server 2022 STIG V1R5
-    Version: 6.0
+    Version: 6.1.2
 
 .EXAMPLE
     $results = & .\modules\module-stig.ps1 -SharedData $sharedData
@@ -53,7 +53,7 @@ param(
 )
 
 $moduleName = "STIG"
-$moduleVersion = "6.0"
+$moduleVersion = "6.1.2"
 $results = @()
 
 # ---------------------------------------------------------------------------
@@ -66,6 +66,7 @@ function Add-Result {
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
+        [ValidateSet("Critical","High","Medium","Low","Informational")]
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
@@ -94,7 +95,7 @@ function Get-RegValue {
     try {
         $regItem = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
         if ($regItem) { return $regItem.$Name }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
     return $Default
 }
 
@@ -112,7 +113,7 @@ try {
         # V-220718: Minimum password length must be 14 characters (CAT II)
         $minLength = ($netAccounts | Select-String "Minimum password length").ToString().Split(":")[1].Trim()
         
-        if ([int]$minLength -ge 14) {
+        if ((ConvertTo-SafeInt $minLength) -ge 14) {
             Add-Result -Category "STIG - V-220718 (CAT II)" -Status "Pass" `
                 -Message "Minimum password length: $minLength characters" `
                 -Details "STIG: Passwords must be at least 14 characters to resist brute force" `
@@ -130,7 +131,7 @@ try {
         # V-220726: Password history must remember 24 passwords (CAT II)
         $history = ($netAccounts | Select-String "Length of password history maintained").ToString().Split(":")[1].Trim()
         
-        if ([int]$history -ge 24) {
+        if ((ConvertTo-SafeInt $history) -ge 24) {
             Add-Result -Category "STIG - V-220726 (CAT II)" -Status "Pass" `
                 -Message "Password history: $history passwords remembered" `
                 -Details "STIG: Prevents password reuse for 24 generations" `
@@ -148,7 +149,7 @@ try {
         # V-220724: Minimum password age must be 1 day (CAT II)
         $minAge = ($netAccounts | Select-String "Minimum password age").ToString().Split(":")[1].Trim().Split(" ")[0]
         
-        if ([int]$minAge -ge 1) {
+        if ((ConvertTo-SafeInt $minAge) -ge 1) {
             Add-Result -Category "STIG - V-220724 (CAT II)" -Status "Pass" `
                 -Message "Minimum password age: $minAge day(s)" `
                 -Details "STIG: Prevents rapid password cycling to bypass history" `
@@ -173,7 +174,7 @@ try {
                 -Remediation "net accounts /maxpwage:60" `
                 -Severity "Critical" `
                 -CrossReferences @{ STIG='CAT-I'; NIST='CM-6' }
-        } elseif ([int]$maxAge -le 60) {
+        } elseif ((ConvertTo-SafeInt $maxAge) -le 60) {
             Add-Result -Category "STIG - V-220725 (CAT II)" -Status "Pass" `
                 -Message "Maximum password age: $maxAge days" `
                 -Details "STIG: Password expiration meets requirement" `
@@ -198,7 +199,7 @@ try {
                 -Remediation "net accounts /lockoutthreshold:3" `
                 -Severity "Critical" `
                 -CrossReferences @{ STIG='CAT-I'; NIST='CM-6' }
-        } elseif ([int]$lockoutThreshold -le 3 -and [int]$lockoutThreshold -gt 0) {
+        } elseif ((ConvertTo-SafeInt $lockoutThreshold) -le 3 -and (ConvertTo-SafeInt $lockoutThreshold) -gt 0) {
             Add-Result -Category "STIG - V-220719 (CAT II)" -Status "Pass" `
                 -Message "Account lockout threshold: $lockoutThreshold attempts" `
                 -Details "STIG: Account lockout protects against brute force attacks" `
@@ -216,7 +217,7 @@ try {
         # V-220720: Lockout duration must be 15 minutes or greater (CAT II)
         $lockoutDuration = ($netAccounts | Select-String "Lockout duration").ToString().Split(":")[1].Trim().Split(" ")[0]
         
-        if ([int]$lockoutDuration -ge 15) {
+        if ((ConvertTo-SafeInt $lockoutDuration) -ge 15) {
             Add-Result -Category "STIG - V-220720 (CAT II)" -Status "Pass" `
                 -Message "Account lockout duration: $lockoutDuration minutes" `
                 -Details "STIG: Lockout duration meets requirement" `
@@ -1518,7 +1519,7 @@ try {
 
     # Cached logon credentials count (V-220860)
     $cachedLogons = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name "CachedLogonsCount" -Default "10"
-    if ([int]$cachedLogons -le 4) {
+    if ((ConvertTo-SafeInt $cachedLogons) -le 4) {
         Add-Result -Category "STIG - Credential Protection" -Status "Pass" `
             -Message "V-220860: Cached logon credentials limited to $cachedLogons" `
             -Details "CAT II: Minimizes cached domain credentials available for offline attacks" `
@@ -1709,7 +1710,7 @@ try {
                 -Severity "High" `
                 -CrossReferences @{ NIST='SC-3'; NSA='Hardware Security'; CIS='18.9.5.1' }
         }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
 
     # DEP (Data Execution Prevention) enforcement
     try {
@@ -1728,7 +1729,7 @@ try {
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='SI-16'; CIS='18.3.1' }
         }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
 
     # SEHOP (Structured Exception Handler Overwrite Protection)
     $sehop = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" -Name "DisableExceptionChainValidation" -Default 0
@@ -1769,12 +1770,343 @@ try {
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='SC-12'; NSA='Hardware Security' }
         }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
 
 } catch {
     Add-Result -Category "STIG - Hardware Security" -Status "Error" `
         -Message "Failed to check hardware security: $_" `
         -Severity "Medium"
+}
+
+
+# ============================================================================
+# v6.1: Security Requirements Guide (SRG) cross-mapping
+# ============================================================================
+Write-Host "[STIG] Checking SRG cross-mapped technical requirements..." -ForegroundColor Yellow
+
+try {
+    $auditAccount = Get-CachedAuditPolicy -Cache $SharedData.Cache | Where-Object { $_.Subcategory -eq 'User Account Management' }
+    if ($auditAccount -and $auditAccount.Setting -ne 'No Auditing') {
+        Add-Result -Category "STIG - SRG Cross-Mapping" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "SRG-OS-000004-GPOS-00004 Account creation auditing active" `
+            -Details "DISA Operating System SRG general requirements cross-map to specific OS STIG findings" `
+            -CrossReferences @{ STIG='SRG-OS-000004'; STIGSRG='OS-GPOS' }
+    }
+    else {
+        Add-Result -Category "STIG - SRG Cross-Mapping" -Status "Fail" `
+            -Severity "High" `
+            -Message "SRG-OS-000004-GPOS-00004 User account management auditing inactive" `
+            -Remediation "auditpol /set /subcategory:'User Account Management' /success:enable /failure:enable" `
+            -CrossReferences @{ STIG='SRG-OS-000004' }
+    }
+
+    $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
+    if ($bitLocker -and $bitLocker.SystemDriveProtected) {
+        Add-Result -Category "STIG - SRG Cross-Mapping" -Status "Pass" `
+            -Severity "High" `
+            -Message "SRG-OS-000185-GPOS-00079 At-rest encryption requirement satisfied" `
+            -CrossReferences @{ STIG='SRG-OS-000185'; STIGSRG='OS-GPOS' }
+    }
+    else {
+        Add-Result -Category "STIG - SRG Cross-Mapping" -Status "Fail" `
+            -Severity "High" `
+            -Message "SRG-OS-000185-GPOS-00079 No at-rest encryption" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
+            -CrossReferences @{ STIG='SRG-OS-000185' }
+    }
+
+    $tlsv12 = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.2\Server" -Name "Enabled" -Default $null
+    if ($null -eq $tlsv12 -or $tlsv12 -eq 1) {
+        Add-Result -Category "STIG - SRG Cross-Mapping" -Status "Pass" `
+            -Severity "High" `
+            -Message "SRG-OS-000033-GPOS-00014 In-transit cryptography requirement satisfied" `
+            -CrossReferences @{ STIG='SRG-OS-000033'; STIGSRG='OS-GPOS' }
+    }
+    else {
+        Add-Result -Category "STIG - SRG Cross-Mapping" -Status "Fail" `
+            -Severity "High" `
+            -Message "SRG-OS-000033-GPOS-00014 TLS 1.2 disabled" `
+            -CrossReferences @{ STIG='SRG-OS-000033' }
+    }
+
+    $sbEnabled = Test-SecureBootEnabled
+    if ($sbEnabled) {
+        Add-Result -Category "STIG - SRG Cross-Mapping" -Status "Pass" `
+            -Severity "High" `
+            -Message "SRG-OS-000257-GPOS-00098 Boot integrity verification requirement satisfied" `
+            -CrossReferences @{ STIG='SRG-OS-000257'; STIGSRG='OS-GPOS' }
+    }
+    else {
+        Add-Result -Category "STIG - SRG Cross-Mapping" -Status "Fail" `
+            -Severity "High" `
+            -Message "SRG-OS-000257-GPOS-00098 Secure Boot inactive" `
+            -CrossReferences @{ STIG='SRG-OS-000257' }
+    }
+}
+catch {
+    Add-Result -Category "STIG - SRG Cross-Mapping" -Status "Error" `
+        -Severity "Medium" `
+        -Message "SRG cross-mapping assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: V-finding (Vulnerability ID) format consistency
+# ============================================================================
+Write-Host "[STIG] Checking V-finding format alignment..." -ForegroundColor Yellow
+
+try {
+    $smbSigning = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" -Name "RequireSecuritySignature" -Default 0
+    if ($smbSigning -eq 1) {
+        Add-Result -Category "STIG - V-Findings" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "V-253265 The Windows SMB server is configured to always require security signatures" `
+            -CrossReferences @{ STIG='V-253265'; STIGFinding='Windows 10 V2R8' }
+    }
+    else {
+        Add-Result -Category "STIG - V-Findings" -Status "Fail" `
+            -Severity "Medium" `
+            -Message "V-253265 SMB server signing not required" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'RequireSecuritySignature' -Value 1 -Type DWord" `
+            -CrossReferences @{ STIG='V-253265' }
+    }
+
+    $lmCompat = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LmCompatibilityLevel" -Default 3
+    if ($lmCompat -ge 5) {
+        Add-Result -Category "STIG - V-Findings" -Status "Pass" `
+            -Severity "High" `
+            -Message "V-253382 LAN Manager authentication level set to NTLMv2 only" `
+            -CrossReferences @{ STIG='V-253382'; STIGFinding='Windows 10 V2R8' }
+    }
+    else {
+        Add-Result -Category "STIG - V-Findings" -Status "Fail" `
+            -Severity "High" `
+            -Message "V-253382 LM compatibility level permits weaker authentication ($lmCompat)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name 'LmCompatibilityLevel' -Value 5 -Type DWord" `
+            -CrossReferences @{ STIG='V-253382' }
+    }
+
+    $netBios = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters" -Name "NodeType" -Default 1
+    if ($netBios -eq 2) {
+        Add-Result -Category "STIG - V-Findings" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "V-253317 NetBIOS node type set to P-node (no broadcast)" `
+            -CrossReferences @{ STIG='V-253317' }
+    }
+    else {
+        Add-Result -Category "STIG - V-Findings" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "V-253317 NetBIOS node type permits broadcast (NodeType: $netBios)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\NetBT\Parameters' -Name 'NodeType' -Value 2 -Type DWord" `
+            -CrossReferences @{ STIG='V-253317' }
+    }
+
+    $cgEnabled = Test-CredentialGuardEnabled
+    if ($cgEnabled) {
+        Add-Result -Category "STIG - V-Findings" -Status "Pass" `
+            -Severity "High" `
+            -Message "V-253426 Credential Guard active" `
+            -CrossReferences @{ STIG='V-253426' }
+    }
+    else {
+        Add-Result -Category "STIG - V-Findings" -Status "Fail" `
+            -Severity "High" `
+            -Message "V-253426 Credential Guard not active" `
+            -CrossReferences @{ STIG='V-253426' }
+    }
+
+    $autoPlay = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Name "NoDriveTypeAutoRun" -Default 0
+    if ($autoPlay -eq 255) {
+        Add-Result -Category "STIG - V-Findings" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "V-253303 AutoPlay disabled for all drive types" `
+            -CrossReferences @{ STIG='V-253303' }
+    }
+    else {
+        Add-Result -Category "STIG - V-Findings" -Status "Fail" `
+            -Severity "Medium" `
+            -Message "V-253303 AutoPlay not fully disabled (current: $autoPlay)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name 'NoDriveTypeAutoRun' -Value 255 -Type DWord" `
+            -CrossReferences @{ STIG='V-253303' }
+    }
+}
+catch {
+    Add-Result -Category "STIG - V-Findings" -Status "Error" `
+        -Severity "Medium" `
+        -Message "V-finding assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: STIG Viewer compatibility hints
+# ============================================================================
+Write-Host "[STIG] Checking STIG Viewer compatibility indicators..." -ForegroundColor Yellow
+
+try {
+    $stigResults = @($results | Where-Object { $_.Module -eq 'STIG' })
+    $passCount = @($stigResults | Where-Object { $_.Status -eq 'Pass' }).Count
+    $failCount = @($stigResults | Where-Object { $_.Status -eq 'Fail' }).Count
+    $totalAssessed = $stigResults.Count
+
+    Add-Result -Category "STIG - STIG Viewer Hints" -Status "Info" `
+        -Severity "Informational" `
+        -Message "STIG Viewer summary: $passCount NOT_A_FINDING, $failCount OPEN, $totalAssessed total assessed" `
+        -Details "STIG Viewer XML supports NOT_A_FINDING/OPEN/NOT_APPLICABLE/NOT_REVIEWED status codes; map Pass=NOT_A_FINDING, Fail=OPEN" `
+        -CrossReferences @{ STIG='STIG Viewer'; DISA='Viewer 2.x' }
+
+    Add-Result -Category "STIG - STIG Viewer Hints" -Status "Info" `
+        -Severity "Informational" `
+        -Message "Output format compatibility: JSON export available for SCC integration" `
+        -Details "DISA SCAP Compliance Checker (SCC) consumes XCCDF or ARF; JSON results require transformation" `
+        -CrossReferences @{ STIG='SCC' }
+}
+catch {
+    Add-Result -Category "STIG - STIG Viewer Hints" -Status "Error" `
+        -Severity "Low" `
+        -Message "STIG Viewer hint computation failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Microsoft Windows Defender Antivirus STIG
+# ============================================================================
+Write-Host "[STIG] Checking Microsoft Defender Antivirus STIG findings..." -ForegroundColor Yellow
+
+try {
+    $defenderStatus = Get-DefenderStatus -Cache $SharedData.Cache
+    if ($defenderStatus -and $defenderStatus.RealTimeProtectionEnabled) {
+        Add-Result -Category "STIG - MS Defender STIG" -Status "Pass" `
+            -Severity "High" `
+            -Message "V-213426 Real-time protection enabled" `
+            -CrossReferences @{ STIG='V-213426'; STIGFinding='MS Defender Antivirus' }
+    }
+    else {
+        Add-Result -Category "STIG - MS Defender STIG" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "V-213426 Real-time protection not enabled" `
+            -Remediation "Set-MpPreference -DisableRealtimeMonitoring `$false" `
+            -CrossReferences @{ STIG='V-213426' }
+    }
+
+    $cloudProt = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet" -Name "SpynetReporting" -Default 0
+    if ($cloudProt -eq 2) {
+        Add-Result -Category "STIG - MS Defender STIG" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "V-213435 Cloud-based protection set to Advanced (SpynetReporting=2)" `
+            -CrossReferences @{ STIG='V-213435' }
+    }
+    else {
+        Add-Result -Category "STIG - MS Defender STIG" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "V-213435 Cloud-based protection not at Advanced level (current: $cloudProt)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet' -Name 'SpynetReporting' -Value 2 -Type DWord" `
+            -CrossReferences @{ STIG='V-213435' }
+    }
+
+    $sampleSubmit = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet" -Name "SubmitSamplesConsent" -Default 0
+    if ($sampleSubmit -in @(1,3)) {
+        Add-Result -Category "STIG - MS Defender STIG" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "V-213436 Sample submission configured (consent: $sampleSubmit)" `
+            -CrossReferences @{ STIG='V-213436' }
+    }
+    else {
+        Add-Result -Category "STIG - MS Defender STIG" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "V-213436 Sample submission setting at default ($sampleSubmit)" `
+            -CrossReferences @{ STIG='V-213436' }
+    }
+
+    $tamper = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Features" -Name "TamperProtection" -Default 0
+    if ($tamper -eq 5) {
+        Add-Result -Category "STIG - MS Defender STIG" -Status "Pass" `
+            -Severity "High" `
+            -Message "V-220702 Tamper Protection enabled" `
+            -CrossReferences @{ STIG='V-220702' }
+    }
+    else {
+        Add-Result -Category "STIG - MS Defender STIG" -Status "Fail" `
+            -Severity "High" `
+            -Message "V-220702 Tamper Protection not at enforcement value (current: $tamper)" `
+            -Details "Tamper Protection must be configured via Defender portal or Intune" `
+            -CrossReferences @{ STIG='V-220702' }
+    }
+}
+catch {
+    Add-Result -Category "STIG - MS Defender STIG" -Status "Error" `
+        -Severity "Medium" `
+        -Message "MS Defender STIG assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: STIG BlackLotus mitigation guidance
+# ============================================================================
+Write-Host "[STIG] Checking STIG BlackLotus mitigation requirements..." -ForegroundColor Yellow
+
+try {
+    $sbDeployed = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Secureboot" -Name "AvailableUpdates" -Default 0
+    if ($sbDeployed -eq 0x10) {
+        Add-Result -Category "STIG - BlackLotus Mitigation" -Status "Pass" `
+            -Severity "High" `
+            -Message "STIG BlackLotus: KB5025885 mitigation deployed (DBX revocations active)" `
+            -Details "DISA STIG guidance follows NSA CSI U/OO/188094-23 for BlackLotus mitigation" `
+            -CrossReferences @{ STIG='BlackLotus'; CVE='CVE-2023-24932'; KB='5025885' }
+    }
+    else {
+        Add-Result -Category "STIG - BlackLotus Mitigation" -Status "Warning" `
+            -Severity "High" `
+            -Message "STIG BlackLotus: KB5025885 mitigation flag not detected" `
+            -Details "Refer to KB5025885 for guided deployment of bootloader revocations" `
+            -CrossReferences @{ STIG='BlackLotus'; KB='5025885' }
+    }
+
+    $sbEnabled = Test-SecureBootEnabled
+    if ($sbEnabled) {
+        Add-Result -Category "STIG - BlackLotus Mitigation" -Status "Pass" `
+            -Severity "High" `
+            -Message "STIG: Secure Boot foundation for revocation enforcement active" `
+            -CrossReferences @{ STIG='BlackLotus' }
+    }
+    else {
+        Add-Result -Category "STIG - BlackLotus Mitigation" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "STIG: Secure Boot inactive (BlackLotus mitigation cannot enforce)" `
+            -CrossReferences @{ STIG='BlackLotus' }
+    }
+}
+catch {
+    Add-Result -Category "STIG - BlackLotus Mitigation" -Status "Error" `
+        -Severity "Medium" `
+        -Message "STIG BlackLotus assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: STIG severity (CAT) distribution analysis
+# ============================================================================
+Write-Host "[STIG] Computing STIG severity (CAT) distribution..." -ForegroundColor Yellow
+
+try {
+    $stigResults = @($results | Where-Object { $_.Module -eq 'STIG' })
+    $cat1Count = @($stigResults | Where-Object { $_.Severity -in @('High','Critical') -and $_.Status -in @('Fail','Warning') }).Count
+    $cat2Count = @($stigResults | Where-Object { $_.Severity -eq 'Medium' -and $_.Status -in @('Fail','Warning') }).Count
+    $cat3Count = @($stigResults | Where-Object { $_.Severity -eq 'Low' -and $_.Status -in @('Fail','Warning') }).Count
+
+    Add-Result -Category "STIG - CAT Distribution" -Status "Info" `
+        -Severity "Informational" `
+        -Message "STIG findings: CAT I (High/Critical): $cat1Count, CAT II (Medium): $cat2Count, CAT III (Low): $cat3Count" `
+        -Details "DISA STIG severity categories: CAT I prevents mission, CAT II diminishes mission, CAT III degrades countermeasures" `
+        -CrossReferences @{ STIG='CAT-Distribution'; DISA='STIG Severity' }
+
+    if ($cat1Count -gt 0) {
+        Add-Result -Category "STIG - CAT Distribution" -Status "Warning" `
+            -Severity "High" `
+            -Message "$cat1Count CAT I findings require POA&M entries" `
+            -Details "DISA Plan of Action and Milestones (POA&M) required for unmitigated CAT I findings" `
+            -CrossReferences @{ STIG='POAM'; DISA='POA&M' }
+    }
+}
+catch {
+    Add-Result -Category "STIG - CAT Distribution" -Status "Error" `
+        -Severity "Low" `
+        -Message "CAT distribution computation failed: $($_.Exception.Message)"
 }
 
 # ============================================================================
@@ -1931,7 +2263,3 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
-
-# ============================================================================
-# End of DISA STIG Compliance Module (Module-STIG.ps1)
-# ============================================================================
