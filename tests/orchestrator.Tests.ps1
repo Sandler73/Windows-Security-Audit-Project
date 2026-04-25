@@ -51,38 +51,38 @@ Describe 'Orchestrator File Existence' {
 
 Describe 'Help System' {
     It '-Help switch invocation produces help text' {
-        $output = & $script:OrchPath -Help 2>&1 | Out-String
+        $output = & $script:OrchPath -Help *>&1 | Out-String
         $output | Should -Match 'Windows Security Audit'
         $output | Should -Match 'PARAMETERS|Parameters|Usage'
     }
 
     It '-H alias produces help text' {
-        $output = & $script:OrchPath -H 2>&1 | Out-String
+        $output = & $script:OrchPath -H *>&1 | Out-String
         $output | Should -Match 'Windows Security Audit'
     }
 
     It '-? alias produces help text' {
-        $output = & $script:OrchPath -? 2>&1 | Out-String
+        $output = & $script:OrchPath -? *>&1 | Out-String
         $output | Should -Match 'Windows Security Audit'
     }
 
     It '-ShowHelp alias produces help text' {
-        $output = & $script:OrchPath -ShowHelp 2>&1 | Out-String
+        $output = & $script:OrchPath -ShowHelp *>&1 | Out-String
         $output | Should -Match 'Windows Security Audit'
     }
 
     It 'Free-form "help" argument produces help text' {
-        $output = & $script:OrchPath help 2>&1 | Out-String
+        $output = & $script:OrchPath help *>&1 | Out-String
         $output | Should -Match 'Windows Security Audit'
     }
 
     It 'Free-form "--help" argument produces help text' {
-        $output = & $script:OrchPath '--help' 2>&1 | Out-String
+        $output = & $script:OrchPath '--help' *>&1 | Out-String
         $output | Should -Match 'Windows Security Audit'
     }
 
     It 'Help output mentions all 16 modules' {
-        $output = & $script:OrchPath -Help 2>&1 | Out-String
+        $output = & $script:OrchPath -Help *>&1 | Out-String
         @('acsc','cis','cisa','cmmc','core','enisa','gdpr','hipaa',
           'iso27001','ms','ms-defenderatp','nist','nsa','pcidss','soc2','stig') |
             ForEach-Object {
@@ -93,7 +93,7 @@ Describe 'Help System' {
 
 Describe 'Module Discovery' {
     It '-ListModules switch lists all 16 modules' {
-        $output = & $script:OrchPath -ListModules 2>&1 | Out-String
+        $output = & $script:OrchPath -ListModules *>&1 | Out-String
         @('acsc','cis','cisa','cmmc','core','enisa','gdpr','hipaa',
           'iso27001','ms','ms-defenderatp','nist','nsa','pcidss','soc2','stig') |
             ForEach-Object {
@@ -186,7 +186,7 @@ Describe 'Auto-Logging Behavior (v6.1.2)' {
 
 Describe 'Error Handling' {
     It 'Invalid module name produces clear error' {
-        $output = & $script:OrchPath -Modules 'NonExistentModule_Test' 2>&1 | Out-String
+        $output = & $script:OrchPath -Modules 'NonExistentModule_Test' *>&1 | Out-String
         $output | Should -Match 'Invalid|not found|Unknown|Error|invalid'
     }
 
