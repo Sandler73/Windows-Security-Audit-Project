@@ -1,6 +1,6 @@
 # Module-Core.ps1
 # Core Security Baseline Module for Windows Security Audit
-# Version: 6.0
+# Version: 6.1.2
 #
 # Provides fundamental operating system security checks across 22 categories
 # including antivirus, firewall, updates, UAC, accounts, encryption, network
@@ -53,7 +53,7 @@
 .NOTES
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching and structured logging)
-    Version: 6.0
+    Version: 6.1.2
 
 .EXAMPLE
     $results = & .\modules\module-core.ps1 -SharedData $sharedData
@@ -66,7 +66,7 @@ param(
 )
 
 $moduleName = "Core"
-$moduleVersion = "6.0"
+$moduleVersion = "6.1.2"
 $results = @()
 
 # ---------------------------------------------------------------------------
@@ -81,6 +81,7 @@ function Add-Result {
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
+        [ValidateSet("Critical","High","Medium","Low","Informational")]
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
@@ -113,7 +114,7 @@ function Get-RegValue {
     try {
         $item = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
         if ($item) { return $item.$Name }
-    } catch { }
+    } catch { <# Expected: item may not exist #> }
     return $Default
 }
 
@@ -1812,6 +1813,560 @@ try {
         -Severity "Medium"
 }
 
+
+# ============================================================================
+# v6.1: Windows Hello / passwordless authentication
+# ============================================================================
+Write-Host "[Core] Checking Windows Hello and passwordless authentication..." -ForegroundColor Yellow
+
+try {
+    $helloPath = "HKLM:\SOFTWARE\Policies\Microsoft\PassportForWork"
+    $helloEnabled = Get-RegValue -Path $helloPath -Name "Enabled" -Default $null
+    if ($helloEnabled -eq 1) {
+        Add-Result -Category "Core - Windows Hello" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Windows Hello for Business enabled" `
+            -Details "Hello for Business provides hardware-bound credential isolation" `
+            -CrossReferences @{ MS='Windows Hello'; NIST='IA-2(11)' }
+    }
+    elseif ($helloEnabled -eq 0) {
+        Add-Result -Category "Core - Windows Hello" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Windows Hello for Business explicitly disabled" `
+            -CrossReferences @{ MS='Windows Hello' }
+    }
+    else {
+        Add-Result -Category "Core - Windows Hello" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Windows Hello policy not configured locally" `
+            -Details "Hello configuration may be managed through Intune or AAD policy" `
+            -CrossReferences @{ MS='Windows Hello' }
+    }
+
+    $pinComplexity = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\PassportForWork\PINComplexity" -Name "MinimumPINLength" -Default $null
+    if ($null -ne $pinComplexity -and $pinComplexity -ge 6) {
+        Add-Result -Category "Core - Windows Hello" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Hello PIN minimum length policy: $pinComplexity" `
+            -CrossReferences @{ MS='Hello PIN Complexity' }
+    }
+    elseif ($null -ne $pinComplexity) {
+        Add-Result -Category "Core - Windows Hello" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Hello PIN minimum length below 6 (current: $pinComplexity)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\PassportForWork\PINComplexity' -Name 'MinimumPINLength' -Value 6 -Type DWord" `
+            -CrossReferences @{ MS='Hello PIN Complexity' }
+    }
+
+    $bioPath = "HKLM:\SOFTWARE\Policies\Microsoft\Biometrics"
+    $bioEnabled = Get-RegValue -Path $bioPath -Name "Enabled" -Default $null
+    if ($bioEnabled -eq 1) {
+        Add-Result -Category "Core - Windows Hello" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Biometric authentication enabled" `
+            -CrossReferences @{ MS='Biometrics' }
+    }
+    elseif ($bioEnabled -eq 0) {
+        Add-Result -Category "Core - Windows Hello" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Biometric authentication explicitly disabled" `
+            -CrossReferences @{ MS='Biometrics' }
+    }
+}
+catch {
+    Add-Result -Category "Core - Windows Hello" -Status "Error" `
+        -Severity "Low" `
+        -Message "Windows Hello query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: WDAC enforcement and HVCI/Memory Integrity
+# ============================================================================
+Write-Host "[Core] Checking WDAC and Memory Integrity..." -ForegroundColor Yellow
+
+try {
+    $vbsEnabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" -Name "EnableVirtualizationBasedSecurity" -Default 0
+    if ($vbsEnabled -eq 1) {
+        Add-Result -Category "Core - VBS Foundation" -Status "Pass" `
+            -Severity "High" `
+            -Message "Virtualization Based Security enabled" `
+            -CrossReferences @{ MS='VBS'; NIST='SC-39' }
+    }
+    else {
+        Add-Result -Category "Core - VBS Foundation" -Status "Fail" `
+            -Severity "High" `
+            -Message "Virtualization Based Security not enabled (kernel exploit surface elevated)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard' -Name 'EnableVirtualizationBasedSecurity' -Value 1 -Type DWord; Restart-Computer" `
+            -CrossReferences @{ MS='VBS'; NIST='SC-39' }
+    }
+
+    $hvciEnabled = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" -Name "Enabled" -Default 0
+    if ($hvciEnabled -eq 1) {
+        Add-Result -Category "Core - HVCI" -Status "Pass" `
+            -Severity "High" `
+            -Message "Hypervisor-Enforced Code Integrity (Memory Integrity) active" `
+            -CrossReferences @{ MS='HVCI'; NIST='SI-7' }
+    }
+    else {
+        Add-Result -Category "Core - HVCI" -Status "Fail" `
+            -Severity "High" `
+            -Message "HVCI (Memory Integrity) not active" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity' -Name 'Enabled' -Value 1 -Type DWord; Restart-Computer" `
+            -CrossReferences @{ MS='HVCI' }
+    }
+
+    $hvciStrict = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" -Name "WasEnabledBy" -Default $null
+    if ($hvciStrict -eq 0) {
+        Add-Result -Category "Core - HVCI" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "HVCI enabled by default (Strict mode)" `
+            -CrossReferences @{ MS='HVCI Strict' }
+    }
+    elseif ($null -ne $hvciStrict) {
+        Add-Result -Category "Core - HVCI" -Status "Info" `
+            -Severity "Informational" `
+            -Message "HVCI enable origin code: $hvciStrict" `
+            -CrossReferences @{ MS='HVCI Strict' }
+    }
+
+    $ciDeployedPath = "HKLM:\SYSTEM\CurrentControlSet\Control\CI\Config"
+    if (Test-Path $ciDeployedPath -ErrorAction SilentlyContinue) {
+        $ciSubkeys = Get-ChildItem -Path $ciDeployedPath -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -ne "Default" }
+        $policyCount = if ($ciSubkeys) { @($ciSubkeys).Count } else { 0 }
+        if ($policyCount -gt 0) {
+            Add-Result -Category "Core - WDAC Enforcement" -Status "Pass" `
+                -Severity "High" `
+                -Message "WDAC: $policyCount policies deployed" `
+                -CrossReferences @{ MS='WDAC'; NIST='CM-7' }
+        }
+        else {
+            Add-Result -Category "Core - WDAC Enforcement" -Status "Info" `
+                -Severity "Informational" `
+                -Message "WDAC: no multi-policy deployments detected" `
+                -CrossReferences @{ MS='WDAC' }
+        }
+    }
+    else {
+        Add-Result -Category "Core - WDAC Enforcement" -Status "Info" `
+            -Severity "Informational" `
+            -Message "WDAC: configuration registry hive absent" `
+            -CrossReferences @{ MS='WDAC' }
+    }
+}
+catch {
+    Add-Result -Category "Core - WDAC Enforcement" -Status "Error" `
+        -Severity "Medium" `
+        -Message "WDAC/HVCI assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Kernel DMA Protection
+# ============================================================================
+Write-Host "[Core] Checking Kernel DMA Protection..." -ForegroundColor Yellow
+
+try {
+    $dmaPath = "HKLM:\SYSTEM\CurrentControlSet\Control\DmaSecurity"
+    $dmaEnabled = Get-RegValue -Path $dmaPath -Name "AllowDmaUnderLock" -Default $null
+    if ($dmaEnabled -eq 0) {
+        Add-Result -Category "Core - Kernel DMA Protection" -Status "Pass" `
+            -Severity "High" `
+            -Message "Kernel DMA Protection: external DMA blocked while locked" `
+            -Details "Mitigates Thunderspy-class DMA attacks via Thunderbolt and PCIe" `
+            -CrossReferences @{ MS='Kernel DMA Protection' }
+    }
+    elseif ($dmaEnabled -eq 1) {
+        Add-Result -Category "Core - Kernel DMA Protection" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Kernel DMA Protection: DMA permitted while locked" `
+            -Remediation "Set-ItemProperty -Path '$dmaPath' -Name 'AllowDmaUnderLock' -Value 0 -Type DWord" `
+            -CrossReferences @{ MS='Kernel DMA Protection' }
+    }
+    else {
+        Add-Result -Category "Core - Kernel DMA Protection" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Kernel DMA Protection setting not configured locally" `
+            -CrossReferences @{ MS='Kernel DMA Protection' }
+    }
+}
+catch {
+    Add-Result -Category "Core - Kernel DMA Protection" -Status "Error" `
+        -Severity "Low" `
+        -Message "Kernel DMA Protection query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: TPM 2.0 expanded checks
+# ============================================================================
+Write-Host "[Core] Checking TPM 2.0 expanded state..." -ForegroundColor Yellow
+
+try {
+    $tpm = Get-CimInstance -Namespace 'root\CIMv2\Security\MicrosoftTpm' -ClassName Win32_Tpm -ErrorAction SilentlyContinue
+    if ($tpm) {
+        if ($tpm.IsActivated_InitialValue) {
+            Add-Result -Category "Core - TPM 2.0" -Status "Pass" `
+                -Severity "High" `
+                -Message "TPM activated" `
+                -CrossReferences @{ MS='TPM'; NIST='IA-5(2)' }
+        }
+        else {
+            Add-Result -Category "Core - TPM 2.0" -Status "Fail" `
+                -Severity "High" `
+                -Message "TPM present but not activated" `
+                -Details "Activate in firmware setup" `
+                -CrossReferences @{ MS='TPM' }
+        }
+
+        if ($tpm.IsOwned_InitialValue) {
+            Add-Result -Category "Core - TPM 2.0" -Status "Pass" `
+                -Severity "Medium" `
+                -Message "TPM ownership set" `
+                -CrossReferences @{ MS='TPM Ownership' }
+        }
+        else {
+            Add-Result -Category "Core - TPM 2.0" -Status "Warning" `
+                -Severity "Medium" `
+                -Message "TPM ownership not set" `
+                -Remediation "Initialize-Tpm -AllowClear" `
+                -CrossReferences @{ MS='TPM Ownership' }
+        }
+
+        $specVersion = if ($tpm.SpecVersion) { ($tpm.SpecVersion -split ',')[0].Trim() } else { 'Unknown' }
+        if ($specVersion -like '2.*') {
+            Add-Result -Category "Core - TPM 2.0" -Status "Pass" `
+                -Severity "High" `
+                -Message "TPM 2.0 specification confirmed (version: $specVersion)" `
+                -CrossReferences @{ MS='TPM 2.0' }
+        }
+        else {
+            Add-Result -Category "Core - TPM 2.0" -Status "Warning" `
+                -Severity "Medium" `
+                -Message "TPM specification: $specVersion (not 2.0)" `
+                -CrossReferences @{ MS='TPM 2.0' }
+        }
+
+        $autoProv = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\TPM" -Name "OSManagedAuthLevel" -Default $null
+        if ($autoProv -ge 4) {
+            Add-Result -Category "Core - TPM 2.0" -Status "Pass" `
+                -Severity "Low" `
+                -Message "TPM auto-provisioning at level $autoProv" `
+                -CrossReferences @{ MS='TPM Auto-provision' }
+        }
+    }
+    else {
+        Add-Result -Category "Core - TPM 2.0" -Status "Fail" `
+            -Severity "High" `
+            -Message "TPM not detected" `
+            -Details "TPM 2.0 required for Windows 11 and modern security baselines" `
+            -CrossReferences @{ MS='TPM' }
+    }
+}
+catch {
+    Add-Result -Category "Core - TPM 2.0" -Status "Error" `
+        -Severity "Medium" `
+        -Message "TPM 2.0 query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: USB / removable storage policy
+# ============================================================================
+Write-Host "[Core] Checking USB and removable storage policy..." -ForegroundColor Yellow
+
+try {
+    $usbStorPath = "HKLM:\SYSTEM\CurrentControlSet\Services\USBSTOR"
+    $usbStart = Get-RegValue -Path $usbStorPath -Name "Start" -Default 3
+    if ($usbStart -eq 4) {
+        Add-Result -Category "Core - USB Storage Policy" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "USB storage class disabled (Start=4)" `
+            -CrossReferences @{ MS='USB Storage'; NIST='MP-7' }
+    }
+    elseif ($usbStart -eq 3) {
+        Add-Result -Category "Core - USB Storage Policy" -Status "Info" `
+            -Severity "Informational" `
+            -Message "USB storage class set to manual start (default behavior)" `
+            -CrossReferences @{ MS='USB Storage' }
+    }
+
+    $denyRemovable = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\RemovableStorageDevices" -Name "Deny_All" -Default $null
+    if ($denyRemovable -eq 1) {
+        Add-Result -Category "Core - USB Storage Policy" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "All removable storage classes denied via group policy" `
+            -CrossReferences @{ MS='Removable Storage'; NIST='MP-7' }
+    }
+    else {
+        Add-Result -Category "Core - USB Storage Policy" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Removable storage policy not configured (default permissive)" `
+            -CrossReferences @{ MS='Removable Storage' }
+    }
+}
+catch {
+    Add-Result -Category "Core - USB Storage Policy" -Status "Error" `
+        -Severity "Low" `
+        -Message "USB storage policy query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Print Spooler post-PrintNightmare hardening
+# ============================================================================
+Write-Host "[Core] Checking Print Spooler post-PrintNightmare hardening..." -ForegroundColor Yellow
+
+try {
+    $spoolerService = Get-Service -Name 'Spooler' -ErrorAction SilentlyContinue
+    $isDc = $false
+    try {
+        $cs = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
+        $isDc = ($cs.DomainRole -in @(4,5))
+    } catch { <# Expected: CIM may fail #> }
+
+    if ($isDc) {
+        if ($spoolerService -and $spoolerService.Status -eq 'Running') {
+            Add-Result -Category "Core - Print Spooler" -Status "Fail" `
+                -Severity "Critical" `
+                -Message "PrintNightmare exposure: Spooler running on domain controller" `
+                -Remediation "Stop-Service -Name Spooler; Set-Service -Name Spooler -StartupType Disabled" `
+                -CrossReferences @{ MS='PrintNightmare'; CVE='CVE-2021-34527' }
+        }
+        else {
+            Add-Result -Category "Core - Print Spooler" -Status "Pass" `
+                -Severity "High" `
+                -Message "Spooler disabled on domain controller (PrintNightmare mitigated)" `
+                -CrossReferences @{ MS='PrintNightmare' }
+        }
+    }
+
+    $rpcPolicy = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Print" -Name "RpcAuthnLevelPrivacyEnabled" -Default $null
+    if ($rpcPolicy -eq 1) {
+        Add-Result -Category "Core - Print Spooler" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Print RPC authentication: privacy level enforced" `
+            -CrossReferences @{ MS='Print RPC' }
+    }
+    else {
+        Add-Result -Category "Core - Print Spooler" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Print RPC authentication privacy not explicitly enforced" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Print' -Name 'RpcAuthnLevelPrivacyEnabled' -Value 1 -Type DWord" `
+            -CrossReferences @{ MS='Print RPC' }
+    }
+
+    $pointAndPrint = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers\PointAndPrint" -Name "RestrictDriverInstallationToAdministrators" -Default $null
+    if ($pointAndPrint -eq 1) {
+        Add-Result -Category "Core - Print Spooler" -Status "Pass" `
+            -Severity "High" `
+            -Message "Point and Print: driver installation restricted to administrators" `
+            -CrossReferences @{ MS='PrintNightmare'; CVE='CVE-2021-34527' }
+    }
+    else {
+        Add-Result -Category "Core - Print Spooler" -Status "Fail" `
+            -Severity "High" `
+            -Message "Point and Print: non-admin driver installation not restricted (PrintNightmare exposure)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers\PointAndPrint' -Name 'RestrictDriverInstallationToAdministrators' -Value 1 -Type DWord" `
+            -CrossReferences @{ MS='PrintNightmare' }
+    }
+}
+catch {
+    Add-Result -Category "Core - Print Spooler" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Print Spooler hardening query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Windows Sandbox availability
+# ============================================================================
+Write-Host "[Core] Checking Windows Sandbox state..." -ForegroundColor Yellow
+
+try {
+    $sandboxFeature = Get-WindowsOptionalFeature -Online -FeatureName 'Containers-DisposableClientVM' -ErrorAction SilentlyContinue
+    if ($sandboxFeature) {
+        if ($sandboxFeature.State -eq 'Enabled') {
+            Add-Result -Category "Core - Windows Sandbox" -Status "Pass" `
+                -Severity "Low" `
+                -Message "Windows Sandbox feature available" `
+                -CrossReferences @{ MS='Windows Sandbox' }
+        }
+        else {
+            Add-Result -Category "Core - Windows Sandbox" -Status "Info" `
+                -Severity "Informational" `
+                -Message "Windows Sandbox feature present but not enabled" `
+                -CrossReferences @{ MS='Windows Sandbox' }
+        }
+    }
+    else {
+        Add-Result -Category "Core - Windows Sandbox" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Windows Sandbox feature not present (Pro/Enterprise SKU only)" `
+            -CrossReferences @{ MS='Windows Sandbox' }
+    }
+}
+catch {
+    Add-Result -Category "Core - Windows Sandbox" -Status "Error" `
+        -Severity "Low" `
+        -Message "Windows Sandbox query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Enhanced Phishing Protection (Win11 22H2+)
+# ============================================================================
+Write-Host "[Core] Checking Enhanced Phishing Protection..." -ForegroundColor Yellow
+
+try {
+    $eppPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WTDS\Components"
+    $eppService = Get-RegValue -Path $eppPath -Name "ServiceEnabled" -Default $null
+    if ($eppService -eq 1) {
+        Add-Result -Category "Core - Enhanced Phishing Protection" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Enhanced Phishing Protection service enabled" `
+            -CrossReferences @{ MS='EPP'; NIST='AT-2' }
+    }
+    elseif ($eppService -eq 0) {
+        Add-Result -Category "Core - Enhanced Phishing Protection" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Enhanced Phishing Protection explicitly disabled" `
+            -Remediation "Set-ItemProperty -Path '$eppPath' -Name 'ServiceEnabled' -Value 1 -Type DWord" `
+            -CrossReferences @{ MS='EPP' }
+    }
+    else {
+        Add-Result -Category "Core - Enhanced Phishing Protection" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Enhanced Phishing Protection policy not configured (Win11 22H2+ feature)" `
+            -CrossReferences @{ MS='EPP' }
+    }
+}
+catch {
+    Add-Result -Category "Core - Enhanced Phishing Protection" -Status "Error" `
+        -Severity "Low" `
+        -Message "Enhanced Phishing Protection query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Mark-of-the-Web (MOTW) preservation
+# ============================================================================
+Write-Host "[Core] Checking Mark-of-the-Web preservation policy..." -ForegroundColor Yellow
+
+try {
+    $motwPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Attachments"
+    $saveZone = Get-RegValue -Path $motwPath -Name "SaveZoneInformation" -Default $null
+    if ($saveZone -eq 2 -or $null -eq $saveZone) {
+        Add-Result -Category "Core - MOTW Preservation" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Mark-of-the-Web preserved on saved attachments" `
+            -CrossReferences @{ MS='MOTW' }
+    }
+    elseif ($saveZone -eq 1) {
+        Add-Result -Category "Core - MOTW Preservation" -Status "Fail" `
+            -Severity "High" `
+            -Message "Mark-of-the-Web stripped from saved attachments (security warning bypass)" `
+            -Remediation "Remove-ItemProperty -Path '$motwPath' -Name 'SaveZoneInformation'" `
+            -CrossReferences @{ MS='MOTW' }
+    }
+
+    $hideZone = Get-RegValue -Path $motwPath -Name "HideZoneInfoOnProperties" -Default $null
+    if ($hideZone -eq 0 -or $null -eq $hideZone) {
+        Add-Result -Category "Core - MOTW Preservation" -Status "Pass" `
+            -Severity "Low" `
+            -Message "MOTW visible in file properties" `
+            -CrossReferences @{ MS='MOTW' }
+    }
+    elseif ($hideZone -eq 1) {
+        Add-Result -Category "Core - MOTW Preservation" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "MOTW hidden from file properties dialog" `
+            -CrossReferences @{ MS='MOTW' }
+    }
+}
+catch {
+    Add-Result -Category "Core - MOTW Preservation" -Status "Error" `
+        -Severity "Low" `
+        -Message "MOTW policy query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Microsoft Pluton and System Guard Secure Launch
+# ============================================================================
+Write-Host "[Core] Checking Microsoft Pluton and System Guard..." -ForegroundColor Yellow
+
+try {
+    $plutonPath = "HKLM:\SYSTEM\CurrentControlSet\Services\PlutonHsm"
+    if (Test-Path $plutonPath -ErrorAction SilentlyContinue) {
+        Add-Result -Category "Core - Microsoft Pluton" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Microsoft Pluton security processor present" `
+            -Details "Pluton provides chip-to-cloud security with hardware root of trust" `
+            -CrossReferences @{ MS='Pluton' }
+    }
+    else {
+        Add-Result -Category "Core - Microsoft Pluton" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Microsoft Pluton not detected (hardware-dependent)" `
+            -CrossReferences @{ MS='Pluton' }
+    }
+
+    $secureLaunch = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" -Name "ConfigureSystemGuardLaunch" -Default $null
+    if ($secureLaunch -eq 1) {
+        Add-Result -Category "Core - System Guard" -Status "Pass" `
+            -Severity "High" `
+            -Message "System Guard Secure Launch enabled" `
+            -Details "Dynamic Root of Trust for Measurement protects firmware integrity" `
+            -CrossReferences @{ MS='System Guard'; NIST='SI-7' }
+    }
+    elseif ($secureLaunch -eq 0) {
+        Add-Result -Category "Core - System Guard" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "System Guard Secure Launch explicitly disabled" `
+            -CrossReferences @{ MS='System Guard' }
+    }
+    else {
+        Add-Result -Category "Core - System Guard" -Status "Info" `
+            -Severity "Informational" `
+            -Message "System Guard Secure Launch policy not configured (hardware-dependent)" `
+            -CrossReferences @{ MS='System Guard' }
+    }
+}
+catch {
+    Add-Result -Category "Core - Microsoft Pluton" -Status "Error" `
+        -Severity "Low" `
+        -Message "Pluton/System Guard query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Hardware-enforced Stack Protection (kCET)
+# ============================================================================
+Write-Host "[Core] Checking Kernel Mode Hardware-enforced Stack Protection..." -ForegroundColor Yellow
+
+try {
+    $kcetPath = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel"
+    $kcetEnabled = Get-RegValue -Path $kcetPath -Name "DisableStackProtection" -Default $null
+    if ($null -eq $kcetEnabled -or $kcetEnabled -eq 0) {
+        Add-Result -Category "Core - kCET Stack Protection" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Kernel-mode hardware-enforced stack protection not disabled" `
+            -Details "kCET requires Intel Tiger Lake / AMD Zen 3 or later CPU support" `
+            -CrossReferences @{ MS='kCET'; NIST='SI-16' }
+    }
+    elseif ($kcetEnabled -eq 1) {
+        Add-Result -Category "Core - kCET Stack Protection" -Status "Fail" `
+            -Severity "High" `
+            -Message "Kernel-mode stack protection explicitly disabled" `
+            -Remediation "Remove-ItemProperty -Path '$kcetPath' -Name 'DisableStackProtection'" `
+            -CrossReferences @{ MS='kCET' }
+    }
+
+    $userCet = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" -Name "FeatureSettingsOverride" -Default $null
+    if ($null -ne $userCet -and ($userCet -band 0x40) -eq 0x40) {
+        Add-Result -Category "Core - kCET Stack Protection" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Memory management feature override flag set: $userCet" `
+            -CrossReferences @{ MS='Memory Override' }
+    }
+}
+catch {
+    Add-Result -Category "Core - kCET Stack Protection" -Status "Error" `
+        -Severity "Low" `
+        -Message "kCET query failed: $($_.Exception.Message)"
+}
+
 # ============================================================================
 # Module Summary
 # ============================================================================
@@ -1853,15 +2408,11 @@ Write-Host "[CORE] Check Categories:" -ForegroundColor Cyan
 foreach ($cat in ($categoryStats.Keys | Sort-Object)) {
     Write-Host "[CORE]   $($cat.PadRight(45)): $($categoryStats[$cat].ToString().PadLeft(3)) checks" -ForegroundColor Gray
 }
-if ($failCount -gt 0) {
-    Write-Host "[CORE]" -ForegroundColor Cyan
-    Write-Host "[CORE] Failed Check Severity:" -ForegroundColor Cyan
-    foreach ($sev in @('Critical', 'High', 'Medium', 'Low', 'Informational')) {
-        if ($severityStats[$sev] -gt 0) {
-            $sevColor = switch ($sev) { 'Critical' { 'Red' }; 'High' { 'DarkYellow' }; 'Medium' { 'Yellow' }; 'Low' { 'Cyan' }; default { 'Gray' } }
-            Write-Host "[CORE]   $($sev.PadRight(15)): $($severityStats[$sev])" -ForegroundColor $sevColor
-        }
-    }
+Write-Host "[CORE]" -ForegroundColor Cyan
+Write-Host "[CORE] Failed Check Severity:" -ForegroundColor Cyan
+foreach ($sev in @('Critical', 'High', 'Medium', 'Low', 'Informational')) {
+    $sevColor = switch ($sev) { 'Critical' { 'Red' }; 'High' { 'DarkYellow' }; 'Medium' { 'Yellow' }; 'Low' { 'Cyan' }; default { 'Gray' } }
+    Write-Host "[CORE]   $($sev.PadRight(15)): $($severityStats[$sev])" -ForegroundColor $sevColor
 }
 Write-Host "[CORE] ======================================================================`n" -ForegroundColor Cyan
 
@@ -1992,7 +2543,3 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "  All $($results.Count) checks executed" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
-
-# ============================================================================
-# End of Core Auditing Module (Module-Core.ps1)
-# ============================================================================
