@@ -1,6 +1,6 @@
 # Module-MS-DefenderATP.ps1
 # Microsoft Defender for Endpoint (Advanced Threat Protection) Module
-# Version: 1.0
+# Version: 6.1.2
 # Comprehensive EDR and Advanced Protection Assessment
 
 <#
@@ -66,7 +66,7 @@
     - ScanDate: Audit timestamp
 
 .NOTES
-    Version: 1.0
+    Version: 6.1.2
     Requires:
     - Windows 10 1607+ or Windows Server 2012 R2+
     - PowerShell 5.1+
@@ -86,7 +86,7 @@ param(
 
 $moduleName = "MS-DefenderATP"
 $results = @()
-$moduleVersion = "6.0"
+$moduleVersion = "6.1.2"
 
 # Helper function to add results
 function Add-Result {
@@ -96,6 +96,7 @@ function Add-Result {
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
+        [ValidateSet("Critical","High","Medium","Low","Informational")]
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
@@ -126,7 +127,7 @@ function Get-RegValue {
         $regItem = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
         if ($regItem) { return $regItem.$Name }
     }
-    catch { }
+    catch { <# Expected: item may not exist #> }
     return $Default
 }
 
@@ -976,6 +977,679 @@ try {
         -Severity "Medium"
 }
 
+
+# ============================================================================
+# v6.1: Defender Antivirus Component Currency
+# ============================================================================
+Write-Host "[MS-DefenderATP] Checking Defender Component Currency..." -ForegroundColor Yellow
+
+try {
+    $mpStatus = Get-DefenderStatus -Cache $SharedData.Cache
+    if ($mpStatus) {
+        $sigAge = if ($null -ne $mpStatus.AntivirusSignatureAge) { [int]$mpStatus.AntivirusSignatureAge } else { -1 }
+        if ($sigAge -ge 0 -and $sigAge -le 1) {
+            Add-Result -Category "ATP - Component Currency" -Status "Pass" `
+                -Severity "Low" `
+                -Message "Antivirus signatures are current (age: $sigAge day(s))" `
+                -Details "Signature freshness within recommended 24-48 hour window" `
+                -CrossReferences @{ MS='Defender Signature Currency'; NIST='SI-3' }
+        }
+        elseif ($sigAge -le 7 -and $sigAge -gt 1) {
+            Add-Result -Category "ATP - Component Currency" -Status "Warning" `
+                -Severity "Medium" `
+                -Message "Antivirus signatures are $sigAge days old" `
+                -Details "Signatures should be updated daily; investigate update mechanism" `
+                -Remediation "Update-MpSignature" `
+                -CrossReferences @{ MS='Defender Signature Currency'; NIST='SI-3' }
+        }
+        elseif ($sigAge -gt 7) {
+            Add-Result -Category "ATP - Component Currency" -Status "Fail" `
+                -Severity "High" `
+                -Message "Antivirus signatures are $sigAge days old" `
+                -Details "Signatures more than 7 days old leave the host exposed to recent threats" `
+                -Remediation "Update-MpSignature; verify Windows Update connectivity" `
+                -CrossReferences @{ MS='Defender Signature Currency'; NIST='SI-3'; CIS='8.2' }
+        }
+        else {
+            Add-Result -Category "ATP - Component Currency" -Status "Info" `
+                -Severity "Informational" `
+                -Message "Signature age unavailable" `
+                -Details "Get-MpComputerStatus did not return AntivirusSignatureAge"
+        }
+
+        $engineVer = $mpStatus.AMEngineVersion
+        if ($engineVer) {
+            Add-Result -Category "ATP - Component Currency" -Status "Info" `
+                -Severity "Informational" `
+                -Message "Antimalware engine version: $engineVer" `
+                -Details "Verify against the current published engine baseline at the Defender release notes"
+        }
+
+        $platformVer = $mpStatus.AMProductVersion
+        if ($platformVer) {
+            Add-Result -Category "ATP - Component Currency" -Status "Info" `
+                -Severity "Informational" `
+                -Message "Antimalware platform version: $platformVer" `
+                -Details "Platform updates are delivered monthly through Windows Update"
+        }
+
+        $nisAge = if ($null -ne $mpStatus.NISSignatureAge) { [int]$mpStatus.NISSignatureAge } else { -1 }
+        if ($nisAge -ge 0 -and $nisAge -le 7) {
+            Add-Result -Category "ATP - Component Currency" -Status "Pass" `
+                -Severity "Low" `
+                -Message "Network Inspection System signatures current (age: $nisAge day(s))" `
+                -CrossReferences @{ MS='NIS Currency' }
+        }
+        elseif ($nisAge -gt 7) {
+            Add-Result -Category "ATP - Component Currency" -Status "Warning" `
+                -Severity "Medium" `
+                -Message "Network Inspection System signatures are $nisAge days old" `
+                -Remediation "Update-MpSignature -UpdateSource MicrosoftUpdateServer" `
+                -CrossReferences @{ MS='NIS Currency' }
+        }
+    }
+    else {
+        Add-Result -Category "ATP - Component Currency" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Defender component currency not assessable" `
+            -Details "Get-MpComputerStatus did not return data"
+    }
+}
+catch {
+    Add-Result -Category "ATP - Component Currency" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Failed to query Defender component currency: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Network Protection per-profile state
+# ============================================================================
+Write-Host "[MS-DefenderATP] Checking Network Protection per-profile state..." -ForegroundColor Yellow
+
+try {
+    $netProtPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Windows Defender Exploit Guard\Network Protection"
+    $netProt = Get-RegValue -Path $netProtPath -Name "EnableNetworkProtection" -Default $null
+
+    if ($netProt -eq 1) {
+        Add-Result -Category "ATP - Network Protection" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Network Protection is enabled in block mode" `
+            -Details "EnableNetworkProtection=1 blocks outbound connections to malicious domains" `
+            -CrossReferences @{ MS='Network Protection'; NIST='SC-7'; CIS='10.5' }
+    }
+    elseif ($netProt -eq 2) {
+        Add-Result -Category "ATP - Network Protection" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Network Protection is in audit mode" `
+            -Details "Audit mode logs but does not block. Move to block mode after evaluation." `
+            -Remediation "Set-MpPreference -EnableNetworkProtection Enabled" `
+            -CrossReferences @{ MS='Network Protection'; NIST='SC-7' }
+    }
+    else {
+        Add-Result -Category "ATP - Network Protection" -Status "Fail" `
+            -Severity "Medium" `
+            -Message "Network Protection is not enabled" `
+            -Details "Network Protection blocks connections to known-malicious domains and IPs" `
+            -Remediation "Set-MpPreference -EnableNetworkProtection Enabled" `
+            -CrossReferences @{ MS='Network Protection'; NIST='SC-7'; CIS='10.5' }
+    }
+}
+catch {
+    Add-Result -Category "ATP - Network Protection" -Status "Error" `
+        -Severity "Low" `
+        -Message "Network Protection state query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Controlled Folder Access protected folders enumeration
+# ============================================================================
+Write-Host "[MS-DefenderATP] Checking Controlled Folder Access configuration..." -ForegroundColor Yellow
+
+try {
+    $cfaPath = "HKLM:\SOFTWARE\Microsoft\Windows Defender\Windows Defender Exploit Guard\Controlled Folder Access"
+    $cfaState = Get-RegValue -Path $cfaPath -Name "EnableControlledFolderAccess" -Default $null
+
+    switch ($cfaState) {
+        1 {
+            Add-Result -Category "ATP - Controlled Folder Access" -Status "Pass" `
+                -Severity "Medium" `
+                -Message "Controlled Folder Access is enabled in block mode" `
+                -Details "Unauthorized applications cannot modify protected folders" `
+                -CrossReferences @{ MS='CFA'; NIST='SI-7' }
+        }
+        2 {
+            Add-Result -Category "ATP - Controlled Folder Access" -Status "Warning" `
+                -Severity "Medium" `
+                -Message "Controlled Folder Access is in audit mode" `
+                -Details "Events are logged but writes are not blocked" `
+                -Remediation "Set-MpPreference -EnableControlledFolderAccess Enabled" `
+                -CrossReferences @{ MS='CFA' }
+        }
+        3 {
+            Add-Result -Category "ATP - Controlled Folder Access" -Status "Pass" `
+                -Severity "Low" `
+                -Message "Controlled Folder Access is in block-disk-modification-only mode" `
+                -CrossReferences @{ MS='CFA' }
+        }
+        default {
+            Add-Result -Category "ATP - Controlled Folder Access" -Status "Fail" `
+                -Severity "Medium" `
+                -Message "Controlled Folder Access is not enabled" `
+                -Details "Ransomware-style writes to user folders are not restricted" `
+                -Remediation "Set-MpPreference -EnableControlledFolderAccess Enabled" `
+                -CrossReferences @{ MS='CFA'; NIST='SI-7' }
+        }
+    }
+
+    try {
+        $protectedFolders = (Get-MpPreference -ErrorAction Stop).ControlledFolderAccessProtectedFolders
+        $folderCount = if ($protectedFolders) { @($protectedFolders).Count } else { 0 }
+        Add-Result -Category "ATP - Controlled Folder Access" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Protected folders configured: $folderCount" `
+            -Details "Default-protected folders are always covered; this count reflects custom additions"
+    }
+    catch { <# Expected: Get-MpPreference may not be available #> }
+
+    try {
+        $allowedApps = (Get-MpPreference -ErrorAction Stop).ControlledFolderAccessAllowedApplications
+        $appCount = if ($allowedApps) { @($allowedApps).Count } else { 0 }
+        Add-Result -Category "ATP - Controlled Folder Access" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Allowed applications configured: $appCount" `
+            -Details "Custom application allowlist for Controlled Folder Access"
+    }
+    catch { <# Expected: Get-MpPreference may not be available #> }
+}
+catch {
+    Add-Result -Category "ATP - Controlled Folder Access" -Status "Error" `
+        -Severity "Low" `
+        -Message "CFA configuration query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: SmartScreen enhanced phishing protection
+# ============================================================================
+Write-Host "[MS-DefenderATP] Checking Enhanced Phishing Protection..." -ForegroundColor Yellow
+
+try {
+    $eppPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WTDS\Components"
+    $serviceEnabled = Get-RegValue -Path $eppPath -Name "ServiceEnabled" -Default $null
+    $notifyMalicious = Get-RegValue -Path $eppPath -Name "NotifyMalicious" -Default $null
+    $notifyPasswordReuse = Get-RegValue -Path $eppPath -Name "NotifyPasswordReuse" -Default $null
+    $notifyUnsafeApp = Get-RegValue -Path $eppPath -Name "NotifyUnsafeApp" -Default $null
+
+    if ($serviceEnabled -eq 1) {
+        Add-Result -Category "ATP - Enhanced Phishing Protection" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Enhanced Phishing Protection service is enabled" `
+            -Details "Windows 11 22H2+ feature monitoring password entry on phishing sites" `
+            -CrossReferences @{ MS='EPP'; NIST='AT-2' }
+    }
+    else {
+        Add-Result -Category "ATP - Enhanced Phishing Protection" -Status "Fail" `
+            -Severity "Medium" `
+            -Message "Enhanced Phishing Protection service is not enabled" `
+            -Details "Available on Windows 11 22H2 and later. Earlier OS versions can ignore this finding." `
+            -Remediation "Set-ItemProperty -Path '$eppPath' -Name 'ServiceEnabled' -Value 1 -Type DWord" `
+            -CrossReferences @{ MS='EPP' }
+    }
+
+    if ($notifyMalicious -eq 1) {
+        Add-Result -Category "ATP - Enhanced Phishing Protection" -Status "Pass" `
+            -Severity "Low" `
+            -Message "User notification on malicious password entry is enabled" `
+            -CrossReferences @{ MS='EPP NotifyMalicious' }
+    }
+    else {
+        Add-Result -Category "ATP - Enhanced Phishing Protection" -Status "Warning" `
+            -Severity "Low" `
+            -Message "User notification on malicious password entry is disabled" `
+            -Remediation "Set-ItemProperty -Path '$eppPath' -Name 'NotifyMalicious' -Value 1 -Type DWord" `
+            -CrossReferences @{ MS='EPP NotifyMalicious' }
+    }
+
+    if ($notifyPasswordReuse -eq 1) {
+        Add-Result -Category "ATP - Enhanced Phishing Protection" -Status "Pass" `
+            -Severity "Low" `
+            -Message "User notification on password reuse is enabled" `
+            -CrossReferences @{ MS='EPP NotifyPasswordReuse' }
+    }
+    else {
+        Add-Result -Category "ATP - Enhanced Phishing Protection" -Status "Warning" `
+            -Severity "Low" `
+            -Message "User notification on password reuse is disabled" `
+            -Remediation "Set-ItemProperty -Path '$eppPath' -Name 'NotifyPasswordReuse' -Value 1 -Type DWord" `
+            -CrossReferences @{ MS='EPP NotifyPasswordReuse' }
+    }
+
+    if ($notifyUnsafeApp -eq 1) {
+        Add-Result -Category "ATP - Enhanced Phishing Protection" -Status "Pass" `
+            -Severity "Low" `
+            -Message "User notification on unsafe app password storage is enabled" `
+            -CrossReferences @{ MS='EPP NotifyUnsafeApp' }
+    }
+    else {
+        Add-Result -Category "ATP - Enhanced Phishing Protection" -Status "Warning" `
+            -Severity "Low" `
+            -Message "User notification on unsafe app password storage is disabled" `
+            -Remediation "Set-ItemProperty -Path '$eppPath' -Name 'NotifyUnsafeApp' -Value 1 -Type DWord" `
+            -CrossReferences @{ MS='EPP NotifyUnsafeApp' }
+    }
+}
+catch {
+    Add-Result -Category "ATP - Enhanced Phishing Protection" -Status "Error" `
+        -Severity "Low" `
+        -Message "Enhanced Phishing Protection query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Windows Defender Application Control (WDAC) policy enumeration
+# ============================================================================
+Write-Host "[MS-DefenderATP] Checking WDAC policy state..." -ForegroundColor Yellow
+
+try {
+    $ciPath = "HKLM:\SYSTEM\CurrentControlSet\Control\CI\Config"
+    $ciDeployedPolicies = Get-ChildItem -Path $ciPath -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -ne "Default" }
+
+    if ($ciDeployedPolicies -and @($ciDeployedPolicies).Count -gt 0) {
+        $policyCount = @($ciDeployedPolicies).Count
+        Add-Result -Category "ATP - Application Control" -Status "Pass" `
+            -Severity "High" `
+            -Message "WDAC policies deployed: $policyCount" `
+            -Details "Multiple-policy WDAC active. Each policy GUID corresponds to a deployed policy file." `
+            -CrossReferences @{ MS='WDAC'; NIST='CM-7'; CIS='2.3.10.5' }
+    }
+    else {
+        Add-Result -Category "ATP - Application Control" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "No WDAC multiple-policy deployments detected" `
+            -Details "Single-policy or no WDAC. Modern WDAC supports multiple concurrent policies for greater flexibility." `
+            -CrossReferences @{ MS='WDAC' }
+    }
+
+    try {
+        $ciEvents = Get-WinEvent -LogName "Microsoft-Windows-CodeIntegrity/Operational" -MaxEvents 1 -ErrorAction Stop
+        if ($ciEvents) {
+            Add-Result -Category "ATP - Application Control" -Status "Pass" `
+                -Severity "Low" `
+                -Message "Code Integrity event log is active and recording" `
+                -Details "WDAC enforcement and audit events are being captured" `
+                -CrossReferences @{ MS='WDAC Logging' }
+        }
+    }
+    catch [System.Diagnostics.Eventing.Reader.EventLogNotFoundException] {
+        Add-Result -Category "ATP - Application Control" -Status "Warning" `
+            -Severity "Low" `
+            -Message "Code Integrity event log not found" `
+            -Details "Microsoft-Windows-CodeIntegrity/Operational log unavailable on this system" `
+            -CrossReferences @{ MS='WDAC Logging' }
+    }
+    catch { <# Expected: log may not exist on older OS versions #> }
+}
+catch {
+    Add-Result -Category "ATP - Application Control" -Status "Error" `
+        -Severity "Low" `
+        -Message "WDAC policy enumeration failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Defender for Endpoint device tags and group assignment
+# ============================================================================
+Write-Host "[MS-DefenderATP] Checking device tags and group assignment..." -ForegroundColor Yellow
+
+try {
+    $tagPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows Advanced Threat Protection\DeviceTagging"
+    $deviceTag = Get-RegValue -Path $tagPath -Name "Group" -Default $null
+
+    if ($deviceTag) {
+        Add-Result -Category "ATP - Device Tagging" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Device tag configured: $deviceTag" `
+            -Details "Tags enable device grouping and dynamic targeting in the Defender portal" `
+            -CrossReferences @{ MS='Device Tagging' }
+    }
+    else {
+        Add-Result -Category "ATP - Device Tagging" -Status "Info" `
+            -Severity "Informational" `
+            -Message "No device tag configured at the local policy level" `
+            -Details "Tags may be assigned via Intune or directly in the Defender portal" `
+            -CrossReferences @{ MS='Device Tagging' }
+    }
+}
+catch {
+    Add-Result -Category "ATP - Device Tagging" -Status "Error" `
+        -Severity "Low" `
+        -Message "Device tag query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Defender for Identity sensor detection
+# ============================================================================
+Write-Host "[MS-DefenderATP] Checking Defender for Identity sensor..." -ForegroundColor Yellow
+
+try {
+    $aatpService = Get-Service -Name "AATPSensor","AATPSensorUpdater" -ErrorAction SilentlyContinue
+    if ($aatpService) {
+        $running = @($aatpService | Where-Object { $_.Status -eq 'Running' }).Count
+        Add-Result -Category "ATP - Defender for Identity" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Defender for Identity sensor present ($running of $($aatpService.Count) services running)" `
+            -Details "AATP/MDI sensor monitors AD activity for identity-based threats" `
+            -CrossReferences @{ MS='Defender for Identity'; NIST='AC-2' }
+    }
+    else {
+        $cs = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction SilentlyContinue
+        if ($cs -and $cs.DomainRole -in @(4,5)) {
+            Add-Result -Category "ATP - Defender for Identity" -Status "Warning" `
+                -Severity "Medium" `
+                -Message "Defender for Identity sensor not detected on domain controller" `
+                -Details "MDI sensor recommended on all domain controllers for identity threat detection" `
+                -CrossReferences @{ MS='Defender for Identity'; NIST='AU-12' }
+        }
+        else {
+            Add-Result -Category "ATP - Defender for Identity" -Status "Info" `
+                -Severity "Informational" `
+                -Message "Defender for Identity sensor not present (non-DC host)" `
+                -Details "MDI sensor is typically installed only on domain controllers and AD FS servers"
+        }
+    }
+}
+catch {
+    Add-Result -Category "ATP - Defender for Identity" -Status "Error" `
+        -Severity "Low" `
+        -Message "Defender for Identity sensor query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Per-rule ASR audit/block mode detail
+# ============================================================================
+Write-Host "[MS-DefenderATP] Checking individual ASR rule states..." -ForegroundColor Yellow
+
+$asrRules = @{
+    'BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550' = 'Block executable content from email/webmail'
+    'D4F940AB-401B-4EFC-AADC-AD5F3C50688A' = 'Block Office child process creation'
+    '3B576869-A4EC-4529-8536-B80A7769E899' = 'Block Office executable content creation'
+    '75668C1F-73B5-4CF0-BB93-3ECF5CB7CC84' = 'Block Office code injection'
+    'D3E037E1-3EB8-44C8-A917-57927947596D' = 'Block JavaScript/VBScript downloaded executables'
+    '5BEB7EFE-FD9A-4556-801D-275E5FFC04CC' = 'Block obfuscated script execution'
+    '92E97FA1-2EDF-4476-BDD6-9DD0B4DDDC7B' = 'Block Win32 API from Office macros'
+    '01443614-CD74-433A-B99E-2ECDC07BFC25' = 'Block executables not meeting prevalence/age/trust'
+    'C1DB55AB-C21A-4637-BB3F-A12568109D35' = 'Use advanced ransomware protection'
+    '9E6C4E1F-7D60-472F-BA1A-A39EF669E4B2' = 'Block credential stealing from LSASS'
+    'D1E49AAC-8F56-4280-B9BA-993A6D77406C' = 'Block process creation from PSExec/WMI commands'
+    'B2B3F03D-6A65-4F7B-A9C7-1C7EF74A9BA4' = 'Block untrusted USB processes'
+    '26190899-1602-49E8-8B27-EB1D0A1CE869' = 'Block Office communication child processes'
+    '7674BA52-37EB-4A4F-A9A1-F0F9A1619A2C' = 'Block Adobe Reader child process creation'
+    'E6DB77E5-3DF2-4CF1-B95A-636979351E5B' = 'Block persistence through WMI event subscription'
+}
+
+try {
+    $mpPref = Get-MpPreference -ErrorAction Stop
+    $configuredIds = @($mpPref.AttackSurfaceReductionRules_Ids)
+    $configuredActions = @($mpPref.AttackSurfaceReductionRules_Actions)
+
+    $blockCount = 0; $auditCount = 0; $disabledCount = 0; $unsetCount = 0
+
+    foreach ($ruleGuid in $asrRules.Keys) {
+        $ruleName = $asrRules[$ruleGuid]
+        $idx = -1
+        for ($i = 0; $i -lt $configuredIds.Count; $i++) {
+            if ($configuredIds[$i] -eq $ruleGuid) { $idx = $i; break }
+        }
+
+        if ($idx -lt 0) {
+            $unsetCount++
+            Add-Result -Category "ATP - ASR Per-Rule" -Status "Warning" `
+                -Severity "Low" `
+                -Message "ASR rule not configured: $ruleName" `
+                -Details "Rule ID: $ruleGuid" `
+                -Remediation "Add-MpPreference -AttackSurfaceReductionRules_Ids $ruleGuid -AttackSurfaceReductionRules_Actions Enabled" `
+                -CrossReferences @{ MS="ASR $ruleGuid" }
+        }
+        else {
+            $action = $configuredActions[$idx]
+            switch ($action) {
+                1 {
+                    $blockCount++
+                    Add-Result -Category "ATP - ASR Per-Rule" -Status "Pass" `
+                        -Severity "Low" `
+                        -Message "ASR block: $ruleName" `
+                        -Details "Rule actively blocking; ID: $ruleGuid" `
+                        -CrossReferences @{ MS="ASR $ruleGuid" }
+                }
+                2 {
+                    $auditCount++
+                    Add-Result -Category "ATP - ASR Per-Rule" -Status "Warning" `
+                        -Severity "Low" `
+                        -Message "ASR audit-only: $ruleName" `
+                        -Details "Rule logging without blocking; promote to block after evaluation. ID: $ruleGuid" `
+                        -Remediation "Set-MpPreference -AttackSurfaceReductionRules_Ids $ruleGuid -AttackSurfaceReductionRules_Actions Enabled" `
+                        -CrossReferences @{ MS="ASR $ruleGuid" }
+                }
+                6 {
+                    Add-Result -Category "ATP - ASR Per-Rule" -Status "Info" `
+                        -Severity "Informational" `
+                        -Message "ASR warn mode: $ruleName" `
+                        -Details "User can override the block. ID: $ruleGuid" `
+                        -CrossReferences @{ MS="ASR $ruleGuid" }
+                }
+                default {
+                    $disabledCount++
+                    Add-Result -Category "ATP - ASR Per-Rule" -Status "Fail" `
+                        -Severity "Medium" `
+                        -Message "ASR rule explicitly disabled: $ruleName" `
+                        -Details "Action code: $action; ID: $ruleGuid" `
+                        -Remediation "Set-MpPreference -AttackSurfaceReductionRules_Ids $ruleGuid -AttackSurfaceReductionRules_Actions Enabled" `
+                        -CrossReferences @{ MS="ASR $ruleGuid" }
+                }
+            }
+        }
+    }
+
+    Add-Result -Category "ATP - ASR Per-Rule" -Status "Info" `
+        -Severity "Informational" `
+        -Message "ASR rule summary: $blockCount block, $auditCount audit, $disabledCount disabled, $unsetCount unset" `
+        -Details "Total rules in catalog: $($asrRules.Count)"
+}
+catch {
+    Add-Result -Category "ATP - ASR Per-Rule" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Per-rule ASR enumeration failed: $($_.Exception.Message)" `
+        -Details "Get-MpPreference may be unavailable or Defender may not be installed"
+}
+
+# ============================================================================
+# v6.1: Defender for Endpoint Plan detection (P1 vs P2)
+# ============================================================================
+Write-Host "[MS-DefenderATP] Detecting Defender for Endpoint plan tier..." -ForegroundColor Yellow
+
+try {
+    $airReg = "HKLM:\SOFTWARE\Microsoft\Windows Advanced Threat Protection"
+    $organizationId = Get-RegValue -Path $airReg -Name "OrgId" -Default $null
+
+    if ($organizationId) {
+        Add-Result -Category "ATP - Plan Detection" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Tenant onboarded (OrgId present)" `
+            -Details "Plan tier (P1 vs P2) is determined at tenant licensing level and not directly inspectable at the endpoint" `
+            -CrossReferences @{ MS='MDE Onboarding' }
+
+        $airServices = Get-Service -Name "Sense" -ErrorAction SilentlyContinue
+        if ($airServices -and $airServices.Status -eq 'Running') {
+            Add-Result -Category "ATP - Plan Detection" -Status "Pass" `
+                -Severity "Low" `
+                -Message "Sense service running (P1 baseline minimum verified)" `
+                -CrossReferences @{ MS='Sense Service' }
+        }
+
+        $tvmIndicator = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows Advanced Threat Protection\ConfigurationManager" -Name "ConfigVersion" -Default $null
+        if ($tvmIndicator) {
+            Add-Result -Category "ATP - Plan Detection" -Status "Info" `
+                -Severity "Informational" `
+                -Message "Configuration management indicator present (suggests P2 capabilities)" `
+                -Details "Config version: $tvmIndicator. P2 features include AIR, TVM, and Live Response."
+        }
+    }
+    else {
+        Add-Result -Category "ATP - Plan Detection" -Status "Info" `
+            -Severity "Informational" `
+            -Message "No Defender for Endpoint tenant onboarding detected" `
+            -Details "OrgId registry value absent. Endpoint may use Defender Antivirus only."
+    }
+}
+catch {
+    Add-Result -Category "ATP - Plan Detection" -Status "Error" `
+        -Severity "Low" `
+        -Message "Plan tier detection failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Live Response capability verification
+# ============================================================================
+Write-Host "[MS-DefenderATP] Checking Live Response capability..." -ForegroundColor Yellow
+
+try {
+    $lrPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows Advanced Threat Protection"
+    $lrEnabled = Get-RegValue -Path $lrPath -Name "LiveResponseEnabled" -Default $null
+    $lrUnsignedScripts = Get-RegValue -Path $lrPath -Name "LiveResponseUnsignedScriptsEnabled" -Default $null
+
+    if ($lrEnabled -eq 1) {
+        Add-Result -Category "ATP - Live Response" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Live Response is enabled" `
+            -Details "SOC analysts can establish remote shell sessions for incident investigation" `
+            -CrossReferences @{ MS='Live Response'; NIST='IR-4' }
+    }
+    elseif ($lrEnabled -eq 0) {
+        Add-Result -Category "ATP - Live Response" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Live Response is explicitly disabled" `
+            -Details "Disabling Live Response limits incident response capability" `
+            -Remediation "Set-ItemProperty -Path '$lrPath' -Name 'LiveResponseEnabled' -Value 1 -Type DWord" `
+            -CrossReferences @{ MS='Live Response'; NIST='IR-4' }
+    }
+    else {
+        Add-Result -Category "ATP - Live Response" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Live Response policy not configured locally" `
+            -Details "Live Response setting may be controlled by tenant-level policy in the Defender portal"
+    }
+
+    if ($lrUnsignedScripts -eq 1) {
+        Add-Result -Category "ATP - Live Response" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Unsigned Live Response scripts are permitted" `
+            -Details "Allowing unsigned scripts increases risk if SOC credentials are compromised" `
+            -Remediation "Set-ItemProperty -Path '$lrPath' -Name 'LiveResponseUnsignedScriptsEnabled' -Value 0 -Type DWord" `
+            -CrossReferences @{ MS='Live Response Scripts' }
+    }
+    elseif ($lrUnsignedScripts -eq 0) {
+        Add-Result -Category "ATP - Live Response" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Unsigned Live Response scripts are restricted" `
+            -CrossReferences @{ MS='Live Response Scripts' }
+    }
+}
+catch {
+    Add-Result -Category "ATP - Live Response" -Status "Error" `
+        -Severity "Low" `
+        -Message "Live Response query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Defender for Cloud Apps integration indicators
+# ============================================================================
+Write-Host "[MS-DefenderATP] Checking Defender for Cloud Apps integration..." -ForegroundColor Yellow
+
+try {
+    $mcasIndicators = @(
+        "HKLM:\SOFTWARE\Microsoft\Cloud App Security",
+        "HKLM:\SOFTWARE\Policies\Microsoft\Cloud App Security"
+    )
+
+    $mcasFound = $false
+    foreach ($mcasPath in $mcasIndicators) {
+        if (Test-Path $mcasPath -ErrorAction SilentlyContinue) {
+            $mcasFound = $true
+            break
+        }
+    }
+
+    if ($mcasFound) {
+        Add-Result -Category "ATP - Cloud Apps Integration" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Defender for Cloud Apps integration indicators present" `
+            -Details "Endpoint discovery integration with MDCA detected" `
+            -CrossReferences @{ MS='MDCA Integration' }
+    }
+    else {
+        Add-Result -Category "ATP - Cloud Apps Integration" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Defender for Cloud Apps integration not detected at the endpoint" `
+            -Details "MDCA integration is typically configured at the tenant level; absence does not indicate the feature is unused"
+    }
+
+    $samplePath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows Advanced Threat Protection"
+    $sampleSubmission = Get-RegValue -Path $samplePath -Name "AllowSampleCollection" -Default $null
+    if ($sampleSubmission -eq 1) {
+        Add-Result -Category "ATP - Cloud Apps Integration" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Sample collection enabled (supports MDE/MDCA correlation)" `
+            -CrossReferences @{ MS='Sample Collection' }
+    }
+    elseif ($sampleSubmission -eq 0) {
+        Add-Result -Category "ATP - Cloud Apps Integration" -Status "Warning" `
+            -Severity "Low" `
+            -Message "Sample collection is disabled" `
+            -Details "Sample collection enables cloud-based analysis of suspicious files" `
+            -Remediation "Set-ItemProperty -Path '$samplePath' -Name 'AllowSampleCollection' -Value 1 -Type DWord" `
+            -CrossReferences @{ MS='Sample Collection' }
+    }
+}
+catch {
+    Add-Result -Category "ATP - Cloud Apps Integration" -Status "Error" `
+        -Severity "Low" `
+        -Message "Cloud Apps integration query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Custom IOC management state
+# ============================================================================
+Write-Host "[MS-DefenderATP] Checking custom IOC management..." -ForegroundColor Yellow
+
+try {
+    $ti = "HKLM:\SOFTWARE\Microsoft\Windows Advanced Threat Protection\TIIndicators"
+    if (Test-Path $ti -ErrorAction SilentlyContinue) {
+        $tiSubkeys = Get-ChildItem -Path $ti -ErrorAction SilentlyContinue
+        $iocCount = if ($tiSubkeys) { @($tiSubkeys).Count } else { 0 }
+        if ($iocCount -gt 0) {
+            Add-Result -Category "ATP - Custom IOC Management" -Status "Pass" `
+                -Severity "Low" `
+                -Message "Custom threat indicators present: $iocCount" `
+                -Details "Tenant-specific IOCs deployed to this endpoint" `
+                -CrossReferences @{ MS='Custom IOCs'; NIST='SI-3' }
+        }
+        else {
+            Add-Result -Category "ATP - Custom IOC Management" -Status "Info" `
+                -Severity "Informational" `
+                -Message "No custom IOCs deployed at the endpoint" `
+                -Details "IOCs may be managed at the tenant level in the Defender portal"
+        }
+    }
+    else {
+        Add-Result -Category "ATP - Custom IOC Management" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Custom IOC indicator registry path not present" `
+            -Details "TIIndicators registry hive absent; tenant-level IOCs may still be active"
+    }
+}
+catch {
+    Add-Result -Category "ATP - Custom IOC Management" -Status "Error" `
+        -Severity "Low" `
+        -Message "Custom IOC query failed: $($_.Exception.Message)"
+}
+
 # ============================================================================
 # Summary Statistics
 # ============================================================================
@@ -1015,15 +1689,11 @@ Write-Host "[MS-DefenderATP] Check Categories:" -ForegroundColor Cyan
 foreach ($cat in ($categoryStats.Keys | Sort-Object)) {
     Write-Host "[MS-DefenderATP]   $($cat.PadRight(45)): $($categoryStats[$cat].ToString().PadLeft(3)) checks" -ForegroundColor Gray
 }
-if ($failCount -gt 0) {
-    Write-Host "[MS-DefenderATP]" -ForegroundColor Cyan
-    Write-Host "[MS-DefenderATP] Failed Check Severity:" -ForegroundColor Cyan
-    foreach ($sev in @('Critical', 'High', 'Medium', 'Low', 'Informational')) {
-        if ($severityStats[$sev] -gt 0) {
-            $sevColor = switch ($sev) { 'Critical' { 'Red' }; 'High' { 'DarkYellow' }; 'Medium' { 'Yellow' }; 'Low' { 'Cyan' }; default { 'Gray' } }
-            Write-Host "[MS-DefenderATP]   $($sev.PadRight(15)): $($severityStats[$sev])" -ForegroundColor $sevColor
-        }
-    }
+Write-Host "[MS-DefenderATP]" -ForegroundColor Cyan
+Write-Host "[MS-DefenderATP] Failed Check Severity:" -ForegroundColor Cyan
+foreach ($sev in @('Critical', 'High', 'Medium', 'Low', 'Informational')) {
+    $sevColor = switch ($sev) { 'Critical' { 'Red' }; 'High' { 'DarkYellow' }; 'Medium' { 'Yellow' }; 'Low' { 'Cyan' }; default { 'Gray' } }
+    Write-Host "[MS-DefenderATP]   $($sev.PadRight(15)): $($severityStats[$sev])" -ForegroundColor $sevColor
 }
 Write-Host "[MS-DefenderATP] ======================================================================`n" -ForegroundColor Cyan
 
@@ -1068,7 +1738,3 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "  MS-DefenderATP module standalone test complete -- $($results.Count) checks" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
-
-# ================================================================================
-# End of Microsoft Defender for Endpoint (ATP) module (Module-MS-DefenderATP.ps1)
-# ================================================================================
