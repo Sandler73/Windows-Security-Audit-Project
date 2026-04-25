@@ -97,16 +97,27 @@ jobs:
       - name: Run single-module audit (core)
         shell: pwsh
         run: |
-          New-Item -Path .\test-output -ItemType Directory -Force | Out-Null
+          # The orchestrator constructs filenames as
+          # Windows-Security-Audit-{ComputerName}-{yyyy-MM-dd_HHmmss}.{ext}
+          # and treats -OutputPath as a directory hint (uses parent of any
+          # path passed). Each test step uses its own subdirectory so we can
+          # find the generated file unambiguously via wildcard.
+          New-Item -Path .\test-output\core -ItemType Directory -Force | Out-Null
           .\Windows-Security-Audit.ps1 `
             -Modules core `
             -OutputFormat JSON `
-            -OutputPath .\test-output\core.json `
+            -OutputPath .\test-output\core\out `
             -Quiet
-          if (-not (Test-Path .\test-output\core.json)) {
-            throw "core.json was not generated"
+          $jsonFiles = @(Get-ChildItem -Path .\test-output\core `
+                          -Filter 'Windows-Security-Audit-*.json')
+          if ($jsonFiles.Count -eq 0) {
+            Write-Host "Directory contents:"
+            Get-ChildItem .\test-output\core -Recurse | Format-Table -AutoSize
+            throw "No JSON output generated in .\test-output\core\"
           }
-          $data = Get-Content .\test-output\core.json -Raw | ConvertFrom-Json
+          $jsonPath = $jsonFiles[0].FullName
+          Write-Host "Generated: $jsonPath"
+          $data = Get-Content $jsonPath -Raw | ConvertFrom-Json
           $count = @($data.Results).Count
           Write-Host "core module emitted $count results"
           if ($count -lt 100) {
@@ -116,12 +127,18 @@ jobs:
       - name: Run multi-module sequential audit
         shell: pwsh
         run: |
+          New-Item -Path .\test-output\multi-seq -ItemType Directory -Force | Out-Null
           .\Windows-Security-Audit.ps1 `
             -Modules core,cis,stig `
             -OutputFormat JSON `
-            -OutputPath .\test-output\multi-seq.json `
+            -OutputPath .\test-output\multi-seq\out `
             -Quiet
-          $data = Get-Content .\test-output\multi-seq.json -Raw | ConvertFrom-Json
+          $jsonFiles = @(Get-ChildItem -Path .\test-output\multi-seq `
+                          -Filter 'Windows-Security-Audit-*.json')
+          if ($jsonFiles.Count -eq 0) {
+            throw "No JSON output generated in .\test-output\multi-seq\"
+          }
+          $data = Get-Content $jsonFiles[0].FullName -Raw | ConvertFrom-Json
           $count = @($data.Results).Count
           Write-Host "Sequential 3-module audit: $count results"
           if ($count -lt 500) {
@@ -131,18 +148,26 @@ jobs:
       - name: Run multi-module parallel audit
         shell: pwsh
         run: |
+          New-Item -Path .\test-output\multi-par -ItemType Directory -Force | Out-Null
           .\Windows-Security-Audit.ps1 `
             -Modules core,cis,stig `
             -OutputFormat JSON `
-            -OutputPath .\test-output\multi-par.json `
+            -OutputPath .\test-output\multi-par\out `
             -Parallel -Workers 2 `
             -Quiet
-          $data = Get-Content .\test-output\multi-par.json -Raw | ConvertFrom-Json
+          $parJsonFiles = @(Get-ChildItem -Path .\test-output\multi-par `
+                              -Filter 'Windows-Security-Audit-*.json')
+          if ($parJsonFiles.Count -eq 0) {
+            throw "No JSON output generated in .\test-output\multi-par\"
+          }
+          $data = Get-Content $parJsonFiles[0].FullName -Raw | ConvertFrom-Json
           $count = @($data.Results).Count
           Write-Host "Parallel 3-module audit: $count results"
 
           # Compare to sequential within 5%
-          $seqData = Get-Content .\test-output\multi-seq.json -Raw | ConvertFrom-Json
+          $seqJsonFiles = @(Get-ChildItem -Path .\test-output\multi-seq `
+                              -Filter 'Windows-Security-Audit-*.json')
+          $seqData = Get-Content $seqJsonFiles[0].FullName -Raw | ConvertFrom-Json
           $seqCount = @($seqData.Results).Count
           $delta = [math]::Abs($count - $seqCount)
           $tolerance = $seqCount * 0.05
@@ -155,32 +180,43 @@ jobs:
       - name: Run all-format multi-output audit
         shell: pwsh
         run: |
+          New-Item -Path .\test-output\all-format -ItemType Directory -Force | Out-Null
           .\Windows-Security-Audit.ps1 `
             -Modules core `
             -OutputFormat All `
-            -OutputPath .\test-output\all-format `
+            -OutputPath .\test-output\all-format\out `
             -Quiet
           @('html','json','csv','xml') | ForEach-Object {
-            $path = ".\test-output\all-format.$_"
-            if (-not (Test-Path $path)) {
-              throw "Expected output file missing: $path"
+            $files = @(Get-ChildItem -Path .\test-output\all-format `
+                          -Filter "Windows-Security-Audit-*.$_")
+            if ($files.Count -eq 0) {
+              Write-Host "Directory contents:"
+              Get-ChildItem .\test-output\all-format | Format-Table -AutoSize
+              throw "Expected $_ output file missing in .\test-output\all-format\"
             }
-            Write-Host "  Generated: $path"
+            Write-Host "  Generated: $($files[0].Name) ($($files[0].Length) bytes)"
           }
 
       - name: Run full 16-module audit (parallel)
         shell: pwsh
         run: |
+          New-Item -Path .\test-output\full -ItemType Directory -Force | Out-Null
           $start = Get-Date
           .\Windows-Security-Audit.ps1 `
             -Modules All `
             -OutputFormat JSON `
-            -OutputPath .\test-output\full.json `
+            -OutputPath .\test-output\full\out `
             -Parallel -Workers 4 `
             -Quiet
           $duration = (Get-Date) - $start
 
-          $data = Get-Content .\test-output\full.json -Raw | ConvertFrom-Json
+          $jsonFiles = @(Get-ChildItem -Path .\test-output\full `
+                          -Filter 'Windows-Security-Audit-*.json')
+          if ($jsonFiles.Count -eq 0) {
+            throw "No JSON output generated in .\test-output\full\"
+          }
+          $jsonPath = $jsonFiles[0].FullName
+          $data = Get-Content $jsonPath -Raw | ConvertFrom-Json
           $count = @($data.Results).Count
           $modules = @($data.Results.Module | Sort-Object -Unique)
 
@@ -197,13 +233,17 @@ jobs:
             throw "Only $($modules.Count) modules contributed results (expected >=14)"
           }
 
+          # Persist path for next step's schema validation
+          $jsonPath | Out-File -FilePath .\test-output\full\jsonpath.txt -Encoding ASCII
+
       - name: Verify auto-logging (no -LogFile specified)
         shell: pwsh
         run: |
+          New-Item -Path .\test-output\autolog -ItemType Directory -Force | Out-Null
           .\Windows-Security-Audit.ps1 `
             -Modules core `
             -OutputFormat JSON `
-            -OutputPath .\test-output\autolog-audit.json `
+            -OutputPath .\test-output\autolog\out `
             -Quiet
           $logFiles = Get-ChildItem -Path .\logs -Filter 'audit-*.log' -ErrorAction SilentlyContinue
           if ($logFiles.Count -eq 0) {
@@ -214,7 +254,11 @@ jobs:
       - name: Validate JSON schema across all formats
         shell: pwsh
         run: |
-          $jsonPath = '.\test-output\full.json'
+          # Read the path captured by the previous full-audit step
+          $jsonPath = (Get-Content .\test-output\full\jsonpath.txt -Raw).Trim()
+          if (-not (Test-Path $jsonPath)) {
+            throw "Full-audit JSON not found at: $jsonPath"
+          }
           $data = Get-Content $jsonPath -Raw | ConvertFrom-Json
 
           $required = @('Module','Category','Status','Severity','Message',
@@ -287,15 +331,21 @@ jobs:
       - name: Run audit (parallel, all 16 modules)
         shell: pwsh
         run: |
+          $outDir = ".\test-output\${{ matrix.runner.label }}"
+          New-Item -Path $outDir -ItemType Directory -Force | Out-Null
           .\Windows-Security-Audit.ps1 `
             -Modules All `
             -OutputFormat All `
-            -OutputPath .\test-output\${{ matrix.runner.label }} `
+            -OutputPath "$outDir\out" `
             -Parallel -Workers 4 `
             -Quiet
-          if (-not (Test-Path ".\test-output\${{ matrix.runner.label }}.json")) {
-            throw "JSON output not generated"
+          $jsonFiles = @(Get-ChildItem -Path $outDir -Filter 'Windows-Security-Audit-*.json')
+          if ($jsonFiles.Count -eq 0) {
+            Write-Host "Directory contents:"
+            Get-ChildItem $outDir | Format-Table -AutoSize
+            throw "JSON output not generated in $outDir"
           }
+          Write-Host "Generated: $($jsonFiles[0].Name)"
 
       - name: Upload artifacts
         if: always()
