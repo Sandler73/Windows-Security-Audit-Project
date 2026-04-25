@@ -1,0 +1,30 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: 💬 Discussions
+    url: https://github.com/Sandler73/Windows-Security-Audit-Project/discussions
+    about: |
+      Use Discussions for usage questions, ideas, sharing audit results, configuration help,
+      and general conversation. Please check the wiki and existing discussions before opening
+      a new thread.
+
+  - name: 📖 Wiki & Documentation
+    url: https://github.com/Sandler73/Windows-Security-Audit-Project/wiki
+    about: |
+      Most usage questions are answered in the wiki — see Quick Start, Usage Guide,
+      Module Documentation, Framework Reference, FAQ, and Troubleshooting Guide.
+
+  - name: 🔒 Security Vulnerability (CONFIDENTIAL)
+    url: https://github.com/Sandler73/Windows-Security-Audit-Project/security/advisories/new
+    about: |
+      Found a security vulnerability in the audit framework itself (e.g., a way the script
+      could be tricked into modifying the system without consent, an injection vector, or a
+      privilege-escalation path)? DO NOT file a public Issue. Use the private Security
+      Advisory form. See SECURITY.md for the full disclosure policy.
+
+  - name: 📚 Compliance Framework Misinterpretation
+    url: https://github.com/Sandler73/Windows-Security-Audit-Project/discussions/categories/framework-discussion
+    about: |
+      For nuanced discussions about how a compliance framework should be interpreted (rather
+      than a clear-cut bug), please use the Framework Discussion category. These conversations
+      benefit from community input rather than tracker triage.
