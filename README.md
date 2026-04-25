@@ -9,7 +9,7 @@
 ![Checks](https://img.shields.io/badge/checks-3,994-brightgreen.svg)
 ![Frameworks](https://img.shields.io/badge/frameworks-16-orange.svg)
 
-**Comprehensive Module-Based Multi-Framework Windows Security Assessment, Auditing, and Remediation Tool**
+**Module-Based Multi-Framework Windows Security Assessment, Auditing, and Remediation Tool**
 
 [Overview](#-overview) • [Key Features](#-key-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Remediation Capabilities](#-remediation-capabilities) • [Contributing](#-contributing)
 
