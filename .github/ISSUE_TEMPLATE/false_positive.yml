@@ -1,0 +1,187 @@
+name: ❌ False Positive (incorrect Fail/Warning)
+description: A check reports Fail or Warning when the system is actually compliant
+title: "[FP]: <module> - <check description>"
+labels: ["false-positive", "bug", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A false positive is when a check reports **Fail** or **Warning** but the system is
+        actually configured correctly per the framework's intent.
+
+        **This is different from disagreeing with a framework's prescription.** If the check
+        is correctly reflecting what the framework says, but you believe the framework is
+        wrong, that's a Discussion, not a False Positive — open a thread in the Framework
+        Discussion category instead.
+
+        False positives are taken seriously because they erode trust in the entire audit
+        output. Please be precise.
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: I have manually verified the system is actually compliant with the underlying control
+          required: true
+        - label: I have re-run with `-LogLevel Debug -Verbose` and reviewed the log output
+          required: true
+        - label: I am running the latest stable release
+          required: true
+        - label: This is a check producing wrong results — not a disagreement with the framework's prescription
+          required: true
+
+  - type: input
+    id: framework-control-id
+    attributes:
+      label: Framework control identifier reported by the check
+      placeholder: "STIG V-220929 / CIS 2.3.1.1 / NIST AC-2(3)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: module
+    attributes:
+      label: Module
+      options:
+        - acsc
+        - cis
+        - cisa
+        - cmmc
+        - core
+        - enisa
+        - gdpr
+        - hipaa
+        - iso27001
+        - ms
+        - ms-defenderatp
+        - nist
+        - nsa
+        - pcidss
+        - soc2
+        - stig
+    validations:
+      required: true
+
+  - type: input
+    id: check-category
+    attributes:
+      label: Check Category (from result output)
+      description: The exact `Category` field from the result object
+      placeholder: "STIG - V-220929 (CAT I)"
+    validations:
+      required: true
+
+  - type: input
+    id: check-message
+    attributes:
+      label: Check Message (from result output)
+      description: The exact `Message` field — copy verbatim
+      placeholder: "Guest account is ENABLED"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: reported-status
+    attributes:
+      label: Reported status
+      options:
+        - Fail
+        - Warning
+    validations:
+      required: true
+
+  - type: dropdown
+    id: expected-status
+    attributes:
+      label: Expected status (your assertion)
+      options:
+        - Pass
+        - Info
+        - Warning (different severity / phrasing)
+        - Error (check should error, not silently fail)
+        - NotApplicable (check does not apply to this system type)
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-system-state
+    attributes:
+      label: Actual system state (what you verified manually)
+      description: |
+        Show the exact PowerShell / cmd commands you ran to manually verify the system's state.
+        This is the most important section -- without it, the issue cannot be triaged.
+      placeholder: |
+        ```powershell
+        PS> Get-LocalUser -Name 'Guest' | Select-Object Name, Enabled, SID
+        Name  Enabled  SID
+        ----  -------  ---
+        Guest False    S-1-5-21-1234567-501
+        ```
+
+        The Guest account is disabled, but the audit reports it as ENABLED.
+      render: powershell
+    validations:
+      required: true
+
+  - type: textarea
+    id: log-output
+    attributes:
+      label: Audit log output
+      description: |
+        Re-run with `-LogLevel Debug -Verbose -Modules <module>` and paste the relevant log
+        section showing how the check read system state.
+      render: text
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Audit framework version
+      placeholder: "6.1.2"
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: Windows version + build
+      placeholder: "Windows 11 24H2, build 26100"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: domain-state
+    attributes:
+      label: Domain/workgroup state
+      options:
+        - Standalone (workgroup)
+        - Domain-joined member
+        - Domain Controller
+        - Hybrid Azure AD joined
+        - Azure AD joined
+        - Other / unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: theory
+    attributes:
+      label: Theory / suggested fix (optional)
+      description: |
+        If you have a hypothesis for why the check is wrong (e.g., the registry path is
+        version-dependent, the cmdlet returns a different shape on Server Core, etc.),
+        describe it here.
+    validations:
+      required: false
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround (optional)
+      description: Have you found a way to bypass or correct the false positive?
+    validations:
+      required: false
