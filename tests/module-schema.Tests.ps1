@@ -179,7 +179,11 @@ Describe 'Module Check Counts (v6.1.2 baseline)' {
         $script:CountTestCases = @($script:ExpectedCounts.GetEnumerator() | ForEach-Object {
             @{
                 Name = $_.Key
-                Path = Join-Path $PSScriptRoot '..\modules' $_.Key
+                # Use nested 2-arg Join-Path; the 3-arg form
+                # `Join-Path A B C` is PowerShell 7+ only and breaks discovery
+                # under Windows PowerShell 5.1 with "A positional parameter
+                # cannot be found that accepts argument '<file>'".
+                Path = Join-Path (Join-Path $PSScriptRoot '..\modules') $_.Key
                 ExpectedCount = $_.Value
             }
         })
