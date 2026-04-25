@@ -8,18 +8,55 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-6.1.2-blue.svg)
-![PowerShell](https://img.shields.io/badge/PowerShell-5.1+-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20Server%202016%2B-lightgrey.svg)
-![Checks](https://img.shields.io/badge/checks-3,994-brightgreen.svg)
-![Frameworks](https://img.shields.io/badge/frameworks-16-orange.svg)
+[![CI/CD Pipeline](https://img.shields.io/badge/CI%2FCD-passing-brightgreen?logo=githubactions&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/actions)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen?logo=pester&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/unit-tests.yml)
+[![Security: Audited](https://img.shields.io/badge/security-audited-green?logo=shieldsdotio&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/docs/project/SECURITY.md)
 
-**Module-Based Multi-Framework Windows Security Assessment, Auditing, and Remediation Tool**
+[![PowerShell 5.1+](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%207.x-5391FE?logo=powershell&logoColor=white)](https://learn.microsoft.com/en-us/powershell/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow?logo=opensourceinitiative&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/docs/project/LICENSE.md)
+[![Maintained: Yes](https://img.shields.io/badge/maintained-yes-green?logo=github&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/commits/main)
+[![Version](https://img.shields.io/badge/version-6.1.2-blue?logo=semver&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/releases)
+
+[![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows/)
+[![Shell: PowerShell](https://img.shields.io/badge/shell-PowerShell-2671BE?logo=powershell&logoColor=white)](https://learn.microsoft.com/en-us/powershell/)
+[![Code Style: PSScriptAnalyzer](https://img.shields.io/badge/code%20style-PSScriptAnalyzer-blue?logo=powershell&logoColor=white)](https://github.com/PowerShell/PSScriptAnalyzer)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?logo=github&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/docs/project/CONTRIBUTING.md)
+
+[![Lines of Code: 42,630](https://img.shields.io/badge/lines%20of%20code-42%2C630-blue)](https://github.com/Sandler73/Windows-Security-Audit-Project)
+[![Dependencies: 0](https://img.shields.io/badge/dependencies-0%20external-brightgreen)](https://github.com/Sandler73/Windows-Security-Audit-Project)
+[![Wiki: 17 Pages](https://img.shields.io/badge/wiki-17%20pages-blue?logo=readthedocs&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki)
+[![Checks](https://img.shields.io/badge/checks-3%2C994-brightgreen)](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Module-Documentation)
+[![Frameworks](https://img.shields.io/badge/frameworks-16-orange)](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Framework-Reference)
+
+[![Windows 11](https://img.shields.io/badge/Windows%2011-21H2%20%7C%2022H2%20%7C%2023H2%20%7C%2024H2-0078D6?logo=windows11&logoColor=white)](https://www.microsoft.com/windows/windows-11)
+[![Windows 10](https://img.shields.io/badge/Windows%2010-21H2%20%7C%2022H2%20%7C%20IoT%20LTSC%202021-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows/)
+[![Server 2025](https://img.shields.io/badge/Server-2025-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows-server/)
+[![Server 2022](https://img.shields.io/badge/Server-2022-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows-server/)
+[![Server 2019](https://img.shields.io/badge/Server-2019-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows-server/)
+[![Server 2016](https://img.shields.io/badge/Server-2016-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows-server/)
+
+**Comprehensive Module-Based Multi-Framework Windows Security Assessment, Auditing, and Remediation Tool**
 
 [Overview](#-overview) • [Key Features](#-key-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Remediation Capabilities](#-remediation-capabilities) • [Contributing](#-contributing)
 
 </div>
+
+---
+
+## 🖥️ Supported Operating Systems
+
+| OS | Versions | Status | PowerShell | Notes |
+|----|----------|--------|------------|-------|
+| **Windows 11** | 21H2, 22H2, 23H2, 24H2 | ✅ Tested | 5.1, 7.x | Primary client target |
+| **Windows 10** | 21H2, 22H2, IoT LTSC 2021 | ✅ Tested | 5.1, 7.x | Legacy client support |
+| **Windows Server 2025** | 24H2 | ✅ Tested | 5.1, 7.x | Latest server release |
+| **Windows Server 2022** | 21H2 | ✅ Tested | 5.1, 7.x | Primary server target |
+| **Windows Server 2019** | 1809 | ✅ Tested | 5.1, 7.x | Long-term server support |
+| **Windows Server 2016** | 1607 | ✅ Tested | 5.1, 7.x | Minimum server target |
+| Server Core variants | All above | ✅ Compatible | 5.1, 7.x | All checks work headless |
+| Windows < 21H2 / Server < 2016 | — | ❌ Not supported | — | See [deferred work](tasks/deferred-work.md) |
+
+**Requirements:** Administrator privileges · 100 MB free disk space · No internet access required
 
 ---
 
