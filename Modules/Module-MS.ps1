@@ -1,6 +1,6 @@
 # Module-MS.ps1
 # Microsoft Security Baseline Compliance Module
-# Version: 6.0 - Comprehensive Edition
+# Version: 6.1.2 - Comprehensive Edition
 # Based on Microsoft Security Compliance Toolkit and Security Baselines
 
 <#
@@ -91,7 +91,7 @@
     - RemediateIssues: Remediation flag
 
 .NOTES
-    Version: 6.0 - Comprehensive Edition
+    Version: 6.1.2 - Comprehensive Edition
     Based on: 
     - Microsoft Security Compliance Toolkit (SCT)
     - Microsoft Security Baselines (Windows 10/11, Server 2016/2019/2022)
@@ -117,7 +117,7 @@ param(
 
 $moduleName = "MS"
 $results = @()
-$moduleVersion = "6.0"
+$moduleVersion = "6.1.2"
 
 # Helper function to add results with consistent formatting
 function Add-Result {
@@ -127,6 +127,7 @@ function Add-Result {
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
+        [ValidateSet("Critical","High","Medium","Low","Informational")]
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
@@ -157,7 +158,7 @@ function Get-RegValue {
         $regItem = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
         if ($regItem) { return $regItem.$Name }
     }
-    catch { }
+    catch { <# Expected: item may not exist #> }
     return $Default
 }
 
@@ -3134,6 +3135,434 @@ try {
 
 Write-Host "`n[MS] Sections 1-32 checks complete" -ForegroundColor Cyan
 
+
+# ============================================================================
+# v6.1: Windows 11 24H2 / Server 2025 baseline alignment
+# ============================================================================
+Write-Host "[MS] Checking Windows 11 24H2 / Server 2025 baseline alignment..." -ForegroundColor Yellow
+
+try {
+    $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue
+    if ($os) {
+        $build = [int]$os.BuildNumber
+        $product = $os.ProductType
+
+        if ($build -ge 26100) {
+            Add-Result -Category "MS - Modern Baseline" -Status "Pass" `
+                -Severity "Low" `
+                -Message "OS at Windows 11 24H2 / Server 2025 build level (build $build)" `
+                -Details "Microsoft Security Baseline 24H2 / Server 2025 applicable" `
+                -CrossReferences @{ MS='Baseline 24H2/2025'; Build="$build" }
+        }
+        elseif ($build -ge 22631) {
+            Add-Result -Category "MS - Modern Baseline" -Status "Pass" `
+                -Severity "Low" `
+                -Message "OS at Windows 11 23H2 build level (build $build)" `
+                -Details "Microsoft Security Baseline 23H2 applicable; consider 24H2 upgrade path" `
+                -CrossReferences @{ MS='Baseline 23H2'; Build="$build" }
+        }
+        elseif ($build -ge 22000) {
+            Add-Result -Category "MS - Modern Baseline" -Status "Info" `
+                -Severity "Informational" `
+                -Message "OS at Windows 11 21H2/22H2 baseline (build $build)" `
+                -CrossReferences @{ MS='Baseline 21H2/22H2' }
+        }
+        elseif ($build -ge 19041) {
+            Add-Result -Category "MS - Modern Baseline" -Status "Info" `
+                -Severity "Informational" `
+                -Message "OS at Windows 10 baseline (build $build); plan for Windows 11 transition by October 2025" `
+                -CrossReferences @{ MS='Baseline Win10' }
+        }
+        elseif ($build -ge 17763) {
+            Add-Result -Category "MS - Modern Baseline" -Status "Warning" `
+                -Severity "Medium" `
+                -Message "OS at Windows 10 1809/Server 2019 baseline (build $build)" `
+                -CrossReferences @{ MS='Baseline 1809/2019' }
+        }
+        else {
+            Add-Result -Category "MS - Modern Baseline" -Status "Fail" `
+                -Severity "High" `
+                -Message "OS below current support window (build $build)" `
+                -CrossReferences @{ MS='Unsupported OS' }
+        }
+    }
+}
+catch {
+    Add-Result -Category "MS - Modern Baseline" -Status "Error" `
+        -Severity "Medium" `
+        -Message "OS baseline detection failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Microsoft Edge security baseline
+# ============================================================================
+Write-Host "[MS] Checking Microsoft Edge security baseline..." -ForegroundColor Yellow
+
+try {
+    $edgePath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
+
+    $smartScreen = Get-RegValue -Path $edgePath -Name "SmartScreenEnabled" -Default $null
+    if ($smartScreen -eq 1) {
+        Add-Result -Category "MS - Edge Baseline" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Edge SmartScreen enabled" `
+            -CrossReferences @{ MS='Edge SmartScreen' }
+    }
+    elseif ($smartScreen -eq 0) {
+        Add-Result -Category "MS - Edge Baseline" -Status "Fail" `
+            -Severity "High" `
+            -Message "Edge SmartScreen explicitly disabled" `
+            -Remediation "Set-ItemProperty -Path '$edgePath' -Name 'SmartScreenEnabled' -Value 1 -Type DWord" `
+            -CrossReferences @{ MS='Edge SmartScreen' }
+    }
+    else {
+        Add-Result -Category "MS - Edge Baseline" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Edge SmartScreen policy not configured (default enabled)" `
+            -CrossReferences @{ MS='Edge SmartScreen' }
+    }
+
+    $smartScreenOverride = Get-RegValue -Path $edgePath -Name "PreventSmartScreenPromptOverride" -Default $null
+    if ($smartScreenOverride -eq 1) {
+        Add-Result -Category "MS - Edge Baseline" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Edge SmartScreen prompt override prevented for malicious sites" `
+            -CrossReferences @{ MS='Edge SmartScreen Override' }
+    }
+    else {
+        Add-Result -Category "MS - Edge Baseline" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Edge SmartScreen override prevention not configured" `
+            -Remediation "Set-ItemProperty -Path '$edgePath' -Name 'PreventSmartScreenPromptOverride' -Value 1 -Type DWord" `
+            -CrossReferences @{ MS='Edge SmartScreen Override' }
+    }
+
+    $passwordMgr = Get-RegValue -Path $edgePath -Name "PasswordManagerEnabled" -Default $null
+    if ($passwordMgr -eq 0) {
+        Add-Result -Category "MS - Edge Baseline" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Edge built-in password manager disabled (enterprise password tooling expected)" `
+            -CrossReferences @{ MS='Edge Password Mgr' }
+    }
+    elseif ($passwordMgr -eq 1 -or $null -eq $passwordMgr) {
+        Add-Result -Category "MS - Edge Baseline" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Edge built-in password manager enabled (default)" `
+            -CrossReferences @{ MS='Edge Password Mgr' }
+    }
+
+    $autofillCC = Get-RegValue -Path $edgePath -Name "AutofillCreditCardEnabled" -Default $null
+    if ($autofillCC -eq 0) {
+        Add-Result -Category "MS - Edge Baseline" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Edge credit card autofill disabled" `
+            -CrossReferences @{ MS='Edge CC Autofill' }
+    }
+    else {
+        Add-Result -Category "MS - Edge Baseline" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Edge credit card autofill not explicitly disabled" `
+            -Remediation "Set-ItemProperty -Path '$edgePath' -Name 'AutofillCreditCardEnabled' -Value 0 -Type DWord" `
+            -CrossReferences @{ MS='Edge CC Autofill' }
+    }
+
+    $tlsMin = Get-RegValue -Path $edgePath -Name "SSLVersionMin" -Default $null
+    if ($tlsMin -eq 'tls1.2' -or $tlsMin -eq 'tls1.3') {
+        Add-Result -Category "MS - Edge Baseline" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Edge minimum TLS version: $tlsMin" `
+            -CrossReferences @{ MS='Edge TLS Min' }
+    }
+    elseif ($null -eq $tlsMin) {
+        Add-Result -Category "MS - Edge Baseline" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Edge minimum TLS version not configured (browser default)" `
+            -CrossReferences @{ MS='Edge TLS Min' }
+    }
+    else {
+        Add-Result -Category "MS - Edge Baseline" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Edge minimum TLS version below 1.2: $tlsMin" `
+            -Remediation "Set-ItemProperty -Path '$edgePath' -Name 'SSLVersionMin' -Value 'tls1.2' -Type String" `
+            -CrossReferences @{ MS='Edge TLS Min' }
+    }
+
+    $cookiesPolicy = Get-RegValue -Path $edgePath -Name "DefaultCookiesSetting" -Default $null
+    if ($cookiesPolicy -eq 4) {
+        Add-Result -Category "MS - Edge Baseline" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Edge cookies session-only by default" `
+            -CrossReferences @{ MS='Edge Cookies' }
+    }
+}
+catch {
+    Add-Result -Category "MS - Edge Baseline" -Status "Error" `
+        -Severity "Medium" `
+        -Message "Edge baseline assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Microsoft 365 Apps for Enterprise security baseline
+# ============================================================================
+Write-Host "[MS] Checking Microsoft 365 Apps security baseline..." -ForegroundColor Yellow
+
+try {
+    $officePath = "HKLM:\SOFTWARE\Policies\Microsoft\Office"
+    $officePresent = Test-Path $officePath -ErrorAction SilentlyContinue
+
+    if ($officePresent) {
+        Add-Result -Category "MS - M365 Apps Baseline" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Office policy infrastructure present" `
+            -CrossReferences @{ MS='M365 Apps Baseline' }
+
+        $excelPath = "HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Excel\Security"
+        $excelMacroBlock = Get-RegValue -Path $excelPath -Name "VBAWarnings" -Default $null
+        if ($excelMacroBlock -eq 4) {
+            Add-Result -Category "MS - M365 Apps Baseline" -Status "Pass" `
+                -Severity "High" `
+                -Message "Excel: macros disabled with no notification (most restrictive)" `
+                -CrossReferences @{ MS='Office Macros' }
+        }
+        elseif ($excelMacroBlock -eq 3) {
+            Add-Result -Category "MS - M365 Apps Baseline" -Status "Pass" `
+                -Severity "Medium" `
+                -Message "Excel: digitally signed macros only" `
+                -CrossReferences @{ MS='Office Macros' }
+        }
+        elseif ($null -ne $excelMacroBlock) {
+            Add-Result -Category "MS - M365 Apps Baseline" -Status "Warning" `
+                -Severity "High" `
+                -Message "Excel: macro setting permissive (VBAWarnings=$excelMacroBlock)" `
+                -CrossReferences @{ MS='Office Macros' }
+        }
+
+        $internetMacroBlock = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Excel\Security" -Name "BlockContentExecutionFromInternet" -Default $null
+        if ($internetMacroBlock -eq 1) {
+            Add-Result -Category "MS - M365 Apps Baseline" -Status "Pass" `
+                -Severity "High" `
+                -Message "Excel: macro execution from Internet zone blocked" `
+                -CrossReferences @{ MS='Office Internet Macros' }
+        }
+        else {
+            Add-Result -Category "MS - M365 Apps Baseline" -Status "Warning" `
+                -Severity "High" `
+                -Message "Excel: Internet macro block not configured" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Excel\Security' -Name 'BlockContentExecutionFromInternet' -Value 1 -Type DWord" `
+                -CrossReferences @{ MS='Office Internet Macros' }
+        }
+
+        $protectedView = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Word\Security\ProtectedView" -Name "DisableInternetFilesInPV" -Default $null
+        if ($protectedView -eq 0 -or $null -eq $protectedView) {
+            Add-Result -Category "MS - M365 Apps Baseline" -Status "Pass" `
+                -Severity "Medium" `
+                -Message "Word: Protected View enabled for Internet files" `
+                -CrossReferences @{ MS='Office Protected View' }
+        }
+        elseif ($protectedView -eq 1) {
+            Add-Result -Category "MS - M365 Apps Baseline" -Status "Fail" `
+                -Severity "High" `
+                -Message "Word: Protected View disabled for Internet files" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Word\Security\ProtectedView' -Name 'DisableInternetFilesInPV' -Value 0 -Type DWord" `
+                -CrossReferences @{ MS='Office Protected View' }
+        }
+    }
+    else {
+        Add-Result -Category "MS - M365 Apps Baseline" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Microsoft Office policy infrastructure not present (Office not installed or unmanaged)" `
+            -CrossReferences @{ MS='M365 Apps Baseline' }
+    }
+}
+catch {
+    Add-Result -Category "MS - M365 Apps Baseline" -Status "Error" `
+        -Severity "Medium" `
+        -Message "M365 Apps baseline assessment failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Microsoft Security Compliance Toolkit (MSCT) signal extraction
+# ============================================================================
+Write-Host "[MS] Checking Security Compliance Toolkit deployment indicators..." -ForegroundColor Yellow
+
+try {
+    $lgpoMarker = Test-Path "HKLM:\SOFTWARE\LGPO" -ErrorAction SilentlyContinue
+    if ($lgpoMarker) {
+        Add-Result -Category "MS - SCT Indicators" -Status "Info" `
+            -Severity "Informational" `
+            -Message "LGPO marker present (Microsoft Security Compliance Toolkit deployment evidence)" `
+            -Details "Microsoft Security Compliance Toolkit (SCT) provides Local Group Policy Object (LGPO) deployment of baselines" `
+            -CrossReferences @{ MS='SCT'; Tool='LGPO' }
+    }
+
+    $policyManager = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\PolicyManager\current\device" -Name "EnrolledBy" -Default $null
+    if ($policyManager) {
+        Add-Result -Category "MS - SCT Indicators" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Policy Manager evidence: $policyManager (Intune/CSP deployment likely)" `
+            -CrossReferences @{ MS='Policy Manager' }
+    }
+
+    $gpoEnforcementPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State"
+    if (Test-Path $gpoEnforcementPath -ErrorAction SilentlyContinue) {
+        Add-Result -Category "MS - SCT Indicators" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Group Policy state infrastructure present" `
+            -CrossReferences @{ MS='Group Policy' }
+    }
+}
+catch {
+    Add-Result -Category "MS - SCT Indicators" -Status "Error" `
+        -Severity "Low" `
+        -Message "SCT indicator detection failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Pluton security processor and DRTM signals
+# ============================================================================
+Write-Host "[MS] Checking Pluton and DRTM signals..." -ForegroundColor Yellow
+
+try {
+    $plutonPath = "HKLM:\SYSTEM\CurrentControlSet\Services\PlutonHsm"
+    if (Test-Path $plutonPath -ErrorAction SilentlyContinue) {
+        Add-Result -Category "MS - Pluton/DRTM" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Pluton security processor service present" `
+            -CrossReferences @{ MS='Pluton' }
+    }
+    else {
+        Add-Result -Category "MS - Pluton/DRTM" -Status "Info" `
+            -Severity "Informational" `
+            -Message "Pluton not detected (hardware-dependent feature)" `
+            -CrossReferences @{ MS='Pluton' }
+    }
+
+    $drtm = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard" -Name "ConfigureSystemGuardLaunch" -Default $null
+    if ($drtm -eq 1) {
+        Add-Result -Category "MS - Pluton/DRTM" -Status "Pass" `
+            -Severity "High" `
+            -Message "Dynamic Root of Trust for Measurement (DRTM) configured" `
+            -Details "System Guard Secure Launch protects firmware integrity through DRTM" `
+            -CrossReferences @{ MS='DRTM'; NIST='SI-7' }
+    }
+    elseif ($drtm -eq 0) {
+        Add-Result -Category "MS - Pluton/DRTM" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "DRTM explicitly disabled" `
+            -CrossReferences @{ MS='DRTM' }
+    }
+    else {
+        Add-Result -Category "MS - Pluton/DRTM" -Status "Info" `
+            -Severity "Informational" `
+            -Message "DRTM policy not configured" `
+            -CrossReferences @{ MS='DRTM' }
+    }
+}
+catch {
+    Add-Result -Category "MS - Pluton/DRTM" -Status "Error" `
+        -Severity "Low" `
+        -Message "Pluton/DRTM query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Smart App Control state
+# ============================================================================
+Write-Host "[MS] Checking Smart App Control state..." -ForegroundColor Yellow
+
+try {
+    $sacPath = "HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy"
+    $sacState = Get-RegValue -Path $sacPath -Name "VerifiedAndReputablePolicyState" -Default $null
+
+    switch ($sacState) {
+        0 {
+            Add-Result -Category "MS - Smart App Control" -Status "Info" `
+                -Severity "Informational" `
+                -Message "Smart App Control: Off" `
+                -Details "Smart App Control restricts execution to verified-and-reputable applications; once turned off it cannot be re-enabled without OS reinstall" `
+                -CrossReferences @{ MS='Smart App Control' }
+        }
+        1 {
+            Add-Result -Category "MS - Smart App Control" -Status "Pass" `
+                -Severity "High" `
+                -Message "Smart App Control: Enforce mode" `
+                -CrossReferences @{ MS='Smart App Control' }
+        }
+        2 {
+            Add-Result -Category "MS - Smart App Control" -Status "Info" `
+                -Severity "Informational" `
+                -Message "Smart App Control: Evaluation mode" `
+                -CrossReferences @{ MS='Smart App Control' }
+        }
+        default {
+            Add-Result -Category "MS - Smart App Control" -Status "Info" `
+                -Severity "Informational" `
+                -Message "Smart App Control: state not assessable (Win11 22H2+ feature)" `
+                -CrossReferences @{ MS='Smart App Control' }
+        }
+    }
+}
+catch {
+    Add-Result -Category "MS - Smart App Control" -Status "Error" `
+        -Severity "Low" `
+        -Message "Smart App Control query failed: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# v6.1: Microsoft cloud-managed update channels
+# ============================================================================
+Write-Host "[MS] Checking cloud-managed update channels..." -ForegroundColor Yellow
+
+try {
+    $ufbPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"
+    $branch = Get-RegValue -Path $ufbPath -Name "BranchReadinessLevel" -Default $null
+    switch ($branch) {
+        16 {
+            Add-Result -Category "MS - Update Channels" -Status "Pass" `
+                -Severity "Low" `
+                -Message "Update channel: General Availability (semi-annual production)" `
+                -CrossReferences @{ MS='Update Channel' }
+        }
+        32 {
+            Add-Result -Category "MS - Update Channels" -Status "Info" `
+                -Severity "Informational" `
+                -Message "Update channel: General Availability with deferral" `
+                -CrossReferences @{ MS='Update Channel' }
+        }
+        $null {
+            Add-Result -Category "MS - Update Channels" -Status "Info" `
+                -Severity "Informational" `
+                -Message "Update channel policy not configured (Windows Update default)" `
+                -CrossReferences @{ MS='Update Channel' }
+        }
+        default {
+            Add-Result -Category "MS - Update Channels" -Status "Warning" `
+                -Severity "Medium" `
+                -Message "Update channel non-standard: BranchReadinessLevel=$branch" `
+                -CrossReferences @{ MS='Update Channel' }
+        }
+    }
+
+    $deferQuality = Get-RegValue -Path $ufbPath -Name "DeferQualityUpdatesPeriodInDays" -Default $null
+    if ($null -ne $deferQuality -and $deferQuality -gt 30) {
+        Add-Result -Category "MS - Update Channels" -Status "Warning" `
+            -Severity "High" `
+            -Message "Quality update deferral exceeds 30 days ($deferQuality days)" `
+            -Details "Extended deferral leaves the system exposed to known vulnerabilities" `
+            -CrossReferences @{ MS='Update Deferral' }
+    }
+    elseif ($null -ne $deferQuality) {
+        Add-Result -Category "MS - Update Channels" -Status "Pass" `
+            -Severity "Low" `
+            -Message "Quality update deferral within reasonable bounds ($deferQuality days)" `
+            -CrossReferences @{ MS='Update Deferral' }
+    }
+}
+catch {
+    Add-Result -Category "MS - Update Channels" -Status "Error" `
+        -Severity "Low" `
+        -Message "Update channel query failed: $($_.Exception.Message)"
+}
+
 # ============================================================================
 # Summary Statistics
 # ============================================================================
@@ -3173,15 +3602,11 @@ Write-Host "[MS] Check Categories:" -ForegroundColor Cyan
 foreach ($cat in ($categoryStats.Keys | Sort-Object)) {
     Write-Host "[MS]   $($cat.PadRight(45)): $($categoryStats[$cat].ToString().PadLeft(3)) checks" -ForegroundColor Gray
 }
-if ($failCount -gt 0) {
-    Write-Host "[MS]" -ForegroundColor Cyan
-    Write-Host "[MS] Failed Check Severity:" -ForegroundColor Cyan
-    foreach ($sev in @('Critical', 'High', 'Medium', 'Low', 'Informational')) {
-        if ($severityStats[$sev] -gt 0) {
-            $sevColor = switch ($sev) { 'Critical' { 'Red' }; 'High' { 'DarkYellow' }; 'Medium' { 'Yellow' }; 'Low' { 'Cyan' }; default { 'Gray' } }
-            Write-Host "[MS]   $($sev.PadRight(15)): $($severityStats[$sev])" -ForegroundColor $sevColor
-        }
-    }
+Write-Host "[MS]" -ForegroundColor Cyan
+Write-Host "[MS] Failed Check Severity:" -ForegroundColor Cyan
+foreach ($sev in @('Critical', 'High', 'Medium', 'Low', 'Informational')) {
+    $sevColor = switch ($sev) { 'Critical' { 'Red' }; 'High' { 'DarkYellow' }; 'Medium' { 'Yellow' }; 'Low' { 'Cyan' }; default { 'Gray' } }
+    Write-Host "[MS]   $($sev.PadRight(15)): $($severityStats[$sev])" -ForegroundColor $sevColor
 }
 Write-Host "[MS] ======================================================================`n" -ForegroundColor Cyan
 
@@ -3226,7 +3651,3 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "  MS module standalone test complete -- $($results.Count) checks" -ForegroundColor Cyan
     Write-Host "$("=" * 80)`n" -ForegroundColor White
 }
-
-# ============================================================================
-# End of Microsoft Security Baseline Module (Module-MS.ps1)
-# ============================================================================
