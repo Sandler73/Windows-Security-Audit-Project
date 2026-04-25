@@ -5,9 +5,10 @@
 #   - PSScriptAnalyzer (PowerShell linting rules)
 #   - ASCII-only character verification
 #   - BOM-byte detection
-#   - Brace balance verification
+#   - PowerShell AST syntax validation (catches unbalanced braces,
+#     parens, brackets, and any other syntactic error)
 #   - $null left-side comparison enforcement
-#   - Reserved variable shadowing detection
+#   - Single 'return $results' enforcement per module
 #
 # Runs on the latest GitHub-hosted Windows runner. Light/fast (<60s).
 # ============================================================================
@@ -141,8 +142,8 @@ jobs:
             Write-Host "No BOM bytes detected in any .ps1 file"
           }
 
-  brace-balance:
-    name: Brace balance check
+  syntax-validation:
+    name: PowerShell syntax validation
     runs-on: windows-latest
     timeout-minutes: 5
 
@@ -150,47 +151,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify brace balance in all .ps1 files
+      - name: Verify all .ps1 files parse without syntax errors
         shell: pwsh
         run: |
-          # Use PowerShell tokenizer to count only structural braces
-          # (excludes braces inside strings, comments, regex pattern literals).
+          # Use the PowerShell AST parser. If a file has unbalanced braces,
+          # parens, brackets, or any other syntax error, the parser reports
+          # it. Manual brace counting via regex cannot reliably distinguish
+          # structural braces from braces inside strings, comments, here-
+          # strings, or sub-expression interpolations like "$($var)".
           $offenders = @()
           Get-ChildItem -Recurse -Include *.ps1 | ForEach-Object {
-            $content = Get-Content -Path $_.FullName -Raw
-            $tokenErrors = $null
-            try {
-              $tokens = [System.Management.Automation.PSParser]::Tokenize($content, [ref]$tokenErrors)
-            } catch {
-              $offenders += [PSCustomObject]@{
-                Path = $_.FullName.Replace($PWD.Path, '.')
-                Open = 0
-                Close = 0
-                Delta = 0
-                Note = "Tokenizer error: $($_.Exception.Message)"
-              }
-              return
-            }
-
-            $groupStarts = @($tokens | Where-Object { $_.Type -eq 'GroupStart' -and $_.Content -eq '{' })
-            $groupEnds   = @($tokens | Where-Object { $_.Type -eq 'GroupEnd'   -and $_.Content -eq '}' })
-
-            if ($groupStarts.Count -ne $groupEnds.Count) {
-              $offenders += [PSCustomObject]@{
-                Path = $_.FullName.Replace($PWD.Path, '.')
-                Open = $groupStarts.Count
-                Close = $groupEnds.Count
-                Delta = $groupStarts.Count - $groupEnds.Count
+            $parseErrors = $null
+            $parseTokens = $null
+            $null = [System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName, [ref]$parseTokens, [ref]$parseErrors
+            )
+            if ($parseErrors -and $parseErrors.Count -gt 0) {
+              foreach ($err in $parseErrors) {
+                $offenders += [PSCustomObject]@{
+                  Path    = $_.FullName.Replace($PWD.Path, '.')
+                  Line    = $err.Extent.StartLineNumber
+                  Column  = $err.Extent.StartColumnNumber
+                  Message = $err.Message
+                }
               }
             }
           }
 
           if ($offenders.Count -gt 0) {
-            $offenders | Format-Table -AutoSize
-            Write-Error "Found $($offenders.Count) files with unbalanced structural braces"
+            $offenders | Format-Table -AutoSize -Wrap
+            Write-Error "Found $($offenders.Count) syntax error(s) across .ps1 files"
             exit 1
           } else {
-            Write-Host "All .ps1 files have balanced structural braces"
+            Write-Host "All .ps1 files parse without syntax errors"
           }
 
   null-comparisons:
