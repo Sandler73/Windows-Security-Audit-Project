@@ -1,0 +1,174 @@
+name: ➕ Check Request
+description: Request a new check within an existing compliance module
+title: "[Check]: <module> - <brief description>"
+labels: ["new-check", "enhancement", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to request a new individual check within one of the 16 existing
+        modules. For requests to add an entirely new compliance framework, use the
+        Compliance Module Request template instead.
+
+        New checks are usually small, targeted additions (~5-30 lines of PowerShell). The
+        more concrete framework references and verification details you provide, the more
+        likely a maintainer can implement it quickly.
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: I have run the latest version and confirmed this check does not already exist
+          required: true
+        - label: This check has a clear pass/fail criterion verifiable from local Windows state
+          required: true
+        - label: The check is rooted in a publicly published security framework or vendor guidance
+          required: true
+
+  - type: dropdown
+    id: target-module
+    attributes:
+      label: Target module
+      description: Which module should this check be added to?
+      options:
+        - acsc
+        - cis
+        - cisa
+        - cmmc
+        - core
+        - enisa
+        - gdpr
+        - hipaa
+        - iso27001
+        - ms
+        - ms-defenderatp
+        - nist
+        - nsa
+        - pcidss
+        - soc2
+        - stig
+    validations:
+      required: true
+
+  - type: input
+    id: framework-control-id
+    attributes:
+      label: Framework control identifier
+      description: The official control ID this check maps to
+      placeholder: "STIG V-220929 / CIS 2.3.1.1 / NIST AC-2(3) / CMMC AC.L1-3.1.1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: control-text
+    attributes:
+      label: Control text / requirement
+      description: The exact wording from the published framework (paraphrase if quoting at length)
+      placeholder: |
+        STIG V-220929: "Windows Server 2022 must disable the built-in guest account."
+        Discussion: A system faces an increased vulnerability threat if the built-in
+        guest account is not disabled...
+    validations:
+      required: true
+
+  - type: input
+    id: framework-source-url
+    attributes:
+      label: Framework source URL
+      placeholder: "https://stigviewer.com/stig/microsoft_windows_server_2022/2024-09-12/finding/V-220929"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Proposed severity
+      description: Where does this check fit in the Critical / High / Medium / Low / Informational scale?
+      options:
+        - Critical
+        - High
+        - Medium
+        - Low
+        - Informational
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Technical verification approach
+      description: |
+        How would the script verify this on a live Windows system? Be specific. Registry path,
+        WMI class, cmdlet, command — whatever you'd use to confirm pass/fail manually.
+      placeholder: |
+        ```powershell
+        $guest = Get-LocalUser -Name 'Guest' -ErrorAction SilentlyContinue
+        if ($guest -and -not $guest.Enabled) {
+            # PASS: Guest is disabled
+        } else {
+            # FAIL: Guest is enabled or missing entirely
+        }
+        ```
+
+        Alternative: query SID `S-1-5-21-*-501` to handle renamed Guest accounts.
+    validations:
+      required: true
+
+  - type: textarea
+    id: pass-criterion
+    attributes:
+      label: Pass criterion
+      description: What state of the system constitutes a Pass?
+      placeholder: "Guest account exists AND `Enabled` property is `$false`"
+    validations:
+      required: true
+
+  - type: textarea
+    id: fail-criterion
+    attributes:
+      label: Fail criterion
+      description: What state constitutes a Fail?
+      placeholder: |
+        Guest account exists AND `Enabled` property is `$true`
+        OR Guest account does not exist AND no SID-501 alternative is found
+    validations:
+      required: true
+
+  - type: textarea
+    id: remediation
+    attributes:
+      label: Suggested remediation
+      description: Single-line PowerShell command that fixes the failure
+      placeholder: "Disable-LocalUser -Name 'Guest'"
+      render: powershell
+    validations:
+      required: false
+
+  - type: textarea
+    id: cross-references
+    attributes:
+      label: Cross-framework mappings
+      description: |
+        Same control under other framework identifiers — populates the `CrossReferences`
+        field on every result.
+      placeholder: |
+        STIG: V-220929 (CAT I)
+        NIST: AC-2(3)
+        CIS: 2.3.1.1
+        CMMC: AC.L1-3.1.1
+        ISO 27001: A.9.2.1
+    validations:
+      required: false
+
+  - type: textarea
+    id: edge-cases
+    attributes:
+      label: Edge cases to consider
+      description: |
+        Cases where the check may need to behave differently — feature unavailable on
+        certain Windows editions, AD vs. workgroup variants, server vs. client, etc.
+    validations:
+      required: false
