@@ -23,8 +23,20 @@ on:
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
+    inputs:
+      include_self_hosted:
+        description: 'Include self-hosted runners (requires registered runners)'
+        required: false
+        default: false
+        type: boolean
   schedule:
     - cron: '0 6 * * 0'  # Weekly Sunday 6am UTC
+
+# Cancel in-progress runs when a new push lands on the same branch / PR.
+# Prevents queue pile-up under the GitHub Free plan's 20-concurrent-job cap.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -321,12 +333,17 @@ jobs:
           retention-days: 14
 
   # --------------------------------------------------------------------------
+  # --------------------------------------------------------------------------
   # Self-hosted Windows client / older Server runners
   # --------------------------------------------------------------------------
   # See unit-tests.yml header for runner-label conventions.
+  # GATING: Only runs when explicitly requested via workflow_dispatch input
+  # OR on the weekly schedule. Without a gate, these matrix jobs queue
+  # forever waiting for runners that may not exist on a given installation.
   # --------------------------------------------------------------------------
   e2e-self-hosted:
     name: E2E (${{ matrix.runner.os }})
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.include_self_hosted == true)
     runs-on:
       - self-hosted
       - ${{ matrix.runner.label }}
