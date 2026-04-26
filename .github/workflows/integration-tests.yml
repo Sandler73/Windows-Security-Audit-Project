@@ -261,25 +261,54 @@ jobs:
           }
           $data = Get-Content $jsonPath -Raw | ConvertFrom-Json
 
-          $required = @('Module','Category','Status','Severity','Message',
-                        'Details','Remediation','CrossReferences','Timestamp')
+          # Validate against the actual JSON contract emitted by Export-JsonReport
+          # (Windows-Security-Audit.ps1 ~ line 1610). The orchestrator deliberately
+          # uses snake_case / lowercase keys in JSON output (matching JSON style
+          # conventions), distinct from the PascalCase used in PowerShell objects
+          # internally and in XML output.
+          #
+          # Required JSON-output schema (per Export-JsonReport in orchestrator):
+          $required = @('module','category','status','severity','message',
+                        'details','remediation','cross_references','timestamp')
           $validStatus = @('Pass','Fail','Warning','Info','Error')
           $validSeverity = @('Critical','High','Medium','Low','Informational')
 
-          $schemaErrors = 0
-          foreach ($r in $data.Results) {
-            $names = $r.PSObject.Properties.Name
-            foreach ($f in $required) {
-              if ($names -notcontains $f) { $schemaErrors++ }
+          # Top-level structure
+          $topLevel = $data.PSObject.Properties.Name
+          foreach ($key in @('metadata','summary','results')) {
+            if ($topLevel -notcontains $key) {
+              throw "Top-level JSON key missing: '$key' (found: $($topLevel -join ', '))"
             }
-            if ($validStatus -notcontains $r.Status) { $schemaErrors++ }
-            if ($validSeverity -notcontains $r.Severity) { $schemaErrors++ }
           }
 
-          if ($schemaErrors -gt 0) {
-            throw "Schema validation found $schemaErrors errors"
+          # Per-result schema
+          $schemaErrors = New-Object System.Collections.Generic.List[string]
+          $resultIndex = 0
+          foreach ($r in $data.results) {
+            $names = $r.PSObject.Properties.Name
+            foreach ($f in $required) {
+              if ($names -notcontains $f) {
+                $schemaErrors.Add("Result[$resultIndex] missing field '$f'")
+              }
+            }
+            if ($validStatus -notcontains $r.status) {
+              $schemaErrors.Add("Result[$resultIndex] has invalid status='$($r.status)'")
+            }
+            if ($validSeverity -notcontains $r.severity) {
+              $schemaErrors.Add("Result[$resultIndex] has invalid severity='$($r.severity)'")
+            }
+            $resultIndex++
           }
-          Write-Host "Schema validation: all results conform"
+
+          if ($schemaErrors.Count -gt 0) {
+            Write-Host "First 10 schema errors:"
+            $schemaErrors | Select-Object -First 10 | ForEach-Object { Write-Host "  $_" }
+            Write-Host ""
+            Write-Host "Sample of first result object (for diagnosis):"
+            $data.results[0] | ConvertTo-Json -Depth 3 | Write-Host
+            throw "Schema validation found $($schemaErrors.Count) errors across $resultIndex results"
+          }
+          Write-Host "Schema validation: all $resultIndex results conform to JSON schema"
 
       - name: Upload audit artifacts
         if: always()
