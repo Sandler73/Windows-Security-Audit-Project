@@ -22,18 +22,29 @@ on:
   workflow_dispatch:
     inputs:
       include_self_hosted:
-        description: 'Include self-hosted runners'
+        description: 'Include self-hosted runners (requires registered runners)'
         required: false
-        default: 'true'
+        default: false
         type: boolean
   schedule:
     - cron: '0 6 * * 0'  # Weekly Sunday 6am UTC
   pull_request:
     branches: [main]
     paths:
+      # Trigger only on changes to production code, NOT tests/docs/CI.
+      # This is heavyweight (~30-50 min wall time, 6+ jobs across the
+      # matrix) and consumes significant slots from the 20-job concurrency
+      # cap, so we only run it on production-code PRs.
       - 'Windows-Security-Audit.ps1'
       - 'shared_components/**'
       - 'modules/**'
+
+# Cancel in-progress runs when a new push lands on the same branch / PR.
+# Critical for this workflow: each matrix run holds 6+ slots for 30-50 min,
+# which can starve the Lint/Unit/Integration workflows under the 20-job cap.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -214,7 +225,7 @@ jobs:
   # --------------------------------------------------------------------------
   full-self-hosted-pwsh:
     name: Full PS7 (${{ matrix.runner.os }})
-    if: github.event_name == 'schedule' || github.event.inputs.include_self_hosted == 'true'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.include_self_hosted == true)
     runs-on:
       - self-hosted
       - ${{ matrix.runner.label }}
@@ -283,7 +294,7 @@ jobs:
   # --------------------------------------------------------------------------
   full-self-hosted-windowspowershell:
     name: Full WPS5.1 (${{ matrix.runner.os }})
-    if: github.event_name == 'schedule' || github.event.inputs.include_self_hosted == 'true'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.include_self_hosted == true)
     runs-on:
       - self-hosted
       - ${{ matrix.runner.label }}
