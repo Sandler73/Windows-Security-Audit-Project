@@ -585,6 +585,57 @@ as Export-JsonReport in `Windows-Security-Audit.ps1` writes them. When
 validating XML output, mirror the PascalCase elements. When validating
 in-memory module results before export, use PascalCase.
 
+**9. GitHub Actions 20-concurrent-job cap on the Free plan**
+
+The GitHub Free plan caps total simultaneous Actions jobs at 20 across
+ALL workflows ALL repos for the billing entity (per
+https://docs.github.com/en/billing/reference/actions-runner-pricing).
+When this is exceeded, additional jobs sit in "queued" status until
+slots free up. Long-running jobs (Full Matrix takes 30-50 minutes per
+matrix combination) can starve quick-feedback workflows (Lint, Unit
+Tests, Integration) for the entire duration.
+
+The CI/CD pipeline in this project uses three patterns to avoid this:
+
+```yaml
+# Pattern 1: concurrency groups cancel old runs on new push
+# Place at workflow level, BEFORE jobs:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Pattern 2: gate self-hosted matrix jobs on explicit opt-in
+# Without this gate, GitHub queues jobs forever waiting for
+# self-hosted runners that may not be registered:
+jobs:
+  pester-self-hosted-pwsh:
+    if: github.event_name == 'workflow_dispatch' && inputs.include_self_hosted == true
+    runs-on: [self-hosted, ${{ matrix.runner.label }}]
+    # ...
+
+# Pattern 3: matching workflow_dispatch input (default: false)
+on:
+  workflow_dispatch:
+    inputs:
+      include_self_hosted:
+        description: 'Include self-hosted runners (requires registered runners)'
+        required: false
+        default: false
+        type: boolean
+```
+
+Job demand budget for this project:
+- Lint:                  6 jobs (push)
+- Unit Tests hosted:     7 jobs (push)
+- Integration hosted:    3 jobs (push)
+- Full Matrix hosted:    7 jobs (PR on production code paths only)
+- TOTAL on push to main: 16 jobs (under 20 cap)
+- TOTAL with open PR:    23 jobs (over cap, but Full Matrix path-filtered)
+
+Self-hosted matrix jobs (16 each in unit-tests + integration-tests + full-matrix
+= 48 phantom queued jobs if they weren't gated) are now gated behind
+`workflow_dispatch` opt-in to prevent queue starvation.
+
 ## Submission Process
 
 ### Pull Request Guidelines
