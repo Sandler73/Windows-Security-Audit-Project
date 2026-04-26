@@ -554,6 +554,37 @@ that consumes contributor time. When in doubt, set the threshold to 25%
 of the production target -- this catches genuine regressions (modules
 not running at all) while tolerating environmental variation.
 
+**8. Result-object schema casing differs between PowerShell, JSON, and XML**
+
+The audit framework uses different field-name conventions for different
+output channels. This is intentional to follow each format's idiomatic
+style, but it surprises test authors who assume a single schema:
+
+| Channel | Convention | Example fields |
+|---------|------------|----------------|
+| In-memory PSCustomObject (modules) | PascalCase | `Module`, `CrossReferences`, `Timestamp` |
+| XML output (Export-XMLResults) | PascalCase | `<Module>`, `<CrossReferences>`, `<Timestamp>` |
+| JSON output (Export-JsonReport) | snake_case + lowercase | `module`, `cross_references`, `timestamp` |
+| HTML output (Export-HtmlReport) | n/a (presentation) | rendered as table cells |
+
+When validating field NAMES via `-notcontains` or `-Contain`, you must
+use the convention of the channel under test. PowerShell PROPERTY ACCESS
+is case-insensitive (so `$data.Results` finds the JSON's `results` key),
+but string comparison via `-notcontains` is case-insensitive only --
+NOT separator-insensitive. So `'CrossReferences' -ne 'cross_references'`
+even with case-insensitive comparison.
+
+This caused a CI false-failure where a JSON schema validator checked for
+PascalCase field names against snake_case JSON output, producing exactly
+1 error per result (1557 errors for 1557 results -- the misleading 1:1
+ratio confirmed it was a single check firing per result, not a 9x
+field-missing issue).
+
+**Rule:** When validating JSON output, mirror the snake_case keys exactly
+as Export-JsonReport in `Windows-Security-Audit.ps1` writes them. When
+validating XML output, mirror the PascalCase elements. When validating
+in-memory module results before export, use PascalCase.
+
 ## Submission Process
 
 ### Pull Request Guidelines
