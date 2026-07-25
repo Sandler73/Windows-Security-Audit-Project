@@ -139,9 +139,16 @@ function New-AssessmentRecord {
     $count = @($Items).Count
     $truncated = $count -gt $script:AssessmentItemCap
     $kept = if ($truncated) { @($Items | Select-Object -First $script:AssessmentItemCap) } else { @($Items) }
+    # Force array semantics. PowerShell unrolls a single-element array during
+    # property assignment, which made Items a scalar for one-item collections:
+    # a consumer indexing .Items[0] then received the first CHARACTER of a
+    # string rather than the item. The unary comma preserves the array.
+    if ($null -eq $kept) { $kept = @() }
+    $keptArray = [System.Collections.ArrayList]::new()
+    foreach ($i in $kept) { [void]$keptArray.Add($i) }
     return [PSCustomObject]@{
         Name        = $Name
-        Items       = $kept
+        Items       = ,($keptArray.ToArray())
         Count       = $count
         Truncated   = $truncated
         CollectedAt = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
