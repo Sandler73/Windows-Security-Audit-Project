@@ -109,10 +109,10 @@ Describe 'Module File Encoding and Structure' {
         $content | Should -Match '#>'
     }
 
-    It 'Module <Name> declares Version 6.1.2' -ForEach $script:ModuleTestCases {
+    It 'Module <Name> declares the current ScriptVersion' -ForEach $script:ModuleTestCases {
         param($Path, $Name)
         $content = Get-Content -Path $Path -Raw
-        $content | Should -Match '\$moduleVersion\s*=\s*[''"]6\.1\.2[''"]'
+        $content | Should -Match '\$moduleVersion\s*=\s*[''"]$([regex]::Escape($script:ExpectedVersion))[''"]'
     }
 
     It 'Module <Name> declares $moduleName variable' -ForEach $script:ModuleTestCases {
@@ -233,18 +233,18 @@ Describe 'Project-Wide Aggregate Counts' {
 }
 
 Describe 'Orchestrator and Shared Library Schema' {
-    It 'Windows-Security-Audit.ps1 exists and matches v6.1.2' {
+    It 'Windows-Security-Audit.ps1 exists and matches the current ScriptVersion' {
         $orchPath = Join-Path $PSScriptRoot '..\Windows-Security-Audit.ps1'
         Test-Path $orchPath | Should -Be $true
         $content = Get-Content -Path $orchPath -Raw
-        $content | Should -Match '\$script:ScriptVersion\s*=\s*[''"]6\.1\.2[''"]'
+        $content | Should -Match '\$script:ScriptVersion\s*=\s*[''"]$([regex]::Escape($script:ExpectedVersion))[''"]'
     }
 
-    It 'shared_components/audit-common.ps1 exists and matches v6.1.2' {
+    It 'shared_components/audit-common.ps1 exists and matches the current ScriptVersion' {
         $libPath = Join-Path $PSScriptRoot '..\shared_components\audit-common.ps1'
         Test-Path $libPath | Should -Be $true
         $content = Get-Content -Path $libPath -Raw
-        $content | Should -Match 'COMMON_LIB_VERSION\s*=\s*[''"]6\.1\.2[''"]'
+        $content | Should -Match 'COMMON_LIB_VERSION\s*=\s*[''"]$([regex]::Escape($script:ExpectedVersion))[''"]'
     }
 
     It 'Orchestrator declares Show-DetailedHelp function' {
