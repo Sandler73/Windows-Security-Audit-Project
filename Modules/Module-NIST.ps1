@@ -90,17 +90,17 @@ param(
 $moduleName = "NIST"
 
 # ============================================================================
-# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# Memoized host-state accessors.
 # One live query per module run instead of one per check site. The helpers
 # return the SAME object the direct call would return (raw call, no error
 # swallowing beyond -ErrorAction SilentlyContinue already present at the
 # migrated sites), so call-site semantics are preserved exactly. Sites using
-# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# ErrorAction Stop inside try/catch are intentionally NOT migrated.
 # Standalone-safe: no shared-library dependency.
 # ============================================================================
 $script:HFMemo = @{}
 
-# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# Consult the run-wide HostFacts registry before
 # querying. HostFacts already collects these objects once per RUN; without this
 # lookup each module re-queried them once per MODULE. Raw objects are reused
 # rather than derived scalar facts, so every property a call site reads is still
@@ -315,9 +315,9 @@ function Get-SecurityPolicy {
 }
 
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Cache-aware registry helper
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 $useCache = ($null -ne $SharedData.Cache)
 function Get-RegValue {
     param([string]$Path, [string]$Name, $Default = $null)
@@ -4820,7 +4820,7 @@ catch { <# Expected: item may not exist #> }
 
 
 # ============================================================================
-# v6.1: NIST SP 800-53 Rev 5 control coverage extension
+# NIST SP 800-53 Rev 5 control coverage extension
 # ============================================================================
 Write-Host "[NIST] Checking SP 800-53 Rev 5 extended control coverage..." -ForegroundColor Yellow
 
@@ -4904,7 +4904,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: NIST CSF 2.0 function and category mapping
+# NIST CSF 2.0 function and category mapping
 # ============================================================================
 Write-Host "[NIST] Checking NIST Cybersecurity Framework 2.0 mapping..." -ForegroundColor Yellow
 
@@ -4982,7 +4982,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: NIST SP 800-171 Rev 3 alignment
+# NIST SP 800-171 Rev 3 alignment
 # ============================================================================
 Write-Host "[NIST] Checking SP 800-171 Rev 3 alignment..." -ForegroundColor Yellow
 
@@ -5039,7 +5039,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: NIST SP 800-207 Zero Trust Architecture
+# NIST SP 800-207 Zero Trust Architecture
 # ============================================================================
 Write-Host "[NIST] Checking SP 800-207 Zero Trust Architecture..." -ForegroundColor Yellow
 
@@ -5096,7 +5096,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: NIST SP 800-161 Supply Chain Risk Management
+# NIST SP 800-161 Supply Chain Risk Management
 # ============================================================================
 Write-Host "[NIST] Checking SP 800-161 supply chain risk management indicators..." -ForegroundColor Yellow
 
@@ -5146,7 +5146,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: FedRAMP Rev 5 baseline indicators
+# FedRAMP Rev 5 baseline indicators
 # ============================================================================
 Write-Host "[NIST] Checking FedRAMP Rev 5 baseline technical indicators..." -ForegroundColor Yellow
 
@@ -5189,7 +5189,7 @@ catch {
 }
 
 # ============================================================================
-# v6.3.0 currency (PR-3): NIST SP 800-53 Release 5.2.0 (Aug 27, 2025)
+# Currency: NIST SP 800-53 Release 5.2.0 (Aug 27, 2025)
 # New: SA-15(13) Logging Syntax, SA-24 Design for Cyber Resiliency,
 # SI-2(7) Flaw Remediation | Root Cause Analysis. Revised: SI-7(12) now covers
 # all organization-defined software. None are in 800-53B baselines; they are
