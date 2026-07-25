@@ -15,6 +15,14 @@
 #>
 
 BeforeAll {
+    # Version is derived from the orchestrator, which the project treats as the
+    # single source of truth. Pinning it here made these assertions fail on
+    # every release after the pin was written.
+    $script:OrchPath = Join-Path $PSScriptRoot '..\Windows-Security-Audit.ps1'
+    $orchSrc = Get-Content $script:OrchPath -Raw
+    if ($orchSrc -match '\$script:ScriptVersion\s*=\s*"([^"]+)"') { $script:ExpectedVersion = $Matches[1] }
+    else { throw "Unable to derive ScriptVersion from $script:OrchPath" }
+
     $script:ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
     $script:OrchPath    = Join-Path $script:ProjectRoot 'Windows-Security-Audit.ps1'
 
@@ -36,9 +44,9 @@ Describe 'Orchestrator File Existence' {
         $content | Should -Match '\.EXAMPLE'
     }
 
-    It 'Orchestrator declares ScriptVersion 6.1.2' {
+    It 'Orchestrator declares the current ScriptVersion' {
         $content = Get-Content -Path $script:OrchPath -Raw
-        $content | Should -Match '\$script:ScriptVersion\s*=\s*[''"]6\.1\.2[''"]'
+        $content | Should -Match '\$script:ScriptVersion\s*=\s*[''"]$([regex]::Escape($script:ExpectedVersion))[''"]'
     }
 
     It 'Orchestrator parses without syntax errors' {
@@ -210,7 +218,7 @@ Describe 'Output File Generation' {
     }
 }
 
-Describe 'Auto-Logging Behavior (v6.1.2)' {
+Describe 'Auto-Logging Behavior' {
     It 'Creates logs directory automatically when -LogFile not specified' {
         $tempRoot = Join-Path $TestDrive ('autolog-' + [guid]::NewGuid().ToString('N'))
         New-Item -Path $tempRoot -ItemType Directory -Force | Out-Null
