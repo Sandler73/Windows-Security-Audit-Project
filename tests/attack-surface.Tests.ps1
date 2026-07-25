@@ -64,16 +64,16 @@ Describe 'Deterministic domain resolution' {
 
 Describe 'Exposure scoring (reference-faithful)' {
     It 'gives a domain with a single Critical Fail a score of 100' {
-        $s = Build-AttackSurface -AllResults @(New-ASResult -Category 'Remote Desktop' -Message 'RDP open' -Status 'Fail' -Severity 'Critical')
+        $s = New-AttackSurface -AllResults @(New-ASResult -Category 'Remote Desktop' -Message 'RDP open' -Status 'Fail' -Severity 'Critical')
         ($s.Domains | Where-Object Name -eq 'Remote Access').ExposureScore | Should -Be 100
     }
     It 'counts a Pass in considered but contributes zero exposure' {
-        $s = Build-AttackSurface -AllResults @(New-ASResult -Category 'Password Policy' -Message 'password length ok' -Status 'Pass')
+        $s = New-AttackSurface -AllResults @(New-ASResult -Category 'Password Policy' -Message 'password length ok' -Status 'Pass')
         $s.TotalFindingsConsidered | Should -Be 1
         ($s.Domains | Where-Object Name -eq 'Authentication & Access').ExposureScore | Should -Be 0
     }
     It 'excludes unmapped findings from consideration entirely' {
-        $s = Build-AttackSurface -AllResults @(New-ASResult -Category 'Unrelated' -Message 'zzz')
+        $s = New-AttackSurface -AllResults @(New-ASResult -Category 'Unrelated' -Message 'zzz')
         $s.TotalFindingsConsidered | Should -Be 0
     }
     It 'assigns ratings by the reference thresholds' {
@@ -87,7 +87,7 @@ Describe 'Exposure scoring (reference-faithful)' {
 
 Describe 'Report rendering' {
     BeforeAll {
-        $s = Build-AttackSurface -AllResults @(
+        $s = New-AttackSurface -AllResults @(
             New-ASResult -Category 'Remote Desktop' -Message 'RDP open' -Status 'Fail' -Severity 'High' -Remediation 'fix'
             New-ASResult -Category 'Network' -Message 'firewall port exposed' -Status 'Warning' -Severity 'Medium'
         )
@@ -134,7 +134,7 @@ Describe 'Report rendering' {
         $AsHtml | Should -Match 'attack-surface report build'
     }
     It 'HTML-encodes finding content' {
-        $s2 = Build-AttackSurface -AllResults @(New-ASResult -Category 'Remote Desktop' -Message '<script>alert(1)</script>' -Status 'Fail')
+        $s2 = New-AttackSurface -AllResults @(New-ASResult -Category 'Remote Desktop' -Message '<script>alert(1)</script>' -Status 'Fail')
         $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("wsa-as2-" + [guid]::NewGuid().ToString('N') + ".html")
         try {
             Export-AttackSurfaceReport -Surface $s2 -OutputPath $tmp -ExecutionInfo @{} | Out-Null
