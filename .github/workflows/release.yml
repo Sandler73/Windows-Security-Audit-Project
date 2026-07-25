@@ -4,7 +4,7 @@
 # Triggered on tag push (v*). Performs:
 #   1. Version sync verification (tag matches $script:ScriptVersion)
 #   2. Final lint pass on tagged commit
-#   3. Smoke test on windows-2025 + windows-2022
+#   3. Smoke test on windows-2025 + windows-latest
 #   4. Build release archive (zip)
 #   5. Compute checksums (SHA-256 + MD5)
 #   6. Generate release notes from CHANGELOG.md
@@ -110,7 +110,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: [windows-2025, windows-2022]
+        os: [windows-2025, windows-latest]
 
     steps:
       - name: Checkout
