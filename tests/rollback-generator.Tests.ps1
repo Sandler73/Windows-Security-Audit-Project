@@ -52,7 +52,7 @@ Describe 'Capture is read-only and never throws' {
 Describe 'Plan capture' {
     It 'produces a record per capture spec and a none-record for capture-less steps' {
         Mock Get-LocalUser { [PSCustomObject]@{ Name='Guest'; Enabled=$true } }
-        $plan = Build-RemediationPlan -Topics @('GuestAccount','DefenderSignatures')
+        $plan = New-RemediationPlan -Topics @('GuestAccount','DefenderSignatures')
         $records = Invoke-PlanCapture -Plan $plan
         @($records | Where-Object { $_.Topic -eq 'DefenderSignatures' -and $_.Type -eq 'none' }).Count | Should -Be 1
     }
