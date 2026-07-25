@@ -20,7 +20,7 @@ BeforeAll {
 
     # Version is derived from the orchestrator, which the project treats as the
     # single source of truth for ScriptVersion. Deriving it here means a version
-    # bump cannot leave this baseline stale (it previously pinned 6.1.2 while the
+    # Bump cannot leave this baseline stale (it previously pinned 6.1.2 while the
     # tree had moved on).
     $script:OrchestratorPath = Join-Path $PSScriptRoot '..\Windows-Security-Audit.ps1'
     $orchSrc = Get-Content $script:OrchestratorPath -Raw
@@ -39,7 +39,7 @@ BeforeAll {
         throw "Modules directory not found at: $script:ModulesDir"
     }
 
-    $script:ModuleFiles = Get-ChildItem -Path $script:ModulesDir -Filter 'module-*.ps1'
+    $script:ModuleFiles = Get-ChildItem -Path $script:ModulesDir -Recurse -Filter 'module-*.ps1'
 }
 
 Describe 'Module Inventory' {
@@ -112,7 +112,8 @@ Describe 'Module File Encoding and Structure' {
     It 'Module <Name> declares the current ScriptVersion' -ForEach $script:ModuleTestCases {
         param($Path, $Name)
         $content = Get-Content -Path $Path -Raw
-        $content | Should -Match '\$moduleVersion\s*=\s*[''"]$([regex]::Escape($script:ExpectedVersion))[''"]'
+        $pattern = '\$moduleVersion\s*=\s*[''"]' + [regex]::Escape($script:ExpectedVersion) + '[''"]'
+        $content | Should -Match $pattern
     }
 
     It 'Module <Name> declares $moduleName variable' -ForEach $script:ModuleTestCases {
@@ -170,7 +171,7 @@ Describe 'Module Code Quality' {
     }
 }
 
-Describe 'Module Check Counts (v6.3.0 baseline)' {
+Describe 'Module Check Counts (baseline)' {
     BeforeDiscovery {
         $script:ExpectedCounts = @{
             'module-acsc.ps1'            = 170
@@ -237,14 +238,16 @@ Describe 'Orchestrator and Shared Library Schema' {
         $orchPath = Join-Path $PSScriptRoot '..\Windows-Security-Audit.ps1'
         Test-Path $orchPath | Should -Be $true
         $content = Get-Content -Path $orchPath -Raw
-        $content | Should -Match '\$script:ScriptVersion\s*=\s*[''"]$([regex]::Escape($script:ExpectedVersion))[''"]'
+        $pattern = '\$script:ScriptVersion\s*=\s*[''"]' + [regex]::Escape($script:ExpectedVersion) + '[''"]'
+        $content | Should -Match $pattern
     }
 
     It 'shared_components/audit-common.ps1 exists and matches the current ScriptVersion' {
         $libPath = Join-Path $PSScriptRoot '..\shared_components\audit-common.ps1'
         Test-Path $libPath | Should -Be $true
         $content = Get-Content -Path $libPath -Raw
-        $content | Should -Match 'COMMON_LIB_VERSION\s*=\s*[''"]$([regex]::Escape($script:ExpectedVersion))[''"]'
+        $pattern = 'COMMON_LIB_VERSION\s*=\s*[''"]' + [regex]::Escape($script:ExpectedVersion) + '[''"]'
+        $content | Should -Match $pattern
     }
 
     It 'Orchestrator declares Show-DetailedHelp function' {
