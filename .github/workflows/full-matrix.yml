@@ -61,7 +61,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2025, windows-2022, windows-2019]
+        os: [windows-2025, windows-latest]
 
     defaults:
       run:
@@ -162,7 +162,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2025, windows-2022, windows-2019]
+        os: [windows-2025, windows-latest]
 
     defaults:
       run:
@@ -225,7 +225,10 @@ jobs:
   # --------------------------------------------------------------------------
   full-self-hosted-pwsh:
     name: Full PS7 (${{ matrix.runner.os }})
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.include_self_hosted == true)
+    # Self-hosted jobs queue indefinitely when no matching runner is registered,
+    # and timeout-minutes does not cover queue time. Require an explicit
+    # repository variable so a scheduled run cannot burn hours waiting.
+    if: vars.ENABLE_SELF_HOSTED == 'true' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.include_self_hosted == true))
     runs-on:
       - self-hosted
       - ${{ matrix.runner.label }}
@@ -294,7 +297,10 @@ jobs:
   # --------------------------------------------------------------------------
   full-self-hosted-windowspowershell:
     name: Full WPS5.1 (${{ matrix.runner.os }})
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.include_self_hosted == true)
+    # Self-hosted jobs queue indefinitely when no matching runner is registered,
+    # and timeout-minutes does not cover queue time. Require an explicit
+    # repository variable so a scheduled run cannot burn hours waiting.
+    if: vars.ENABLE_SELF_HOSTED == 'true' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.include_self_hosted == true))
     runs-on:
       - self-hosted
       - ${{ matrix.runner.label }}
