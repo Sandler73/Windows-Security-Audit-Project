@@ -1,6 +1,6 @@
 # Module-CISA.ps1
 # CISA Cybersecurity Performance Goals Compliance Module for Windows Security Audit
-# Version: 6.1.2
+# Version: 6.6.0
 #
 # Evaluates Windows configuration against CISA Cybersecurity Performance Goals (CPG),
 # Binding Operational Directives (BOD), and Zero Trust guidance across 12 domains.
@@ -38,7 +38,7 @@
     References: CISA Cybersecurity Performance Goals v1.0.1,
                 CISA BOD 22-01 (KEV), BOD 23-01 (Asset Visibility),
                 CISA Zero Trust Maturity Model v2.0
-    Version: 6.1.2
+    Version: 6.6.0
 
 .EXAMPLE
     $results = & .\modules\module-cisa.ps1 -SharedData $sharedData
@@ -50,16 +50,72 @@ param(
 )
 
 $moduleName = "CISA"
-$moduleVersion = "6.1.2"
-$results = @()
 
+# ============================================================================
+# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# One live query per module run instead of one per check site. The helpers
+# return the SAME object the direct call would return (raw call, no error
+# swallowing beyond -ErrorAction SilentlyContinue already present at the
+# migrated sites), so call-site semantics are preserved exactly. Sites using
+# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# Standalone-safe: no shared-library dependency.
+# ============================================================================
+$script:HFMemo = @{}
+
+# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# querying. HostFacts already collects these objects once per RUN; without this
+# lookup each module re-queried them once per MODULE. Raw objects are reused
+# rather than derived scalar facts, so every property a call site reads is still
+# available and no call site needed changing. Falls back to a live query when
+# HostFacts is absent (standalone module execution), preserving prior behaviour.
+function Get-ModHostFact {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    if ($SharedData -and $SharedData.ContainsKey('HostFacts') -and $SharedData.HostFacts) {
+        $hf = $SharedData.HostFacts
+        try {
+            if ($hf.ContainsKey($Name) -and $null -ne $hf[$Name]) { return $hf[$Name] }
+        } catch { return $null }
+    }
+    return $null
+}
+function Get-ModOSInfo {
+    if (-not $script:HFMemo.ContainsKey('OS')) {
+        $fromFacts = Get-ModHostFact -Name 'RawOSCim'
+        $script:HFMemo['OS'] = if ($fromFacts) { $fromFacts }
+                               else { Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['OS']
+}
+function Get-ModDefenderStatus {
+    if (-not $script:HFMemo.ContainsKey('MP')) {
+        $fromFacts = Get-ModHostFact -Name 'RawDefenderStatus'
+        $script:HFMemo['MP'] = if ($fromFacts) { $fromFacts }
+                               else { Get-MpComputerStatus -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['MP']
+}
+function Get-ModFirewallProfiles {
+    if (-not $script:HFMemo.ContainsKey('FW')) {
+        $fromFacts = Get-ModHostFact -Name 'RawFirewallProfiles'
+        $script:HFMemo['FW'] = if ($fromFacts) { @($fromFacts) }
+                               else { @(Get-NetFirewallProfile -ErrorAction SilentlyContinue) }
+    }
+    return $script:HFMemo['FW']
+}
+
+$moduleVersion = "6.6.0"
+$results = [System.Collections.Generic.List[object]]::new()
 # ---------------------------------------------------------------------------
 # Enhanced result helper with Severity and CrossReferences
 # ---------------------------------------------------------------------------
 function Add-Result {
     param(
+        [Parameter(Mandatory=$true)]
         [string]$Category,
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("Pass","Fail","Warning","Info","Error")]
         [string]$Status,
+        [Parameter(Mandatory=$true)]
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
@@ -67,7 +123,7 @@ function Add-Result {
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
-    $script:results += [PSCustomObject]@{
+    $script:results.Add([PSCustomObject]@{
         Module          = $moduleName
         Category        = $Category
         Status          = $Status
@@ -77,7 +133,7 @@ function Add-Result {
         Remediation     = $Remediation
         CrossReferences = $CrossReferences
         Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    }
+    })
 }
 
 # ---------------------------------------------------------------------------
@@ -534,7 +590,7 @@ try {
     } else {
         Add-Result -Category "CISA - Logging" -Status "Warning" `
             -Message "PowerShell Module Logging is not enabled" `
-            -Details "CISA CPG: Consider enabling for comprehensive PowerShell auditing" `
+            -Details "CISA CPG: Consider enabling for PowerShell auditing" `
             -Remediation "New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ModuleLogging' -Force; Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ModuleLogging' -Name EnableModuleLogging -Value 1" `
             -Severity "Medium" `
             -CrossReferences @{ CISA='CPG 3.1'; NIST='AU-2'; CIS='17.1' }
@@ -1038,6 +1094,9 @@ try {
     }
 } catch {
     # EFS check is optional
+    Add-Result -Category "CISA - Data Encryption" -Status "Info" `
+        -Message "EFS state could not be determined (feature may not be present)" `
+        -Details "EFS is optional; absence of the component is not a finding"
 }
 
 # ============================================================================
@@ -1104,7 +1163,7 @@ try {
     if ($allEnabled) {
         Add-Result -Category "CISA - Network Security" -Status "Pass" `
             -Message "Windows Firewall is enabled on all profiles" `
-            -Details "CISA CPG: Comprehensive firewall protection is active" `
+            -Details "CISA CPG: firewall protection is active" `
             -Severity "Medium" `
             -CrossReferences @{ CISA='CPG 6.1'; NIST='SC-7'; CIS='9.1' }
     }
@@ -1599,6 +1658,9 @@ try {
     }
 } catch {
     # Remote Desktop Users group may not exist
+    Add-Result -Category "CISA - Access Control" -Status "Info" `
+        -Message "Remote Desktop Users group not present or not readable" `
+        -Details "Group may not exist on this system; absence is not a finding"
 }
 
 # Check for privileged SID history
@@ -1934,7 +1996,7 @@ try {
 
     # Network pillar: Host-based firewall enabled on all profiles
     try {
-        $fwProfiles = Get-NetFirewallProfile -ErrorAction SilentlyContinue
+        $fwProfiles = Get-ModFirewallProfiles
         $allEnabled = $true
         foreach ($fwProfile in $fwProfiles) {
             if (-not $fwProfile.Enabled) { $allEnabled = $false }
@@ -1991,7 +2053,7 @@ try {
         }
     } catch { <# Expected: item may not exist #> }
 
-    # Visibility/Analytics pillar: Comprehensive audit logging
+    # Visibility/Analytics pillar: audit logging
     $cmdLineAudit = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit" -Name "ProcessCreationIncludeCmdLine_Enabled" -Default 0
     if ($cmdLineAudit -eq 1) {
         Add-Result -Category "CISA - Zero Trust" -Status "Pass" `
@@ -2044,7 +2106,7 @@ try {
         if ($daysSinceUpdate -le 14) {
             Add-Result -Category "CISA - BOD 22-01" -Status "Pass" `
                 -Message "BOD 22-01: System patched within 14 days ($daysSinceUpdate days since last update)" `
-                -Details "BOD 22-01 requires KEV remediation within 14 days for internet-facing or 25 days for all others" `
+                -Details "BOD 22-01 requires remediating each KEV by the due date in its catalog entry (initial catalog: 2 weeks for CVEs assigned 2021 or later, 6 months for older CVEs); recent update cadence is a supporting signal, not proof of KEV compliance" `
                 -Severity "High" `
                 -CrossReferences @{ CISA='BOD 22-01'; NIST='SI-2(2)'; NSA='Patch Management' }
         } elseif ($daysSinceUpdate -le 25) {
@@ -2087,12 +2149,20 @@ try {
             -Severity "High" `
             -CrossReferences @{ CISA='BOD 22-01'; NIST='SI-2' }
     }
+    # v6.3.0 currency (PR-11): the KEV catalog is a continuously-updated
+    # living catalog; point-in-time patch age cannot substitute for tracking it.
+    Add-Result -Category "CISA - BOD 22-01" -Status "Info" `
+        -Severity "Medium" `
+        -Message "KEV is a living catalog: reconcile installed updates against current KEV entries and their per-entry due dates" `
+        -Details "CISA adds Known Exploited Vulnerabilities continuously and each entry carries its own remediation due date. BOD 22-01 compliance (and good practice for non-FCEB organizations) requires an ongoing reconciliation of the environment against the current catalog at cisa.gov/known-exploited-vulnerabilities-catalog, not a fixed patch-age threshold." `
+        -CrossReferences @{ CISA='BOD 22-01'; CISA2='KEV Catalog'; NIST='RA-5' }
+
 
     # BOD 23-01: Asset Visibility -- system identification
     $computerInfo = @{
         Name = $env:COMPUTERNAME
         Domain = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).Domain
-        OS = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
+        OS = (Get-ModOSInfo).Caption
     }
     if ($computerInfo.Domain -and $computerInfo.Domain -ne "WORKGROUP") {
         Add-Result -Category "CISA - BOD 23-01" -Status "Pass" `
@@ -2715,7 +2785,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     }
 
     try {
-        $osInfo = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+        $osInfo = Get-ModOSInfo
         $standaloneData.OSVersion = "$($osInfo.Caption) (Build $($osInfo.BuildNumber))"
     } catch {
         $standaloneData.OSVersion = "Windows (version detection failed)"
