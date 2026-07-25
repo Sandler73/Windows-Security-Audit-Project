@@ -1,0 +1,36 @@
+# ============================================================================
+# CODEOWNERS -- Windows Security Audit Project
+# ----------------------------------------------------------------------------
+# Owners are requested for review automatically when matching paths change.
+# Later matches take precedence, so the more specific rules appear last.
+# ============================================================================
+
+# Default owner for anything not matched below
+*                                   @Sandler73
+
+# Orchestrator: parameter surface, dispatch, reporting and remediation flow
+/Windows-Security-Audit.ps1         @Sandler73
+
+# Shared components. Changes here affect every module, so they carry the
+# highest blast radius in the project.
+/shared_components/                 @Sandler73
+
+# Remediation subsystem: changes can modify system state on audited hosts.
+# Treat review here as mandatory rather than advisory.
+/shared_components/canonical-remediations.ps1  @Sandler73
+/shared_components/remediation-library.ps1     @Sandler73
+/shared_components/remediation-bundles.ps1     @Sandler73
+/shared_components/rollback-generator.ps1      @Sandler73
+
+# Compliance modules: framework accuracy and check correctness
+/modules/                           @Sandler73
+
+# Test suites and the CI definition itself
+/tests/                             @Sandler73
+/.github/                           @Sandler73
+/tools/                             @Sandler73
+
+# Documentation
+/docs/                              @Sandler73
+/README.md                          @Sandler73
+/SECURITY.md                        @Sandler73
