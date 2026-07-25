@@ -42,7 +42,7 @@
     . .\shared_components\canonical-remediations.ps1
     . .\shared_components\remediation-library.ps1
     . .\shared_components\rollback-generator.ps1
-    $plan = Build-RemediationPlan -Topics @('GuestAccount','LsaProtection')
+    $plan = New-RemediationPlan -Topics @('GuestAccount','LsaProtection')
     $records = Invoke-PlanCapture -Plan $plan
     New-RollbackScript -CaptureRecords $records -OutputPath .\rollback.ps1
 
@@ -208,7 +208,7 @@ function Invoke-PlanCapture {
     <#
     .SYNOPSIS
         Capture pre-change state for every step of a remediation plan
-        (Build-RemediationPlan output). Returns records annotated with their
+        (New-RemediationPlan output). Returns records annotated with their
         originating topic, in plan order.
     #>
     [CmdletBinding()]
