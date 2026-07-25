@@ -1,6 +1,6 @@
 # module-cmmc.ps1
 # CMMC 2.0 Compliance Module for Windows Security Audit
-# Version: 6.1.2
+# Version: 6.6.0
 #
 # Evaluates Windows configuration against Cybersecurity Maturity Model Certification 2.0 (DoD)
 # with Severity ratings and cross-framework references.
@@ -10,7 +10,11 @@
     CMMC 2.0 compliance checks for Windows systems.
 
 .DESCRIPTION
-    This module assesses alignment with Cybersecurity Maturity Model Certification 2.0 (DoD) including:
+    This module assesses alignment with Cybersecurity Maturity Model Certification 2.0 (DoD).
+    CMMC is contractually binding: the 48 CFR acquisition final rule took effect
+    2025-11-10 (Phase 1, self-assessment requirements in new solicitations;
+    Phase 2 adds C3PAO certification requirements for applicable Level 2
+    procurements from 2026-11-10). Coverage includes:
     - Level 1: Basic Cyber Hygiene (FCI protection, 17 practices)
     - AC: Access Control (least privilege, session locks, remote access, mobile)
     - AU: Audit and Accountability (audit events, log content, retention, protection)
@@ -31,8 +35,12 @@
 .NOTES
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
-    References: CMMC 2.0 (November 2021), NIST SP 800-171 Rev 2, 32 CFR Part 170
-    Version: 6.1.2
+    References: CMMC 2.0; 32 CFR Part 170 (CMMC Program final rule, Oct 2024);
+                48 CFR CMMC acquisition final rule (effective 2025-11-10; CMMC is
+                contractually binding with phased rollout); DFARS 252.204-7012/
+                -7019/-7020/-7021/-7025; NIST SP 800-171 Rev 2 (current DoD
+                assessment basis)
+    Version: 6.6.0
 
 .EXAMPLE
     $results = & .\modules\module-cmmc.ps1 -SharedData $sharedData
@@ -44,16 +52,72 @@ param(
 )
 
 $moduleName = "CMMC"
-$moduleVersion = "6.1.2"
-$results = @()
 
+# ============================================================================
+# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# One live query per module run instead of one per check site. The helpers
+# return the SAME object the direct call would return (raw call, no error
+# swallowing beyond -ErrorAction SilentlyContinue already present at the
+# migrated sites), so call-site semantics are preserved exactly. Sites using
+# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# Standalone-safe: no shared-library dependency.
+# ============================================================================
+$script:HFMemo = @{}
+
+# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# querying. HostFacts already collects these objects once per RUN; without this
+# lookup each module re-queried them once per MODULE. Raw objects are reused
+# rather than derived scalar facts, so every property a call site reads is still
+# available and no call site needed changing. Falls back to a live query when
+# HostFacts is absent (standalone module execution), preserving prior behaviour.
+function Get-ModHostFact {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    if ($SharedData -and $SharedData.ContainsKey('HostFacts') -and $SharedData.HostFacts) {
+        $hf = $SharedData.HostFacts
+        try {
+            if ($hf.ContainsKey($Name) -and $null -ne $hf[$Name]) { return $hf[$Name] }
+        } catch { return $null }
+    }
+    return $null
+}
+function Get-ModOSInfo {
+    if (-not $script:HFMemo.ContainsKey('OS')) {
+        $fromFacts = Get-ModHostFact -Name 'RawOSCim'
+        $script:HFMemo['OS'] = if ($fromFacts) { $fromFacts }
+                               else { Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['OS']
+}
+function Get-ModDefenderStatus {
+    if (-not $script:HFMemo.ContainsKey('MP')) {
+        $fromFacts = Get-ModHostFact -Name 'RawDefenderStatus'
+        $script:HFMemo['MP'] = if ($fromFacts) { $fromFacts }
+                               else { Get-MpComputerStatus -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['MP']
+}
+function Get-ModFirewallProfiles {
+    if (-not $script:HFMemo.ContainsKey('FW')) {
+        $fromFacts = Get-ModHostFact -Name 'RawFirewallProfiles'
+        $script:HFMemo['FW'] = if ($fromFacts) { @($fromFacts) }
+                               else { @(Get-NetFirewallProfile -ErrorAction SilentlyContinue) }
+    }
+    return $script:HFMemo['FW']
+}
+
+$moduleVersion = "6.6.0"
+$results = [System.Collections.Generic.List[object]]::new()
 # ---------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
 # ---------------------------------------------------------------------------
 function Add-Result {
     param(
+        [Parameter(Mandatory=$true)]
         [string]$Category,
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("Pass","Fail","Warning","Info","Error")]
         [string]$Status,
+        [Parameter(Mandatory=$true)]
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
@@ -61,7 +125,7 @@ function Add-Result {
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
-    $script:results += [PSCustomObject]@{
+    $script:results.Add([PSCustomObject]@{
         Module          = $moduleName
         Category        = $Category
         Status          = $Status
@@ -71,7 +135,7 @@ function Add-Result {
         Remediation     = $Remediation
         CrossReferences = $CrossReferences
         Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    }
+    })
 }
 
 # ---------------------------------------------------------------------------
@@ -648,7 +712,7 @@ Write-Host "[CMMC] Checking SC -- System and Communications Protection..." -Fore
 
     # SC.L1-3.13.1: Boundary protection -- firewall all profiles
     try {
-        $fw = Get-NetFirewallProfile -ErrorAction SilentlyContinue
+        $fw = Get-ModFirewallProfiles
         $ok = $true
         foreach ($f in $fw) { if ($f.Enabled -ne $true) { $ok = $false } }
         if ($ok -and $null -ne $fw) {
@@ -1299,6 +1363,57 @@ catch {
 }
 
 # ===========================================================================
+# v6.3.0 currency (PR-1): CMMC Program Status under the 48 CFR final rule
+# Facts researched 2026-07-20; program milestones are dates, not host state,
+# so these checks report posture context plus detectable readiness state.
+# ===========================================================================
+Write-Host "[CMMC] Checking CMMC program status (48 CFR acquisition rule)..." -ForegroundColor Yellow
+
+try {
+    # 48 CFR binding status awareness
+    Add-Result -Category "CMMC - Program Status (48 CFR)" -Status "Info" `
+        -Severity "Informational" `
+        -Message "CMMC is contractually binding: 48 CFR acquisition final rule effective 2025-11-10" `
+        -Details "DoD solicitations now include CMMC level requirements per the phased rollout. Phase 1 (from 2025-11-10): self-assessment requirements (Level 1 and applicable Level 2) in new solicitations. Phase 2 (from 2026-11-10): C3PAO third-party certification required for applicable Level 2 procurements. Verify contract clauses for the level and assessment type this system must meet." `
+        -CrossReferences @{ CFR48='CMMC Acquisition Rule'; DFARS='252.204-7021'; CFR32='Part 170' }
+
+    # Conditional vs Final status model
+    Add-Result -Category "CMMC - Program Status (48 CFR)" -Status "Info" `
+        -Severity "Informational" `
+        -Message "Assessment outcomes are Conditional or Final: Conditional status requires POA&M closeout within 180 days" `
+        -Details "Under 32 CFR Part 170, a Conditional certification (minimum scoring met with POA&M-eligible gaps) must reach Final status by closing all POA&M items within 180 days of the assessment. Track any open POA&M items from this audit's Fail results against that clock." `
+        -CrossReferences @{ CFR32='Part 170'; NIST171='3.12.2' }
+
+    # SPRS submission currency (ties the existing SPRS score to the obligation)
+    Add-Result -Category "CMMC - Program Status (48 CFR)" -Status "Info" `
+        -Severity "Informational" `
+        -Message "A current NIST SP 800-171 self-assessment score must be posted in SPRS for DFARS 252.204-7019/-7020 covered contracts" `
+        -Details "The SPRS score computed by this module (see CMMC - SPRS Scoring) is a self-assessment estimate. DFARS 252.204-7019 requires a score not older than three years (more current if specified) posted in SPRS at time of award; -7020 requires providing the Government access to validate." `
+        -CrossReferences @{ DFARS='252.204-7019'; DFARS2='252.204-7020' }
+
+    # Detectable readiness state: FCI/CUI-relevant technical posture roll-up
+    $mfaGapCount = @($results | Where-Object { $_.Category -like "CMMC - IA*" -and $_.Status -eq "Fail" }).Count
+    $scGapCount  = @($results | Where-Object { $_.Category -like "CMMC - SC*" -and $_.Status -eq "Fail" }).Count
+    if (($mfaGapCount + $scGapCount) -eq 0) {
+        Add-Result -Category "CMMC - Program Status (48 CFR)" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "No IA or SC control failures detected: core Phase 1 self-assessment technical posture is clean on this host" `
+            -Details "Identification/Authentication and System/Communications Protection families show no failed checks in this run. This supports (but does not by itself constitute) an accurate SPRS self-assessment." `
+            -CrossReferences @{ DFARS='252.204-7019'; NIST171='3.5/3.13' }
+    } else {
+        Add-Result -Category "CMMC - Program Status (48 CFR)" -Status "Warning" `
+            -Severity "High" `
+            -Message "IA/SC control failures detected ($mfaGapCount IA, $scGapCount SC): these directly reduce the SPRS score now required at award" `
+            -Details "Under the binding 48 CFR rule, an inaccurate or stale SPRS score is a contract-compliance risk (and a False Claims Act exposure under DOJ Civil Cyber-Fraud). Remediate the failed IA/SC checks or record them accurately as POA&M items where eligible." `
+            -CrossReferences @{ DFARS='252.204-7019'; CFR48='CMMC Acquisition Rule' }
+    }
+} catch {
+    Add-Result -Category "CMMC - Program Status (48 CFR)" -Status "Error" `
+        -Message "Program status assessment could not be completed: $($_.Exception.Message)" `
+        -Details "CMMC program-status context checks failed to execute"
+}
+
+# ===========================================================================
 # Module Summary
 # ===========================================================================
 $passCount    = @($results | Where-Object { $_.Status -eq "Pass" }).Count
@@ -1348,7 +1463,7 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
 
     $standaloneData = @{
         ComputerName = $env:COMPUTERNAME
-        OSVersion    = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
+        OSVersion    = (Get-ModOSInfo).Caption
         IPAddresses  = @((Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -ne "127.0.0.1" }).IPAddress)
         IsAdmin      = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
         ScanDate     = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
@@ -1385,7 +1500,7 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
     $useCache = ($null -ne $SharedData.Cache)
 
     Write-Host "[CMMC] Executing checks with standalone environment...`n" -ForegroundColor Cyan
-    $script:results = @()
+    $script:results = [System.Collections.Generic.List[object]]::new()
 
     Write-Host "`n$("=" * 80)" -ForegroundColor White
     Write-Host "  DETAILED STANDALONE RESULTS" -ForegroundColor Cyan
