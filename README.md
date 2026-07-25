@@ -4,6 +4,8 @@
 
 ---
 
+<div align="center">
+  
 # Windows Security Audit Project
 
 <div align="center">
