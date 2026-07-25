@@ -138,17 +138,16 @@ function New-AssessmentRecord {
     )
     $count = @($Items).Count
     $truncated = $count -gt $script:AssessmentItemCap
-    $kept = if ($truncated) { @($Items | Select-Object -First $script:AssessmentItemCap) } else { @($Items) }
-    # Force array semantics. PowerShell unrolls a single-element array during
-    # property assignment, which made Items a scalar for one-item collections:
-    # a consumer indexing .Items[0] then received the first CHARACTER of a
-    # string rather than the item. The unary comma preserves the array.
-    if ($null -eq $kept) { $kept = @() }
-    $keptArray = [System.Collections.ArrayList]::new()
-    foreach ($i in $kept) { [void]$keptArray.Add($i) }
+    # The [object[]] constraint is load-bearing. Assigning the output of an
+    # if-expression unrolls a single-element array, which made Items a scalar
+    # for one-item collections: a consumer indexing.Items[0] then received the
+    # first CHARACTER of a string rather than the item. The type constraint
+    # preserves array semantics for every size, including zero and one.
+    [object[]]$kept = if ($truncated) { @($Items | Select-Object -First $script:AssessmentItemCap) } else { @($Items) }
+    if ($null -eq $kept) { [object[]]$kept = @() }
     return [PSCustomObject]@{
         Name        = $Name
-        Items       = ,($keptArray.ToArray())
+        Items       = $kept
         Count       = $count
         Truncated   = $truncated
         CollectedAt = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
@@ -161,7 +160,7 @@ function Invoke-AssessmentCollection {
     <#
     .SYNOPSIS
         Run one assessment definition; failures become Error records, never
-        throws (WSA-F1 discipline: no silent loss, no crash propagation).
+        throws: no silent loss and no crash propagation.
     #>
     param([Parameter(Mandatory=$true)][string]$Name)
     $def = $script:AssessmentDefinitions[$Name]
