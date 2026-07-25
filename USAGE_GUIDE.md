@@ -877,7 +877,7 @@ if ($failures -gt 0) {
 
 ## Troubleshooting
 
-For troubleshooting, see [docs/wiki/Troubleshooting Guide.md](../wiki/Troubleshooting%20Guide.md). Quick reference:
+For troubleshooting, see [docs/wiki/Troubleshooting Guide.md](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Troubleshooting-Guide). Quick reference:
 
 | Symptom | Common Cause | Fix |
 |---------|--------------|-----|
@@ -935,8 +935,8 @@ For deeper troubleshooting, run with `-LogLevel Debug -Verbose` and inspect the 
 **See also:**
 - [README.md](README.md) -- project overview
 - [CHANGELOG.md](CHANGELOG.md) -- release history
-- [docs/wiki/Quick Start Guide.md](../wiki/Quick%20Start%20Guide.md) -- 5-minute setup
-- [docs/wiki/Module Documentation.md](../wiki/Module%20Documentation.md) -- per-module details
-- [docs/wiki/Output Reference.md](../wiki/Output%20Reference.md) -- full output schema
-- [docs/wiki/Architecture and Design.md](../wiki/Architecture%20and%20Design.md) -- internal architecture
-- [docs/wiki/Troubleshooting Guide.md](../wiki/Troubleshooting%20Guide.md) -- problem resolution
+- [docs/wiki/Quick Start Guide.md](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Quick-Start-Guide) -- 5-minute setup
+- [docs/wiki/Module Documentation.md](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Module-Documentation) -- per-module details
+- [docs/wiki/Output Reference.md](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Output-Reference) -- full output schema
+- [docs/wiki/Architecture and Design.md](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Architecture-and-Design) -- internal architecture
+- [docs/wiki/Troubleshooting Guide.md](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Troubleshooting-Guide) -- problem resolution
