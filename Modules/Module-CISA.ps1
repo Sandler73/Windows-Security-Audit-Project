@@ -52,17 +52,17 @@ param(
 $moduleName = "CISA"
 
 # ============================================================================
-# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# Memoized host-state accessors.
 # One live query per module run instead of one per check site. The helpers
 # return the SAME object the direct call would return (raw call, no error
 # swallowing beyond -ErrorAction SilentlyContinue already present at the
 # migrated sites), so call-site semantics are preserved exactly. Sites using
-# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# ErrorAction Stop inside try/catch are intentionally NOT migrated.
 # Standalone-safe: no shared-library dependency.
 # ============================================================================
 $script:HFMemo = @{}
 
-# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# Consult the run-wide HostFacts registry before
 # querying. HostFacts already collects these objects once per RUN; without this
 # lookup each module re-queried them once per MODULE. Raw objects are reused
 # rather than derived scalar facts, so every property a call site reads is still
@@ -105,9 +105,9 @@ function Get-ModFirewallProfiles {
 
 $moduleVersion = "6.6.0"
 $results = [System.Collections.Generic.List[object]]::new()
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Enhanced result helper with Severity and CrossReferences
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 function Add-Result {
     param(
         [Parameter(Mandatory=$true)]
@@ -136,9 +136,9 @@ function Add-Result {
     })
 }
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Cache-aware registry helper
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 $useCache = ($null -ne $SharedData.Cache)
 function Get-RegValue {
     param([string]$Path, [string]$Name, $Default = $null)
@@ -2149,7 +2149,7 @@ try {
             -Severity "High" `
             -CrossReferences @{ CISA='BOD 22-01'; NIST='SI-2' }
     }
-    # v6.3.0 currency (PR-11): the KEV catalog is a continuously-updated
+    # Currency: the KEV catalog is a continuously-updated
     # living catalog; point-in-time patch age cannot substitute for tracking it.
     Add-Result -Category "CISA - BOD 22-01" -Status "Info" `
         -Severity "Medium" `
@@ -2222,7 +2222,7 @@ try {
 
 
 # ============================================================================
-# v6.1: CISA Known Exploited Vulnerabilities (KEV) catalog alignment
+# CISA Known Exploited Vulnerabilities (KEV) catalog alignment
 # ============================================================================
 Write-Host "[CISA] Checking Known Exploited Vulnerabilities mitigations..." -ForegroundColor Yellow
 
@@ -2302,7 +2302,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: BOD 23-02 Network Management Interface Exposure
+# BOD 23-02 Network Management Interface Exposure
 # ============================================================================
 Write-Host "[CISA] Checking BOD 23-02 management interface exposure..." -ForegroundColor Yellow
 
@@ -2372,7 +2372,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Secure by Design principles assessment
+# Secure by Design principles assessment
 # ============================================================================
 Write-Host "[CISA] Checking Secure by Design technical principles..." -ForegroundColor Yellow
 
@@ -2429,7 +2429,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Zero Trust Maturity Model pillar mapping
+# Zero Trust Maturity Model pillar mapping
 # ============================================================================
 Write-Host "[CISA] Checking Zero Trust Maturity Model pillars..." -ForegroundColor Yellow
 
@@ -2515,7 +2515,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Cross-Sector Cybersecurity Performance Goals (CPGs) v1.0.1
+# Cross-Sector Cybersecurity Performance Goals (CPGs) v1.0.1
 # ============================================================================
 Write-Host "[CISA] Checking Cross-Sector Cybersecurity Performance Goals..." -ForegroundColor Yellow
 
@@ -2587,7 +2587,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: CISA Bad Practices catalog
+# CISA Bad Practices catalog
 # ============================================================================
 Write-Host "[CISA] Checking CISA Bad Practices catalog..." -ForegroundColor Yellow
 
@@ -2652,7 +2652,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Pre-Ransomware Notification Initiative checklist
+# Pre-Ransomware Notification Initiative checklist
 # ============================================================================
 Write-Host "[CISA] Checking Pre-Ransomware Notification readiness..." -ForegroundColor Yellow
 
@@ -2765,7 +2765,7 @@ return $results
 # ============================================================================
 # When invoked directly (not dot-sourced), run in standalone test mode
 # with automatic SharedData initialization, cache warmup, and detailed analysis.
-# Usage: .\modules\module-cisa.ps1
+# Usage:.\modules\module-cisa.ps1
 # ============================================================================
 if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "=" * 80 -ForegroundColor White
