@@ -13,7 +13,7 @@ body:
 
         **This is different from disagreeing with a framework's prescription.** If the check
         is correctly reflecting what the framework says, but you believe the framework is
-        wrong, that's a Discussion, not a False Positive — open a thread in the Framework
+        wrong, that's a Discussion, not a False Positive -- open a thread in the Framework
         Discussion category instead.
 
         False positives are taken seriously because they erode trust in the entire audit
@@ -30,7 +30,7 @@ body:
           required: true
         - label: I am running the latest stable release
           required: true
-        - label: This is a check producing wrong results — not a disagreement with the framework's prescription
+        - label: This is a check producing wrong results -- not a disagreement with the framework's prescription
           required: true
 
   - type: input
@@ -78,7 +78,7 @@ body:
     id: check-message
     attributes:
       label: Check Message (from result output)
-      description: The exact `Message` field — copy verbatim
+      description: The exact `Message` field -- copy verbatim
       placeholder: "Guest account is ENABLED"
     validations:
       required: true
