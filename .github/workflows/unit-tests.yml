@@ -6,8 +6,7 @@
 #
 #   GitHub-hosted runners:
 #     - windows-2025  (Windows Server 2025)
-#     - windows-2022  (Windows Server 2022)
-#     - windows-2019  (Windows Server 2019)
+#     - windows-latest (currently Windows Server 2025)
 #
 #   Self-hosted runners (configured per-installation):
 #     - self-hosted-server-2016        (Windows Server 2016)
@@ -63,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2025, windows-2022, windows-2019]
+        os: [windows-2025, windows-latest]
 
     defaults:
       run:
@@ -140,7 +139,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2025, windows-2022, windows-2019]
+        os: [windows-2025, windows-latest]
 
     defaults:
       run:
@@ -219,7 +218,9 @@ jobs:
   # --------------------------------------------------------------------------
   pester-self-hosted-pwsh:
     name: Pester PS7 (${{ matrix.runner.os }})
-    if: github.event_name == 'workflow_dispatch' && inputs.include_self_hosted == true
+    # Requires a registered self-hosted runner AND the repository variable
+    # ENABLE_SELF_HOSTED set to 'true'; otherwise the job would queue.
+    if: vars.ENABLE_SELF_HOSTED == 'true' && github.event_name == 'workflow_dispatch' && inputs.include_self_hosted == true
     runs-on:
       - self-hosted
       - ${{ matrix.runner.label }}
@@ -296,7 +297,9 @@ jobs:
   # --------------------------------------------------------------------------
   pester-self-hosted-windowspowershell:
     name: Pester WPS5.1 (${{ matrix.runner.os }})
-    if: github.event_name == 'workflow_dispatch' && inputs.include_self_hosted == true
+    # Requires a registered self-hosted runner AND the repository variable
+    # ENABLE_SELF_HOSTED set to 'true'; otherwise the job would queue.
+    if: vars.ENABLE_SELF_HOSTED == 'true' && github.event_name == 'workflow_dispatch' && inputs.include_self_hosted == true
     runs-on:
       - self-hosted
       - ${{ matrix.runner.label }}
