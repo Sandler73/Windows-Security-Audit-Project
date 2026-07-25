@@ -24,7 +24,6 @@
 
 <p align="center">
   <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/codeql.yml"><img src="https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL" /></a>
-  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/docs.yml"><img src="https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/docs.yml/badge.svg?branch=main" alt="Documentation" /></a>
   <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/security/code-scanning"><img src="https://img.shields.io/badge/code%20scanning-CodeQL%20%2B%20PSScriptAnalyzer-2C7BB6?logo=github&logoColor=white" alt="Code Scanning" /></a>
 </p>
 
