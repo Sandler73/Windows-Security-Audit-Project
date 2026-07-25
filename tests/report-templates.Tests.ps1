@@ -146,7 +146,9 @@ Describe 'Regulatory and Framework Context sub-section' {
     It 'nests framework panels under the collapsible framework-context sub-section' {
         $r = @(New-TestResult 'CMMC' 'CMMC - SPRS Scoring' 'Info' 'SPRS Score: 95 / 110 (High)' 'Informational')
         $html = New-FrameworkReportHtml -ModuleName 'CMMC' -Results $r -ExecutionInfo $ExecInfo
-        $html | Should -Match ($script:FrameworkSectionTitle)
+        # The title contains '&', which the renderer HTML-encodes to '&amp;'.
+        $expectedTitle = ConvertTo-SafeHtml $script:FrameworkSectionTitle
+        $html | Should -Match ([regex]::Escape($expectedTitle))
         $html | Should -Match "id='fwsection'"
         $html | Should -Match "id='fwpanel1'"
     }
