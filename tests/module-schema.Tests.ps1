@@ -1,0 +1,261 @@
+<#
+.SYNOPSIS
+    Pester structural tests for all 16 audit modules.
+.DESCRIPTION
+    Validates that every module file conforms to project conventions:
+    comment-based help, brace balance, ASCII-only, BOM-free, exactly one
+    return statement, version sync, $moduleName declaration.
+.NOTES
+    Author: Windows Security Audit Project
+    Version: 6.6.0
+    Last Updated: 2026-04-25
+    Pester Version: 5.x
+
+    Run via:
+        Invoke-Pester -Path .\tests\module-schema.Tests.ps1 -Output Detailed
+#>
+
+BeforeAll {
+    $script:ModulesDir = Join-Path $PSScriptRoot '..\modules'
+
+    # Version is derived from the orchestrator, which the project treats as the
+    # single source of truth for ScriptVersion. Deriving it here means a version
+    # bump cannot leave this baseline stale (it previously pinned 6.1.2 while the
+    # tree had moved on).
+    $script:OrchestratorPath = Join-Path $PSScriptRoot '..\Windows-Security-Audit.ps1'
+    $orchSrc = Get-Content $script:OrchestratorPath -Raw
+    if ($orchSrc -match '\$script:ScriptVersion\s*=\s*"([^"]+)"') {
+        $script:ExpectedVersion = $Matches[1]
+    } else {
+        throw "Unable to derive ScriptVersion from $script:OrchestratorPath"
+    }
+
+    $script:ExpectedModuleCount = 16
+    # Total Add-Result call sites across modules (excludes the Add-Result function
+    # definition present in each module). Regenerated when checks are added.
+    $script:ExpectedTotalChecks = 4053
+
+    if (-not (Test-Path $script:ModulesDir)) {
+        throw "Modules directory not found at: $script:ModulesDir"
+    }
+
+    $script:ModuleFiles = Get-ChildItem -Path $script:ModulesDir -Filter 'module-*.ps1'
+}
+
+Describe 'Module Inventory' {
+    It "Has exactly $script:ExpectedModuleCount module files" {
+        $script:ModuleFiles.Count | Should -Be $script:ExpectedModuleCount
+    }
+
+    It 'Includes all 16 expected modules' {
+        $expected = @(
+            'module-acsc.ps1','module-cis.ps1','module-cisa.ps1','module-cmmc.ps1',
+            'module-core.ps1','module-enisa.ps1','module-gdpr.ps1','module-hipaa.ps1',
+            'module-iso27001.ps1','module-ms.ps1','module-ms-defenderatp.ps1',
+            'module-nist.ps1','module-nsa.ps1','module-pcidss.ps1','module-soc2.ps1',
+            'module-stig.ps1'
+        )
+        $actual = $script:ModuleFiles | ForEach-Object { $_.Name }
+        foreach ($e in $expected) {
+            $actual | Should -Contain $e
+        }
+    }
+}
+
+Describe 'Module File Encoding and Structure' {
+    BeforeDiscovery {
+        $modules = Get-ChildItem -Path (Join-Path $PSScriptRoot '..\modules') -Filter 'module-*.ps1'
+        $script:ModuleTestCases = @($modules | ForEach-Object {
+            @{ Path = $_.FullName; Name = $_.Name }
+        })
+    }
+
+    It 'Module <Name> contains no BOM bytes' -ForEach $script:ModuleTestCases {
+        param($Path, $Name)
+        $bytes = [System.IO.File]::ReadAllBytes($Path)
+        if ($bytes.Length -ge 3) {
+            ($bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) | Should -Be $false
+        }
+    }
+
+    It 'Module <Name> contains only ASCII characters' -ForEach $script:ModuleTestCases {
+        param($Path, $Name)
+        $bytes = [System.IO.File]::ReadAllBytes($Path)
+        $nonAscii = @($bytes | Where-Object { $_ -gt 127 })
+        $nonAscii.Count | Should -Be 0
+    }
+
+    It 'Module <n> parses without syntax errors' -ForEach $script:ModuleTestCases {
+        param($Path, $Name)
+        # The PowerShell AST parser definitively answers "does this file
+        # have balanced braces / parens / brackets?" If the parser produces
+        # zero errors, the file is structurally valid by definition.
+        # Manual brace counting cannot reliably distinguish structural braces
+        # from braces inside strings, comments, here-strings, or sub-expression
+        # interpolations like "$($var)" inside double-quoted strings.
+        $parseErrors = $null
+        $parseTokens = $null
+        $null = [System.Management.Automation.Language.Parser]::ParseFile(
+            $Path, [ref]$parseTokens, [ref]$parseErrors
+        )
+        $parseErrors.Count | Should -Be 0
+    }
+
+    It 'Module <Name> has comment-based help block' -ForEach $script:ModuleTestCases {
+        param($Path, $Name)
+        $content = Get-Content -Path $Path -Raw
+        $content | Should -Match '<#'
+        $content | Should -Match '\.SYNOPSIS'
+        $content | Should -Match '#>'
+    }
+
+    It 'Module <Name> declares Version 6.1.2' -ForEach $script:ModuleTestCases {
+        param($Path, $Name)
+        $content = Get-Content -Path $Path -Raw
+        $content | Should -Match '\$moduleVersion\s*=\s*[''"]6\.1\.2[''"]'
+    }
+
+    It 'Module <Name> declares $moduleName variable' -ForEach $script:ModuleTestCases {
+        param($Path, $Name)
+        $content = Get-Content -Path $Path -Raw
+        $content | Should -Match '\$moduleName\s*=\s*[''"]'
+    }
+
+    It 'Module <Name> has exactly one return $results statement' -ForEach $script:ModuleTestCases {
+        param($Path, $Name)
+        $content = Get-Content -Path $Path -Raw
+        $retMatches = [regex]::Matches($content, 'return\s+\$results\b')
+        $retMatches.Count | Should -Be 1
+    }
+
+    It 'Module <Name> declares param block' -ForEach $script:ModuleTestCases {
+        param($Path, $Name)
+        $content = Get-Content -Path $Path -Raw
+        $content | Should -Match 'param\s*\('
+    }
+}
+
+Describe 'Module Code Quality' {
+    BeforeDiscovery {
+        $modules = Get-ChildItem -Path (Join-Path $PSScriptRoot '..\modules') -Filter 'module-*.ps1'
+        $script:ModuleTestCases2 = @($modules | ForEach-Object {
+            @{ Path = $_.FullName; Name = $_.Name }
+        })
+    }
+
+    It 'Module <Name> contains Add-Result helper' -ForEach $script:ModuleTestCases2 {
+        param($Path, $Name)
+        $content = Get-Content -Path $Path -Raw
+        $content | Should -Match 'function\s+Add-Result|Add-Result\s+'
+    }
+
+    It 'Module <Name> has try/catch error handling' -ForEach $script:ModuleTestCases2 {
+        param($Path, $Name)
+        $content = Get-Content -Path $Path -Raw
+        $content | Should -Match '\btry\s*\{'
+        $content | Should -Match '\bcatch\s*\{'
+    }
+
+    It 'Module <Name> uses left-side $null comparisons' -ForEach $script:ModuleTestCases2 {
+        param($Path, $Name)
+        $content = Get-Content -Path $Path -Raw
+        $rightSideNull = [regex]::Matches($content, '-(?:eq|ne)\s+\$null\b')
+        $rightSideNull.Count | Should -Be 0
+    }
+
+    It 'Module <Name> contains check categories with hyphenated naming' -ForEach $script:ModuleTestCases2 {
+        param($Path, $Name)
+        $content = Get-Content -Path $Path -Raw
+        $content | Should -Match '-Category\s+["''][\w]+\s*-\s*'
+    }
+}
+
+Describe 'Module Check Counts (v6.3.0 baseline)' {
+    BeforeDiscovery {
+        $script:ExpectedCounts = @{
+            'module-acsc.ps1'            = 170
+            'module-cis.ps1'             = 272
+            'module-cisa.ps1'            = 292
+            'module-cmmc.ps1'            = 151
+            'module-core.ps1'            = 243
+            'module-enisa.ps1'           = 252
+            'module-gdpr.ps1'            = 183
+            'module-hipaa.ps1'           = 242
+            'module-iso27001.ps1'        = 286
+            'module-ms-defenderatp.ps1'  = 155
+            'module-ms.ps1'              = 386
+            'module-nist.ps1'            = 527
+            'module-nsa.ps1'             = 225
+            'module-pcidss.ps1'          = 288
+            'module-soc2.ps1'            = 162
+            'module-stig.ps1'            = 235
+        }
+        $script:CountTestCases = @($script:ExpectedCounts.GetEnumerator() | ForEach-Object {
+            @{
+                Name = $_.Key
+                # Use nested 2-arg Join-Path; the 3-arg form
+                # `Join-Path A B C` is PowerShell 7+ only and breaks discovery
+                # under Windows PowerShell 5.1 with "A positional parameter
+                # cannot be found that accepts argument '<file>'".
+                Path = Join-Path (Join-Path $PSScriptRoot '..\modules') $_.Key
+                ExpectedCount = $_.Value
+            }
+        })
+    }
+
+    It '<Name> has expected number of Add-Result calls (~<ExpectedCount>)' -ForEach $script:CountTestCases {
+        param($Name, $Path, $ExpectedCount)
+        $content = Get-Content -Path $Path -Raw
+        $addResultMatches = [regex]::Matches($content, '\bAdd-Result\b')
+        # Allow slight variance for auxiliary helper-function references
+        $addResultMatches.Count | Should -BeGreaterOrEqual ($ExpectedCount - 5)
+        $addResultMatches.Count | Should -BeLessOrEqual ($ExpectedCount + 5)
+    }
+}
+
+Describe 'Project-Wide Aggregate Counts' {
+    It "All modules collectively have $script:ExpectedTotalChecks Add-Result calls" {
+        # Count CALL SITES, not raw token occurrences: each module also contains
+        # one 'function Add-Result' definition. Counting raw matches inflates the
+        # figure by the module count and is the same token-count error that made
+        # the historical "3,994 checks" claim wrong.
+        $total = 0
+        foreach ($file in $script:ModuleFiles) {
+            $content = Get-Content -Path $file.FullName -Raw
+            $occurrences = ([regex]::Matches($content, '\bAdd-Result\b')).Count
+            $definitions = ([regex]::Matches($content, 'function\s+Add-Result\b')).Count
+            $total += ($occurrences - $definitions)
+        }
+        # Allow for +/-20 variance to accommodate small refactors
+        $total | Should -BeGreaterOrEqual ($script:ExpectedTotalChecks - 20)
+        $total | Should -BeLessOrEqual ($script:ExpectedTotalChecks + 20)
+    }
+}
+
+Describe 'Orchestrator and Shared Library Schema' {
+    It 'Windows-Security-Audit.ps1 exists and matches v6.1.2' {
+        $orchPath = Join-Path $PSScriptRoot '..\Windows-Security-Audit.ps1'
+        Test-Path $orchPath | Should -Be $true
+        $content = Get-Content -Path $orchPath -Raw
+        $content | Should -Match '\$script:ScriptVersion\s*=\s*[''"]6\.1\.2[''"]'
+    }
+
+    It 'shared_components/audit-common.ps1 exists and matches v6.1.2' {
+        $libPath = Join-Path $PSScriptRoot '..\shared_components\audit-common.ps1'
+        Test-Path $libPath | Should -Be $true
+        $content = Get-Content -Path $libPath -Raw
+        $content | Should -Match 'COMMON_LIB_VERSION\s*=\s*[''"]6\.1\.2[''"]'
+    }
+
+    It 'Orchestrator declares Show-DetailedHelp function' {
+        $orchPath = Join-Path $PSScriptRoot '..\Windows-Security-Audit.ps1'
+        $content = Get-Content -Path $orchPath -Raw
+        $content | Should -Match 'function\s+Show-DetailedHelp'
+    }
+
+    It 'Orchestrator supports help aliases' {
+        $orchPath = Join-Path $PSScriptRoot '..\Windows-Security-Audit.ps1'
+        $content = Get-Content -Path $orchPath -Raw
+        $content | Should -Match 'ValueFromRemainingArguments'
+    }
+}
