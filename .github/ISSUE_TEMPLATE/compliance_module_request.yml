@@ -8,7 +8,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for proposing a new compliance module! New modules are major additions —
+        Thanks for proposing a new compliance module! New modules are major additions --
         a single module can take 2-6 weeks of engineering effort.
 
         **Current modules (v6.1.2):** acsc, cis, cisa, cmmc, core, enisa, gdpr, hipaa,
@@ -74,10 +74,10 @@ body:
       label: Licensing / nominative use
       description: Confirm the framework is publicly published and free to reference for audit-tooling purposes
       options:
-        - "Yes — publicly published, free to reference"
-        - "Conditional — reference allowed for audit/educational use"
-        - "Unclear — would need legal review"
-        - "No — proprietary or paywalled"
+        - "Yes -- publicly published, free to reference"
+        - "Conditional -- reference allowed for audit/educational use"
+        - "Unclear -- would need legal review"
+        - "No -- proprietary or paywalled"
     validations:
       required: true
 
@@ -119,11 +119,11 @@ body:
         List 10-20 specific control identifiers that would be highest priority to implement
         first, with a one-line description each.
       placeholder: |
-        AC-2: Account Management — verify Guest disabled, lockout policy
-        AC-7: Unsuccessful Logon Attempts — lockout threshold/duration
-        AU-2: Audit Events — auditpol coverage of required event categories
-        CM-7: Least Functionality — disabled unnecessary services
-        IA-5: Authenticator Management — password complexity policy
+        AC-2: Account Management -- verify Guest disabled, lockout policy
+        AC-7: Unsuccessful Logon Attempts -- lockout threshold/duration
+        AU-2: Audit Events -- auditpol coverage of required event categories
+        CM-7: Least Functionality -- disabled unnecessary services
+        IA-5: Authenticator Management -- password complexity policy
         ...
     validations:
       required: true
@@ -159,11 +159,11 @@ body:
       label: Are you willing to contribute?
       description: New modules typically require deep framework expertise
       options:
-        - Yes — I will draft the full module (with maintainer review)
-        - Yes — I can contribute control-by-control mappings
-        - Yes — I can review and validate maintainer's draft
-        - Maybe — depending on scope
-        - No — requesting only
+        - Yes -- I will draft the full module (with maintainer review)
+        - Yes -- I can contribute control-by-control mappings
+        - Yes -- I can review and validate maintainer's draft
+        - Maybe -- depending on scope
+        - No -- requesting only
     validations:
       required: true
 
