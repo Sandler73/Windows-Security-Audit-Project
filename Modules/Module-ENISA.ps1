@@ -1,6 +1,6 @@
 # module-enisa.ps1
 # ENISA Cybersecurity Guidelines Module for Windows Security Audit
-# Version: 6.1.2
+# Version: 6.6.0
 #
 # Evaluates Windows configuration against ENISA (European Union Agency for
 # Cybersecurity) guidelines and recommendations with Severity ratings
@@ -34,8 +34,13 @@
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
     References: ENISA Good Practices for IoT and Smart Infrastructures (2019),
-                ENISA Threat Landscape (2023), EU Cybersecurity Act (2019/881)
-    Version: 6.1.2
+                ENISA Threat Landscape (current annual editions),
+                EU Cybersecurity Act (2019/881), NIS2 Directive (2022/2555),
+                Cyber Resilience Act (Regulation (EU) 2024/2847: in force
+                2024-12-10; Art. 14 reporting applies 2026-09-11; full
+                application 2027-12-11), DORA (Regulation (EU) 2022/2554,
+                applies since 2025-01-17)
+    Version: 6.6.0
 
 .EXAMPLE
     $results = & .\modules\module-enisa.ps1 -SharedData $sharedData
@@ -47,16 +52,72 @@ param(
 )
 
 $moduleName = "ENISA"
-$moduleVersion = "6.1.2"
-$results = @()
 
+# ============================================================================
+# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# One live query per module run instead of one per check site. The helpers
+# return the SAME object the direct call would return (raw call, no error
+# swallowing beyond -ErrorAction SilentlyContinue already present at the
+# migrated sites), so call-site semantics are preserved exactly. Sites using
+# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# Standalone-safe: no shared-library dependency.
+# ============================================================================
+$script:HFMemo = @{}
+
+# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# querying. HostFacts already collects these objects once per RUN; without this
+# lookup each module re-queried them once per MODULE. Raw objects are reused
+# rather than derived scalar facts, so every property a call site reads is still
+# available and no call site needed changing. Falls back to a live query when
+# HostFacts is absent (standalone module execution), preserving prior behaviour.
+function Get-ModHostFact {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    if ($SharedData -and $SharedData.ContainsKey('HostFacts') -and $SharedData.HostFacts) {
+        $hf = $SharedData.HostFacts
+        try {
+            if ($hf.ContainsKey($Name) -and $null -ne $hf[$Name]) { return $hf[$Name] }
+        } catch { return $null }
+    }
+    return $null
+}
+function Get-ModOSInfo {
+    if (-not $script:HFMemo.ContainsKey('OS')) {
+        $fromFacts = Get-ModHostFact -Name 'RawOSCim'
+        $script:HFMemo['OS'] = if ($fromFacts) { $fromFacts }
+                               else { Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['OS']
+}
+function Get-ModDefenderStatus {
+    if (-not $script:HFMemo.ContainsKey('MP')) {
+        $fromFacts = Get-ModHostFact -Name 'RawDefenderStatus'
+        $script:HFMemo['MP'] = if ($fromFacts) { $fromFacts }
+                               else { Get-MpComputerStatus -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['MP']
+}
+function Get-ModFirewallProfiles {
+    if (-not $script:HFMemo.ContainsKey('FW')) {
+        $fromFacts = Get-ModHostFact -Name 'RawFirewallProfiles'
+        $script:HFMemo['FW'] = if ($fromFacts) { @($fromFacts) }
+                               else { @(Get-NetFirewallProfile -ErrorAction SilentlyContinue) }
+    }
+    return $script:HFMemo['FW']
+}
+
+$moduleVersion = "6.6.0"
+$results = [System.Collections.Generic.List[object]]::new()
 # ---------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
 # ---------------------------------------------------------------------------
 function Add-Result {
     param(
+        [Parameter(Mandatory=$true)]
         [string]$Category,
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("Pass","Fail","Warning","Info","Error")]
         [string]$Status,
+        [Parameter(Mandatory=$true)]
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
@@ -64,7 +125,7 @@ function Add-Result {
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
-    $script:results += [PSCustomObject]@{
+    $script:results.Add([PSCustomObject]@{
         Module          = $moduleName
         Category        = $Category
         Status          = $Status
@@ -74,7 +135,7 @@ function Add-Result {
         Remediation     = $Remediation
         CrossReferences = $CrossReferences
         Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    }
+    })
 }
 
 # ---------------------------------------------------------------------------
@@ -102,7 +163,7 @@ Write-Host "[ENISA] Checking GP.1 -- Network Security..." -ForegroundColor Yello
 
     # GP.1.1: Firewall -- Domain profile enabled
     try {
-        $domainFw = (Get-NetFirewallProfile -Name Domain -ErrorAction SilentlyContinue).Enabled
+        $domainFw = ((Get-ModFirewallProfiles | Where-Object { $_.Name -eq 'Domain' })).Enabled
         if ($domainFw -eq $true) {
             Add-Result -Category "ENISA - GP.1 Network Security" -Status "Pass" `
                 -Message "GP.1.1: Windows Firewall Domain profile is enabled" `
@@ -120,7 +181,7 @@ Write-Host "[ENISA] Checking GP.1 -- Network Security..." -ForegroundColor Yello
     }
     # GP.1.2: Firewall -- Private profile enabled
     try {
-        $privateFw = (Get-NetFirewallProfile -Name Private -ErrorAction SilentlyContinue).Enabled
+        $privateFw = ((Get-ModFirewallProfiles | Where-Object { $_.Name -eq 'Private' })).Enabled
         if ($privateFw -eq $true) {
             Add-Result -Category "ENISA - GP.1 Network Security" -Status "Pass" `
                 -Message "GP.1.2: Windows Firewall Private profile is enabled" `
@@ -138,7 +199,7 @@ Write-Host "[ENISA] Checking GP.1 -- Network Security..." -ForegroundColor Yello
     }
     # GP.1.3: Firewall -- Public profile enabled
     try {
-        $publicFw = (Get-NetFirewallProfile -Name Public -ErrorAction SilentlyContinue).Enabled
+        $publicFw = ((Get-ModFirewallProfiles | Where-Object { $_.Name -eq 'Public' })).Enabled
         if ($publicFw -eq $true) {
             Add-Result -Category "ENISA - GP.1 Network Security" -Status "Pass" `
                 -Message "GP.1.3: Windows Firewall Public profile is enabled" `
@@ -156,7 +217,7 @@ Write-Host "[ENISA] Checking GP.1 -- Network Security..." -ForegroundColor Yello
     }
     # GP.1.4: Firewall -- Default inbound block (Domain)
     try {
-        $defaultIn = (Get-NetFirewallProfile -Name Domain -ErrorAction SilentlyContinue).DefaultInboundAction
+        $defaultIn = ((Get-ModFirewallProfiles | Where-Object { $_.Name -eq 'Domain' })).DefaultInboundAction
         if ($defaultIn -eq 'Block' -or $defaultIn -eq 1) {
             Add-Result -Category "ENISA - GP.1 Network Security" -Status "Pass" `
                 -Message "GP.1.4: Firewall Domain profile blocks inbound by default" `
@@ -1236,7 +1297,7 @@ Write-Host "[ENISA] Checking GP.10 -- Endpoint Protection..." -ForegroundColor Y
     }
     # GP.10.2: Defender signature age
     try {
-        $mpStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
+        $mpStatus = Get-ModDefenderStatus
         if ($null -ne $mpStatus) {
             $sigAge = $mpStatus.AntivirusSignatureAge
             if ($sigAge -le 1) {
@@ -1754,6 +1815,51 @@ catch {
 }
 
 # ===========================================================================
+# v6.3.0 currency (PR-13): EU instrument timeline checks.
+# CRA (2024/2847): Art. 14 reporting obligations apply from 2026-09-11 --
+# including for products already on the EU market -- with 24h/72h notification
+# windows to ENISA's Single Reporting Platform; full application 2027-12-11.
+# DORA (2022/2554) applies since 2025-01-17. Dates verified against the
+# European Commission CRA pages and legal analyses, 2026-07-20.
+# ===========================================================================
+Write-Host "[ENISA] Checking EU instrument timelines (CRA Art. 14, DORA)..." -ForegroundColor Yellow
+
+try {
+    # CRA Art. 14 reporting readiness: the obligation lands 2026-09-11 (under
+    # two months from this module's currency date). Host-observable proxy:
+    # incident-evidence machinery (event logging + forwarding) operational.
+    $evtSvc = Get-Service -Name 'EventLog' -ErrorAction SilentlyContinue
+    $fwdCfg = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\EventForwarding\SubscriptionManager" -Name "1" -Default $null
+    $evtOk = ($evtSvc -and $evtSvc.Status -eq 'Running')
+    if ($evtOk) {
+        $fwdLbl = if ($fwdCfg) { "event forwarding configured" } else { "no event forwarding configured" }
+        Add-Result -Category "ENISA - CRA Art.14 Readiness" -Status "Info" `
+            -Severity "High" `
+            -Message "CRA Art. 14 reporting obligations apply from 2026-09-11: incident-evidence logging operational on this host ($fwdLbl)" `
+            -Details "From 11 September 2026, manufacturers of in-scope products with digital elements must notify actively exploited vulnerabilities and severe incidents to ENISA's Single Reporting Platform within 24 hours (early warning) and 72 hours (notification) of awareness -- including for products already on the EU market. This host's event logging supports the evidence trail; the reporting process itself is an organizational obligation. Verify applicability, awareness thresholds, and the internal escalation path before the deadline." `
+            -CrossReferences @{ CRA='Art.14'; Regulation='2024/2847'; NIS2='Art.23' }
+    } else {
+        Add-Result -Category "ENISA - CRA Art.14 Readiness" -Status "Warning" `
+            -Severity "High" `
+            -Message "CRA Art. 14 reporting applies from 2026-09-11 but the Windows Event Log service is not running on this host" `
+            -Details "Incident notification within 24h/72h presupposes detection and evidence. A stopped event log service undermines both the CRA Art. 14 evidence trail and NIS2 Art. 23 incident reporting readiness." `
+            -Remediation "Start-Service -Name EventLog" `
+            -CrossReferences @{ CRA='Art.14'; Regulation='2024/2847' }
+    }
+
+    # DORA applicability (in application since 2025-01-17)
+    Add-Result -Category "ENISA - DORA" -Status "Info" `
+        -Severity "Informational" `
+        -Message "DORA (Regulation (EU) 2022/2554) has applied since 2025-01-17 to financial entities and their critical ICT third-party providers" `
+        -Details "If this system supports an EU financial entity or a critical ICT service to one, DORA's ICT risk management, incident reporting, resilience testing, and third-party risk requirements are in force now (not pending). The hardening and logging posture assessed by this framework supports DORA Art. 9 (protection and prevention) evidence." `
+        -CrossReferences @{ DORA='Art.9'; Regulation='2022/2554'; NIS2='lex specialis' }
+} catch {
+    Add-Result -Category "ENISA - CRA Art.14 Readiness" -Status "Error" `
+        -Message "EU instrument timeline checks could not be completed: $($_.Exception.Message)" `
+        -Details "CRA/DORA currency checks failed to execute"
+}
+
+# ===========================================================================
 # Module Summary
 # ===========================================================================
 $passCount    = @($results | Where-Object { $_.Status -eq "Pass" }).Count
@@ -1803,7 +1909,7 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
 
     $standaloneData = @{
         ComputerName = $env:COMPUTERNAME
-        OSVersion    = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
+        OSVersion    = (Get-ModOSInfo).Caption
         IPAddresses  = @((Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -ne "127.0.0.1" }).IPAddress)
         IsAdmin      = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
         ScanDate     = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
@@ -1840,7 +1946,7 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
     $useCache = ($null -ne $SharedData.Cache)
 
     Write-Host "[ENISA] Executing checks with standalone environment...`n" -ForegroundColor Cyan
-    $script:results = @()
+    $script:results = [System.Collections.Generic.List[object]]::new()
 
     Write-Host "`n$("=" * 80)" -ForegroundColor White
     Write-Host "  DETAILED STANDALONE RESULTS" -ForegroundColor Cyan
