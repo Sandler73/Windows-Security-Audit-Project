@@ -19,7 +19,7 @@ body:
 
         Memory usage typically peaks at 200-500 MB. CPU usage spikes during parallel runs but returns to idle between modules.
 
-        **Significantly outside these ranges?** This template is for you. Run with `-ShowProfile` first — it gives per-module timing breakdown and is critical for triage.
+        **Significantly outside these ranges?** This template is for you. Run with `-ShowProfile` first -- it gives per-module timing breakdown and is critical for triage.
 
   - type: checkboxes
     id: prerequisites
@@ -55,7 +55,7 @@ body:
       label: Observed timing
       description: |
         Total time and per-module breakdown. Use `-ShowProfile`. If you cannot get
-        `-ShowProfile` to produce output, that itself is a bug — describe what happens.
+        `-ShowProfile` to produce output, that itself is a bug -- describe what happens.
       placeholder: |
         Total: 14 minutes 23 seconds (expected: 60-90 seconds)
 
