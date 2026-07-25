@@ -10,7 +10,6 @@
     Builds a single source-of-truth hashtable of derived host facts that
     multiple audit modules consume, instead of each module re-deriving the
     same state. Mirrors the Linux project's host_facts.py architecture
-    (GAP-4 of the parity program).
 
     Facts are derived from the SharedDataCache (populated by Invoke-CacheWarmUp
     in audit-common.ps1) where available, with guarded direct queries as
@@ -56,8 +55,8 @@
     Dependencies: audit-common.ps1 (optional, for Get-CachedRegistryValue and
     Get-OSInfo); all dependencies are availability-guarded via Get-Command
     Security: read-only; no state is modified; no network calls
-    Registry paths: all paths herein already appear in the audited v6.2.0
-    module set (verified in the v6.1.2 principal audit); no new paths invented
+    Registry paths: all paths herein already appear in the audited
+    module set (verified during the principal audit); no new paths invented
     Version: 6.6.0
 #>
 
@@ -123,7 +122,7 @@ function New-HostFactsRegistry {
     $errors = [System.Collections.Generic.List[string]]::new()
     $facts = @{}
 
-    # ---- Identity / role -------------------------------------------------
+    # --- Identity / role -------------------------------------------------
     try {
         if (-not $OSInfo -and (Get-Command 'Get-OSInfo' -ErrorAction SilentlyContinue)) {
             $OSInfo = Get-OSInfo -Cache $Cache
@@ -139,7 +138,7 @@ function New-HostFactsRegistry {
     $facts.IsServerCore   = if ($OSInfo -and $OSInfo.InstallType) { $OSInfo.InstallType -eq 'Server Core' } else { $null }
     $facts.PSVersion      = $PSVersionTable.PSVersion.ToString()
 
-    # v6.5.0 (HostFacts phase 2): retain the raw Win32_OperatingSystem instance.
+    # Retain the raw Win32_OperatingSystem instance.
     # Modules read Caption, BuildNumber and ProductType from it; the derived
     # scalar facts above do not carry ProductType, so the raw object is kept
     # rather than expanding the fact list property by property.
@@ -160,7 +159,7 @@ function New-HostFactsRegistry {
         }
     } catch { $errors.Add("DomainController: $($_.Exception.Message)") }
 
-    # ---- Protection stack ------------------------------------------------
+    # --- Protection stack ------------------------------------------------
     $facts.DefenderPresent = $null
     $facts.DefenderRealTimeProtection = $null
     $facts.DefenderTamperProtection = $null
@@ -170,7 +169,7 @@ function New-HostFactsRegistry {
             if ($mp) {
                 $facts.DefenderPresent = $true
                 $facts.DefenderRealTimeProtection = [bool]$mp.RealTimeProtectionEnabled
-                # v6.5.0 (HostFacts phase 2): retain the raw status object so
+                # Retain the raw status object so
                 # modules can satisfy every property they read from one run-wide
                 # query instead of one query per module. Field-level facts above
                 # cover only a subset of the properties call sites use.
@@ -187,7 +186,7 @@ function New-HostFactsRegistry {
     $facts.DefenderATPPresent = ($null -ne $sense)
     $facts.DefenderATPRunning = if ($sense) { $sense.Status -eq 'Running' } else { $false }
 
-    # ---- Platform security ----------------------------------------------
+    # --- Platform security ----------------------------------------------
     $facts.TPMPresent = $null
     try {
         if (Get-Command 'Get-Tpm' -ErrorAction SilentlyContinue) {
@@ -221,7 +220,7 @@ function New-HostFactsRegistry {
         }
     } catch { $errors.Add("BitLocker: $($_.Exception.Message)") }
 
-    # ---- Exposure --------------------------------------------------------
+    # --- Exposure --------------------------------------------------------
     $rdpDeny = Get-HFRegValue -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' -Name 'fDenyTSConnections' -Cache $Cache
     $facts.RDPEnabled = if ($null -ne $rdpDeny) { $rdpDeny -eq 0 } else { $null }
     $nla = Get-HFRegValue -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name 'UserAuthentication' -Cache $Cache
@@ -239,7 +238,7 @@ function New-HostFactsRegistry {
             $profiles = Get-NetFirewallProfile -ErrorAction Stop
             $facts.FirewallProfiles = @{}
             foreach ($p in $profiles) { $facts.FirewallProfiles[$p.Name] = [bool]$p.Enabled }
-            $facts.RawFirewallProfiles = @($profiles)   # v6.5.0 phase 2
+            $facts.RawFirewallProfiles = @($profiles)
         }
     } catch { $errors.Add("Firewall: $($_.Exception.Message)") }
 
@@ -256,7 +255,7 @@ function New-HostFactsRegistry {
     $facts.WinRMPresent = ($null -ne $winrm)
     $facts.WinRMRunning = if ($winrm) { $winrm.Status -eq 'Running' } else { $false }
 
-    # ---- Identity hygiene ------------------------------------------------
+    # --- Identity hygiene ------------------------------------------------
     $facts.LocalAdminCount = $null
     try {
         if (Get-Command 'Get-LocalGroupMember' -ErrorAction SilentlyContinue) {
@@ -278,7 +277,7 @@ function New-HostFactsRegistry {
     $lapsLegacy = Get-HFRegValue -Path 'HKLM:\SOFTWARE\Policies\Microsoft Services\AdmPwd' -Name 'AdmPwdEnabled' -Cache $Cache
     $facts.LAPSConfigured = (($null -ne $lapsModern) -or ($lapsLegacy -eq 1))
 
-    # ---- Execution control ----------------------------------------------
+    # --- Execution control ----------------------------------------------
     $appid = Get-HFServiceState -Name 'AppIDSvc'
     $facts.AppLockerServicePresent = ($null -ne $appid)
     $facts.AppLockerServiceRunning = if ($appid) { $appid.Status -eq 'Running' } else { $false }
@@ -300,7 +299,7 @@ function New-HostFactsRegistry {
         }
     } catch { $errors.Add("PSv2: $($_.Exception.Message)") }
 
-    # ---- Servicing -------------------------------------------------------
+    # --- Servicing -------------------------------------------------------
     $wu = Get-HFServiceState -Name 'wuauserv'
     $facts.WindowsUpdateServicePresent = ($null -ne $wu)
     $facts.WindowsUpdateServiceDisabled = if ($wu) { $wu.StartType -eq 'Disabled' } else { $null }
@@ -312,7 +311,7 @@ function New-HostFactsRegistry {
         $facts.PendingReboot = ($cbsPending -or $wuPending)
     } catch { $errors.Add("PendingReboot: $($_.Exception.Message)") }
 
-    # ---- Meta ------------------------------------------------------------
+    # --- Meta ------------------------------------------------------------
     $facts.Meta = @{
         GeneratedAt    = $started.ToString('yyyy-MM-dd HH:mm:ss')
         ElapsedSeconds = [Math]::Round(((Get-Date) - $started).TotalSeconds, 3)
