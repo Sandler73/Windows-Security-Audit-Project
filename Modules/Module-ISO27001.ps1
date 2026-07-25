@@ -44,17 +44,17 @@ param(
 $moduleName = "ISO27001"
 
 # ============================================================================
-# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# Memoized host-state accessors.
 # One live query per module run instead of one per check site. The helpers
 # return the SAME object the direct call would return (raw call, no error
 # swallowing beyond -ErrorAction SilentlyContinue already present at the
 # migrated sites), so call-site semantics are preserved exactly. Sites using
-# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# ErrorAction Stop inside try/catch are intentionally NOT migrated.
 # Standalone-safe: no shared-library dependency.
 # ============================================================================
 $script:HFMemo = @{}
 
-# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# Consult the run-wide HostFacts registry before
 # querying. HostFacts already collects these objects once per RUN; without this
 # lookup each module re-queried them once per MODULE. Raw objects are reused
 # rather than derived scalar facts, so every property a call site reads is still
@@ -97,9 +97,9 @@ function Get-ModFirewallProfiles {
 
 $moduleVersion = "6.6.0"
 $results = [System.Collections.Generic.List[object]]::new()
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 function Add-Result {
     param(
         [Parameter(Mandatory=$true)]
@@ -128,9 +128,9 @@ function Add-Result {
     })
 }
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Cache-aware registry helper
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 $useCache = ($null -ne $SharedData.Cache)
 function Get-RegValue {
     param([string]$Path, [string]$Name, $Default = $null)
@@ -2108,7 +2108,7 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- SDLC & Hardening..
 
 
 # ===========================================================================
-# v6.1: ISO 27002:2022 implementation guidance references
+# ISO 27002:2022 implementation guidance references
 # ===========================================================================
 Write-Host "[ISO27001] Checking ISO 27002:2022 implementation references..." -ForegroundColor Yellow
 
@@ -2179,7 +2179,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: ISO/IEC 27017 (Cloud Services) and 27018 (PII in Cloud)
+# ISO/IEC 27017 (Cloud Services) and 27018 (PII in Cloud)
 # ===========================================================================
 Write-Host "[ISO27001] Checking ISO 27017/27018 cloud-extension controls..." -ForegroundColor Yellow
 
@@ -2236,7 +2236,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: ISO/IEC 27701 (Privacy Information Management)
+# ISO/IEC 27701 (Privacy Information Management)
 # ===========================================================================
 Write-Host "[ISO27001] Checking ISO 27701 privacy management controls..." -ForegroundColor Yellow
 
@@ -2292,7 +2292,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: Statement of Applicability (SoA) generation support
+# Statement of Applicability (SoA) generation support
 # ===========================================================================
 Write-Host "[ISO27001] Computing Statement of Applicability summary..." -ForegroundColor Yellow
 
@@ -2327,7 +2327,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: ISO/IEC 27005 (Risk Management) and 27031 (ICT Continuity)
+# ISO/IEC 27005 (Risk Management) and 27031 (ICT Continuity)
 # ===========================================================================
 Write-Host "[ISO27001] Checking ISO 27005 risk and 27031 ICT continuity evidence..." -ForegroundColor Yellow
 
@@ -2398,7 +2398,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: Annex A.5 Organizational and A.7 Physical control evidence
+# Annex A.5 Organizational and A.7 Physical control evidence
 # ===========================================================================
 Write-Host "[ISO27001] Checking Annex A.5/A.7 control technical evidence..." -ForegroundColor Yellow
 
