@@ -436,10 +436,10 @@ Excel-compatible format for:
 
 ### 5. Console Output (Real-Time)
 ```
-========================================================================
-                    Windows Security Audit Project v6.6.0
-                Multi-Framework Security Assessment
-========================================================================
+======================================================================================================
+                        Windows Security Audit Project v6.6.0
+                        Multi-Framework Security Assessment
+========================================================================================================
 
 [*] Modules to execute: Core, CIS, MS, MS-DefenderATP, NIST, STIG, NSA, CISA
 
@@ -1075,13 +1075,6 @@ See [CHANGELOG.md](https://github.com/Sandler73/Windows-Security-Audit-Project/b
 
 <div align="center">
 
-**⭐ If this project helps you secure Windows systems, please consider giving it a star! ⭐**
-
-**[⬆ Back to Top](#windows-security-audit-script)**
-
-Made with ❤️ for the cybersecurity community
-
-</div>
 **⭐ If this project helps you secure Windows systems, please consider giving it a star! ⭐**
 
 **[⬆ Back to Top](#windows-security-audit-script)**
