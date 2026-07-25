@@ -57,17 +57,17 @@ param(
 $moduleName = "STIG"
 
 # ============================================================================
-# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# Memoized host-state accessors.
 # One live query per module run instead of one per check site. The helpers
 # return the SAME object the direct call would return (raw call, no error
 # swallowing beyond -ErrorAction SilentlyContinue already present at the
 # migrated sites), so call-site semantics are preserved exactly. Sites using
-# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# ErrorAction Stop inside try/catch are intentionally NOT migrated.
 # Standalone-safe: no shared-library dependency.
 # ============================================================================
 $script:HFMemo = @{}
 
-# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# Consult the run-wide HostFacts registry before
 # querying. HostFacts already collects these objects once per RUN; without this
 # lookup each module re-queried them once per MODULE. Raw objects are reused
 # rather than derived scalar facts, so every property a call site reads is still
@@ -110,9 +110,9 @@ function Get-ModFirewallProfiles {
 
 $moduleVersion = "6.6.0"
 $results = [System.Collections.Generic.List[object]]::new()
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Enhanced result helper with Severity and CrossReferences
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 function Add-Result {
     param(
         [Parameter(Mandatory=$true)]
@@ -141,9 +141,9 @@ function Add-Result {
     })
 }
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Cache-aware registry helper
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 $useCache = ($null -ne $SharedData.Cache)
 function Get-RegValue {
     param([string]$Path, [string]$Name, $Default = $null)
@@ -1844,7 +1844,7 @@ try {
 
 
 # ============================================================================
-# v6.1: Security Requirements Guide (SRG) cross-mapping
+# Security Requirements Guide (SRG) cross-mapping
 # ============================================================================
 Write-Host "[STIG] Checking SRG cross-mapped technical requirements..." -ForegroundColor Yellow
 
@@ -1915,7 +1915,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: V-finding (Vulnerability ID) format consistency
+# V-finding (Vulnerability ID) format consistency
 # ============================================================================
 Write-Host "[STIG] Checking V-finding format alignment..." -ForegroundColor Yellow
 
@@ -2001,7 +2001,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: STIG Viewer compatibility hints
+# STIG Viewer compatibility hints
 # ============================================================================
 Write-Host "[STIG] Checking STIG Viewer compatibility indicators..." -ForegroundColor Yellow
 
@@ -2030,7 +2030,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Microsoft Windows Defender Antivirus STIG
+# Microsoft Windows Defender Antivirus STIG
 # ============================================================================
 Write-Host "[STIG] Checking Microsoft Defender Antivirus STIG findings..." -ForegroundColor Yellow
 
@@ -2101,7 +2101,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: STIG BlackLotus mitigation guidance
+# STIG BlackLotus mitigation guidance
 # ============================================================================
 Write-Host "[STIG] Checking STIG BlackLotus mitigation requirements..." -ForegroundColor Yellow
 
@@ -2143,7 +2143,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: STIG severity (CAT) distribution analysis
+# STIG severity (CAT) distribution analysis
 # ============================================================================
 Write-Host "[STIG] Computing STIG severity (CAT) distribution..." -ForegroundColor Yellow
 
@@ -2174,7 +2174,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.3.0 currency (PR-5): Windows 11 STIG V2R8 (July 2026) alignment.
+# Currency: Windows 11 STIG V2R8 (July 2026) alignment.
 # V2R8 adds 3 requirements (incl. security event log sized for at least one
 # week of events) and updates 2; the V2R6 cycle (Feb 2026) added the consumer
 # account block requirement. New rule V-IDs are not restated here because they
@@ -2184,7 +2184,7 @@ catch {
 Write-Host "[STIG] Checking Windows 11 STIG V2R8 currency requirements..." -ForegroundColor Yellow
 
 try {
-    # --- V2R8 addition: security event log must hold at least one week of events
+    # -- V2R8 addition: security event log must hold at least one week of events
     $secLog = $null
     try { $secLog = Get-WinEvent -ListLog 'Security' -ErrorAction Stop } catch { $secLog = $null }
     if ($secLog) {
@@ -2226,7 +2226,7 @@ try {
             -CrossReferences @{ STIG='V2R8 addition'; NIST='AU-4' }
     }
 
-    # --- V2R6-cycle addition: block consumer (Microsoft) account use
+    # -- V2R6-cycle addition: block consumer (Microsoft) account use
     $noConnected = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "NoConnectedUser" -Default $null
     if ($noConnected -eq 3) {
         Add-Result -Category "STIG - V2R8 Currency" -Status "Pass" `
