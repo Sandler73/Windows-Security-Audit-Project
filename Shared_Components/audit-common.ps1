@@ -23,10 +23,19 @@
     - Modules can run without this library (reduced performance, no caching).
     - Modules check $script:HAS_COMMON_LIB before calling shared functions.
 
+.EXAMPLE
+    . .\shared_components\audit-common.ps1
+    Write-AuditLog -Message 'Audit started' -Level 'INFO'
+    $osInfo = Get-OSInfo -Cache $cache
+    Add-Result -Category 'Example' -Status 'Pass' -Message 'Check succeeded'
+
+    Dot-source the library, then call its helpers. The orchestrator does this
+    once per run and shares the resulting cache with every module.
+
 .NOTES
-    Version: 6.1.2
+    Version: 6.6.0
     Part of: Windows Security Audit Framework
-    GitHub: https://github.com/Sandler73/Windows-Security-Audit-Script
+    GitHub: https://github.com/Sandler73/Windows-Security-Audit-Project
     
     Dependencies: None (stdlib only)
     Requires: PowerShell 5.1+, Windows 10/11 or Server 2016+
@@ -43,7 +52,7 @@
 # ============================================================================
 # Library Configuration
 # ============================================================================
-$script:COMMON_LIB_VERSION = "6.1.2"
+$script:COMMON_LIB_VERSION = "6.6.0"
 $script:HAS_COMMON_LIB = $true
 
 # ============================================================================
@@ -62,6 +71,11 @@ $script:CurrentLogLevel = 20  # INFO default
 $script:LogFilePath = $null
 $script:LogJsonFormat = $false
 $script:LogLock = [System.Object]::new()
+# v6.2.0 (WSA-D2): named mutex handle for cross-runspace log-file serialization.
+# A script-scope Monitor lock object is per-runspace and cannot serialize file
+# writes across parallel runspaces; a named system mutex can. Created lazily by
+# Initialize-AuditLogging from a hash of the log file path.
+$script:LogMutex = $null
 $script:LogConsoleEnabled = $true   # v6.1.2: Console emission (toggle via Initialize-AuditLogging -Quiet)
 $script:LogStartTime = $null
 
@@ -98,6 +112,24 @@ function Initialize-AuditLogging {
     # built-in fallback behavior so logs are always captured by default).
     if ($LogFile) {
         $script:LogFilePath = $LogFile
+    }
+
+    # v6.2.0 (WSA-D2): create/open a named mutex derived from the log file path
+    # so every runspace writing to the same file serializes on the same OS-level
+    # primitive. Falls back to the Monitor lock if mutex creation fails.
+    if ($LogFile) {
+        try {
+            $pathBytes = [System.Text.Encoding]::UTF8.GetBytes($LogFile.ToLowerInvariant())
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            try {
+                $hashHex = ([System.BitConverter]::ToString($sha.ComputeHash($pathBytes)) -replace '-','').Substring(0, 16)
+            } finally {
+                $sha.Dispose()
+            }
+            $script:LogMutex = New-Object System.Threading.Mutex($false, "Local\WSA-AuditLog-$hashHex")
+        } catch {
+            $script:LogMutex = $null
+        }
     }
     else {
         # Choose a default log directory. Prefer the script's logs/ subfolder when
@@ -184,23 +216,43 @@ function Write-AuditLog {
 
     # Write to file if configured
     if ($script:LogFilePath) {
+        if ($script:LogJsonFormat) {
+            $logEntry = @{
+                timestamp = $timestamp
+                level     = $Level
+                module    = $Module
+                message   = $Message
+            } | ConvertTo-Json -Compress
+        }
+        else {
+            $logEntry = "[$timestamp] [$Level] [$Module] $Message"
+        }
+
+        # v6.2.0 (WSA-D2): serialize on the named mutex so writes from parallel
+        # runspaces interleave safely; Monitor lock remains the single-runspace
+        # fallback when no mutex is available. An abandoned mutex (holder
+        # terminated mid-write) is still an acquired mutex; proceed and release.
+        $mutexAcquired = $false
         try {
-            [System.Threading.Monitor]::Enter($script:LogLock)
-            if ($script:LogJsonFormat) {
-                $logEntry = @{
-                    timestamp = $timestamp
-                    level     = $Level
-                    module    = $Module
-                    message   = $Message
-                } | ConvertTo-Json -Compress
+            if ($script:LogMutex) {
+                try {
+                    $mutexAcquired = $script:LogMutex.WaitOne(2000)
+                } catch [System.Threading.AbandonedMutexException] {
+                    $mutexAcquired = $true
+                }
             }
-            else {
-                $logEntry = "[$timestamp] [$Level] [$Module] $Message"
+            if (-not $mutexAcquired) {
+                [System.Threading.Monitor]::Enter($script:LogLock)
             }
             Add-Content -Path $script:LogFilePath -Value $logEntry -Encoding UTF8 -ErrorAction SilentlyContinue
         }
         finally {
-            [System.Threading.Monitor]::Exit($script:LogLock)
+            if ($mutexAcquired) {
+                try { $script:LogMutex.ReleaseMutex() } catch { <# already released #> }
+            }
+            else {
+                [System.Threading.Monitor]::Exit($script:LogLock)
+            }
         }
     }
 }
@@ -212,7 +264,7 @@ function Write-AuditLog {
 .SYNOPSIS
     Detect Windows OS information including version, edition, build, and domain.
 .DESCRIPTION
-    Returns a hashtable with comprehensive OS details used for OS-aware checks.
+    Returns a hashtable with OS details used for OS-aware checks.
 #>
 function Get-OSInfo {
     [CmdletBinding()]
@@ -1537,9 +1589,21 @@ function Get-RiskPriorityScore {
         $exposure += 5
     }
 
+    # Asset criticality (0-15 band of the composite score). Default is the
+    # derived value: 5 for a general host, 10 for a domain controller. An
+    # operator-supplied AssetCriticality (1-10) overrides the derivation and is
+    # scaled onto the same 0-15 band, so an explicitly rated asset ranks its
+    # findings by the rating the operator assigned rather than by role alone.
     $criticality = 5
     if ($ExposureContext.ContainsKey('IsDomainController') -and $ExposureContext.IsDomainController) {
         $criticality = 10
+    }
+    if ($ExposureContext.ContainsKey('AssetCriticality')) {
+        $supplied = 0
+        try { $supplied = [int]$ExposureContext.AssetCriticality } catch { $supplied = 0 }
+        if ($supplied -ge 1 -and $supplied -le 10) {
+            $criticality = [Math]::Round($supplied * 1.5, 0)
+        }
     }
 
     $statusModifier = switch ($Result.Status) {
