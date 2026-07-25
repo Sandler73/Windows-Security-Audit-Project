@@ -12,7 +12,7 @@ body:
 
         - **Not sure if it's a bug?** Use [Discussions](https://github.com/Sandler73/Windows-Security-Audit-Project/discussions) for usage questions.
         - **Did you find a security vulnerability in the framework itself?** STOP. Use a [private Security Advisory](https://github.com/Sandler73/Windows-Security-Audit-Project/security/advisories/new) instead. Do not disclose it publicly.
-        - **Is a check reporting Pass when it should Fail (or vice versa)?** Use the False Positive or False Negative templates instead — they collect the right framework-mapping context.
+        - **Is a check reporting Pass when it should Fail (or vice versa)?** Use the False Positive or False Negative templates instead -- they collect the right framework-mapping context.
         - **Is the audit running but slow?** Use the Performance Issue template instead.
 
         Please complete every section. Incomplete reports may be closed without action.
