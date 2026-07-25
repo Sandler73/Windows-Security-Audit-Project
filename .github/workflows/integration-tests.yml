@@ -349,7 +349,10 @@ jobs:
   # --------------------------------------------------------------------------
   e2e-self-hosted:
     name: E2E (${{ matrix.runner.os }})
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.include_self_hosted == true)
+    # Self-hosted jobs queue indefinitely when no matching runner is
+    # registered, and timeout-minutes does not cover queue time. Require an
+    # explicit repository variable so a scheduled run cannot burn hours.
+    if: vars.ENABLE_SELF_HOSTED == 'true' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.include_self_hosted == true))
     runs-on:
       - self-hosted
       - ${{ matrix.runner.label }}
