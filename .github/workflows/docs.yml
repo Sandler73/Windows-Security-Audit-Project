@@ -41,8 +41,21 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Verify audit tooling is present
+        run: |
+          if [ ! -f tools/docs-audit.py ]; then
+            echo "::error::tools/docs-audit.py is missing from this checkout."
+            echo "The documentation gate runs the repository's own audit tool."
+            echo "If workflows were updated without the tooling, commit tools/docs-audit.py."
+            exit 1
+          fi
+          echo "Found tools/docs-audit.py"
+
       - name: Run documentation audit
         run: |
+          # The wiki is published as a separate GitHub wiki repository; the
+          # tool skips wiki coverage checks when docs/wiki/ is absent rather
+          # than failing, so this gate works on any checkout shape.
           python3 tools/docs-audit.py --fail-on HIGH --json docs-audit.json
 
       - name: Upload audit report
