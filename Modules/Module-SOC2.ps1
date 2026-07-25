@@ -44,17 +44,17 @@ param(
 $moduleName = "SOC2"
 
 # ============================================================================
-# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# Memoized host-state accessors.
 # One live query per module run instead of one per check site. The helpers
 # return the SAME object the direct call would return (raw call, no error
 # swallowing beyond -ErrorAction SilentlyContinue already present at the
 # migrated sites), so call-site semantics are preserved exactly. Sites using
-# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# ErrorAction Stop inside try/catch are intentionally NOT migrated.
 # Standalone-safe: no shared-library dependency.
 # ============================================================================
 $script:HFMemo = @{}
 
-# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# Consult the run-wide HostFacts registry before
 # querying. HostFacts already collects these objects once per RUN; without this
 # lookup each module re-queried them once per MODULE. Raw objects are reused
 # rather than derived scalar facts, so every property a call site reads is still
@@ -97,9 +97,9 @@ function Get-ModFirewallProfiles {
 
 $moduleVersion = "6.6.0"
 $results = [System.Collections.Generic.List[object]]::new()
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 function Add-Result {
     param(
         [Parameter(Mandatory=$true)]
@@ -128,9 +128,9 @@ function Add-Result {
     })
 }
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Cache-aware registry helper
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 $useCache = ($null -ne $SharedData.Cache)
 function Get-RegValue {
     param([string]$Path, [string]$Name, $Default = $null)
@@ -1115,7 +1115,7 @@ Write-Host "[SOC2] Checking C1 -- Confidentiality..." -ForegroundColor Yellow
 
 
 # ===========================================================================
-# v6.1: Processing Integrity (PI) Trust Service Criteria
+# Processing Integrity (PI) Trust Service Criteria
 # ===========================================================================
 Write-Host "[SOC2] Checking Processing Integrity criteria..." -ForegroundColor Yellow
 
@@ -1176,7 +1176,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: Privacy (P) Trust Service Criteria
+# Privacy (P) Trust Service Criteria
 # ===========================================================================
 Write-Host "[SOC2] Checking Privacy criteria..." -ForegroundColor Yellow
 
@@ -1264,7 +1264,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: Type II evidence collection mode
+# Type II evidence collection mode
 # ===========================================================================
 Write-Host "[SOC2] Checking Type II evidence collection capability..." -ForegroundColor Yellow
 
@@ -1329,7 +1329,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: AICPA TSP Section 100 explicit Points of Focus
+# AICPA TSP Section 100 explicit Points of Focus
 # ===========================================================================
 Write-Host "[SOC2] Checking AICPA TSP Section 100 Points of Focus..." -ForegroundColor Yellow
 
@@ -1399,7 +1399,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: SOC 2 Common Subject Matter mappings
+# SOC 2 Common Subject Matter mappings
 # ===========================================================================
 Write-Host "[SOC2] Checking common subject matter mappings to other frameworks..." -ForegroundColor Yellow
 
