@@ -46,7 +46,8 @@ Describe 'Orchestrator File Existence' {
 
     It 'Orchestrator declares the current ScriptVersion' {
         $content = Get-Content -Path $script:OrchPath -Raw
-        $content | Should -Match '\$script:ScriptVersion\s*=\s*[''"]$([regex]::Escape($script:ExpectedVersion))[''"]'
+        $pattern = '\$script:ScriptVersion\s*=\s*[''"]' + [regex]::Escape($script:ExpectedVersion) + '[''"]'
+        $content | Should -Match $pattern
     }
 
     It 'Orchestrator parses without syntax errors' {
@@ -84,7 +85,7 @@ Describe 'Help System' {
     # NOTE: Bare-form help arguments ('help', '-help', '--help', '--h', '/?')
     # are documented in the orchestrator's help text but are NOT supported
     # by the parameter binding pipeline. PowerShell binds bare arguments to
-    # -Modules first; that parameter has a [ValidateSet(...)] attribute
+    # Modules first; that parameter has a [ValidateSet(...)] attribute
     # that rejects 'help'/'--help'/etc. BEFORE the script body runs. The
     # $RemainingArgs catch-all only sees args that survive ValidateSet,
     # which never happens for the documented free-form aliases. Use the
@@ -141,7 +142,7 @@ Describe 'Parameter Validation' {
     It 'ShowHelp parameter has Help and H aliases' {
         $content = Get-Content -Path $script:OrchPath -Raw
         # The orchestrator's help-related parameter is declared as:
-        #   [Alias("Help","H")] [switch]$ShowHelp
+        # [Alias("Help","H")] [switch]$ShowHelp
         # Check both alias values appear in proximity to ShowHelp.
         $content | Should -Match '\[Alias\([^)]*"Help"[^)]*\)\][^$]*\$ShowHelp'
     }
@@ -191,7 +192,7 @@ Describe 'Output File Generation' {
         & $script:OrchPath -Modules core -OutputFormat JSON `
             -OutputPath (Join-Path $script:OutDir 'out') -Quiet *>&1 | Out-Null
 
-        $jsonFiles = @(Get-ChildItem -Path $script:OutDir -Filter 'Windows-Security-Audit-*.json')
+        $jsonFiles = @(Get-ChildItem -Path $script:OutDir -Recurse -Filter 'Windows-Security-Audit-*.json')
         $jsonFiles.Count | Should -BeGreaterThan 0
     }
 
@@ -199,7 +200,7 @@ Describe 'Output File Generation' {
         & $script:OrchPath -Modules core -OutputFormat JSON `
             -OutputPath (Join-Path $script:OutDir 'out') -Quiet *>&1 | Out-Null
 
-        $jsonFiles = @(Get-ChildItem -Path $script:OutDir -Filter 'Windows-Security-Audit-*.json')
+        $jsonFiles = @(Get-ChildItem -Path $script:OutDir -Recurse -Filter 'Windows-Security-Audit-*.json')
         if ($jsonFiles.Count -gt 0) {
             $content = Get-Content -Path $jsonFiles[0].FullName -Raw
             { $content | ConvertFrom-Json } | Should -Not -Throw
@@ -210,7 +211,7 @@ Describe 'Output File Generation' {
         & $script:OrchPath -Modules core -OutputFormat JSON `
             -OutputPath (Join-Path $script:OutDir 'out') -Quiet *>&1 | Out-Null
 
-        $jsonFiles = @(Get-ChildItem -Path $script:OutDir -Filter 'Windows-Security-Audit-*.json')
+        $jsonFiles = @(Get-ChildItem -Path $script:OutDir -Recurse -Filter 'Windows-Security-Audit-*.json')
         if ($jsonFiles.Count -gt 0) {
             $data = Get-Content -Path $jsonFiles[0].FullName -Raw | ConvertFrom-Json
             $data.PSObject.Properties.Name | Should -Contain 'Results'
