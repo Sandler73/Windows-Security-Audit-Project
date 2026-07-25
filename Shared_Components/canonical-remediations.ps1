@@ -35,7 +35,7 @@
 .EXAMPLE
     . .\shared_components\canonical-remediations.ps1
     Get-RemediationTopic -Message "SMB signing is not required" -Category "NIST - SC"
-    # -> SmbSigningServer
+    # > SmbSigningServer
 
 .NOTES
     Requires: PowerShell 5.1+
@@ -46,7 +46,7 @@
 
 # ============================================================================
 # Topic table. Match: regex alternatives evaluated case-insensitively against
-# "<message> :: <category>". First declared match wins (order matters: more
+# "<message>:: <category>". First declared match wins (order matters: more
 # specific topics precede broader ones).
 # ============================================================================
 $script:CanonicalTopics = [ordered]@{
