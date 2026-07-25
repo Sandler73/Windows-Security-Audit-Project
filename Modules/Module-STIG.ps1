@@ -1,6 +1,6 @@
 # Module-STIG.ps1
 # DISA STIG (Security Technical Implementation Guide) Compliance Module for Windows Security Audit
-# Version: 6.1.2
+# Version: 6.6.0
 #
 # Evaluates Windows configuration against DISA Windows 10/11 STIG and
 # Windows Server STIG with CAT I/II/III severity mapping and cross-framework references.
@@ -39,9 +39,11 @@
 .NOTES
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
-    References: DISA Windows 10 STIG V2R8, Windows 11 STIG V1R6,
-                Windows Server 2019 STIG V2R8, Windows Server 2022 STIG V1R5
-    Version: 6.1.2
+    References: DISA STIG library (verify current releases at public.cyber.mil):
+                Windows 11 STIG V2R8 (Jul 2026, 236 requirements),
+                Windows 10 STIG V3R6 (Jan 2026),
+                Windows Server 2019/2022/2025 STIGs (current releases per DISA cycle)
+    Version: 6.6.0
 
 .EXAMPLE
     $results = & .\modules\module-stig.ps1 -SharedData $sharedData
@@ -53,16 +55,72 @@ param(
 )
 
 $moduleName = "STIG"
-$moduleVersion = "6.1.2"
-$results = @()
 
+# ============================================================================
+# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# One live query per module run instead of one per check site. The helpers
+# return the SAME object the direct call would return (raw call, no error
+# swallowing beyond -ErrorAction SilentlyContinue already present at the
+# migrated sites), so call-site semantics are preserved exactly. Sites using
+# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# Standalone-safe: no shared-library dependency.
+# ============================================================================
+$script:HFMemo = @{}
+
+# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# querying. HostFacts already collects these objects once per RUN; without this
+# lookup each module re-queried them once per MODULE. Raw objects are reused
+# rather than derived scalar facts, so every property a call site reads is still
+# available and no call site needed changing. Falls back to a live query when
+# HostFacts is absent (standalone module execution), preserving prior behaviour.
+function Get-ModHostFact {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    if ($SharedData -and $SharedData.ContainsKey('HostFacts') -and $SharedData.HostFacts) {
+        $hf = $SharedData.HostFacts
+        try {
+            if ($hf.ContainsKey($Name) -and $null -ne $hf[$Name]) { return $hf[$Name] }
+        } catch { return $null }
+    }
+    return $null
+}
+function Get-ModOSInfo {
+    if (-not $script:HFMemo.ContainsKey('OS')) {
+        $fromFacts = Get-ModHostFact -Name 'RawOSCim'
+        $script:HFMemo['OS'] = if ($fromFacts) { $fromFacts }
+                               else { Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['OS']
+}
+function Get-ModDefenderStatus {
+    if (-not $script:HFMemo.ContainsKey('MP')) {
+        $fromFacts = Get-ModHostFact -Name 'RawDefenderStatus'
+        $script:HFMemo['MP'] = if ($fromFacts) { $fromFacts }
+                               else { Get-MpComputerStatus -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['MP']
+}
+function Get-ModFirewallProfiles {
+    if (-not $script:HFMemo.ContainsKey('FW')) {
+        $fromFacts = Get-ModHostFact -Name 'RawFirewallProfiles'
+        $script:HFMemo['FW'] = if ($fromFacts) { @($fromFacts) }
+                               else { @(Get-NetFirewallProfile -ErrorAction SilentlyContinue) }
+    }
+    return $script:HFMemo['FW']
+}
+
+$moduleVersion = "6.6.0"
+$results = [System.Collections.Generic.List[object]]::new()
 # ---------------------------------------------------------------------------
 # Enhanced result helper with Severity and CrossReferences
 # ---------------------------------------------------------------------------
 function Add-Result {
     param(
+        [Parameter(Mandatory=$true)]
         [string]$Category,
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("Pass","Fail","Warning","Info","Error")]
         [string]$Status,
+        [Parameter(Mandatory=$true)]
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
@@ -70,7 +128,7 @@ function Add-Result {
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
-    $script:results += [PSCustomObject]@{
+    $script:results.Add([PSCustomObject]@{
         Module          = $moduleName
         Category        = $Category
         Status          = $Status
@@ -80,7 +138,7 @@ function Add-Result {
         Remediation     = $Remediation
         CrossReferences = $CrossReferences
         Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    }
+    })
 }
 
 # ---------------------------------------------------------------------------
@@ -419,6 +477,9 @@ foreach ($check in $stigAuditChecks) {
         }
     } catch {
         # Continue with other checks
+        Add-Result -Category "STIG - $($check.STIG) (CAT $($check.CAT))" -Status "Error" `
+            -Message "$($check.Subcategory): audit policy check could not be completed: $($_.Exception.Message)" `
+            -Details "auditpol query failed for this subcategory; remaining checks continue"
     }
 }
 } catch {
@@ -1350,6 +1411,9 @@ foreach ($svcName in $xboxServices) {
         }
     } catch {
         # Service may not exist on this system
+        Add-Result -Category "STIG - V-220983 (CAT II)" -Status "Info" `
+            -Message "Xbox service $svcName not present on this system" `
+            -Details "Service absence satisfies the intent of the disablement requirement"
     }
 }
 
@@ -1861,7 +1925,7 @@ try {
         Add-Result -Category "STIG - V-Findings" -Status "Pass" `
             -Severity "Medium" `
             -Message "V-253265 The Windows SMB server is configured to always require security signatures" `
-            -CrossReferences @{ STIG='V-253265'; STIGFinding='Windows 10 V2R8' }
+            -CrossReferences @{ STIG='V-253265'; STIGFinding='Windows 11 STIG' }
     }
     else {
         Add-Result -Category "STIG - V-Findings" -Status "Fail" `
@@ -1876,7 +1940,7 @@ try {
         Add-Result -Category "STIG - V-Findings" -Status "Pass" `
             -Severity "High" `
             -Message "V-253382 LAN Manager authentication level set to NTLMv2 only" `
-            -CrossReferences @{ STIG='V-253382'; STIGFinding='Windows 10 V2R8' }
+            -CrossReferences @{ STIG='V-253382'; STIGFinding='Windows 11 STIG' }
     }
     else {
         Add-Result -Category "STIG - V-Findings" -Status "Fail" `
@@ -2109,6 +2173,88 @@ catch {
         -Message "CAT distribution computation failed: $($_.Exception.Message)"
 }
 
+# ===========================================================================
+# v6.3.0 currency (PR-5): Windows 11 STIG V2R8 (July 2026) alignment.
+# V2R8 adds 3 requirements (incl. security event log sized for at least one
+# week of events) and updates 2; the V2R6 cycle (Feb 2026) added the consumer
+# account block requirement. New rule V-IDs are not restated here because they
+# are not verifiable from available release notes; checks name the requirement
+# and release instead of inventing rule numbers.
+# ===========================================================================
+Write-Host "[STIG] Checking Windows 11 STIG V2R8 currency requirements..." -ForegroundColor Yellow
+
+try {
+    # --- V2R8 addition: security event log must hold at least one week of events
+    $secLog = $null
+    try { $secLog = Get-WinEvent -ListLog 'Security' -ErrorAction Stop } catch { $secLog = $null }
+    if ($secLog) {
+        $sizeMB = [math]::Round($secLog.MaximumSizeInBytes / 1MB, 1)
+        $oldestAgeDays = $null
+        try {
+            $oldest = Get-WinEvent -LogName 'Security' -MaxEvents 1 -Oldest -ErrorAction Stop
+            if ($oldest) { $oldestAgeDays = [math]::Round(((Get-Date) - $oldest.TimeCreated).TotalDays, 1) }
+        } catch { $oldestAgeDays = $null }
+
+        $logNearCapacity = ($secLog.FileSize -gt 0 -and $secLog.MaximumSizeInBytes -gt 0 -and ($secLog.FileSize / $secLog.MaximumSizeInBytes) -ge 0.9)
+
+        if ($null -ne $oldestAgeDays -and $oldestAgeDays -ge 7) {
+            Add-Result -Category "STIG - V2R8 Currency" -Status "Pass" `
+                -Severity "Medium" `
+                -Message "V2R8: Security event log retains $oldestAgeDays days of events (>= 7 required; max size $sizeMB MB)" `
+                -Details "Windows 11 STIG V2R8 (Jul 2026) requires the security event log sized to hold at least one week of events. Oldest retained record is $oldestAgeDays days old, satisfying the retention intent at current audit volume." `
+                -CrossReferences @{ STIG='V2R8 addition'; NIST='AU-4'; CIS='8.3' }
+        } elseif ($null -ne $oldestAgeDays -and $oldestAgeDays -lt 7 -and $logNearCapacity) {
+            Add-Result -Category "STIG - V2R8 Currency" -Status "Fail" `
+                -Severity "Medium" `
+                -Message "V2R8: Security event log wraps in $oldestAgeDays days at current volume (< 7 days; max size $sizeMB MB, log at capacity)" `
+                -Details "The log is at or near its size cap and the oldest record is under one week old, so events are being overwritten before the STIG V2R8 one-week retention window. Increase the maximum log size or forward events." `
+                -Remediation "Increase the Security log maximum size (e.g., wevtutil sl Security /ms:1073741824) or configure event forwarding to meet one week of retention" `
+                -CrossReferences @{ STIG='V2R8 addition'; NIST='AU-4'; CIS='8.3' }
+        } else {
+            $ageLbl = if ($null -ne $oldestAgeDays) { "$oldestAgeDays days of events retained" } else { "retention age unreadable (insufficient privilege or empty log)" }
+            Add-Result -Category "STIG - V2R8 Currency" -Status "Info" `
+                -Severity "Medium" `
+                -Message "V2R8: Security event log max size $sizeMB MB; $ageLbl (one-week retention not yet demonstrable)" `
+                -Details "Windows 11 STIG V2R8 requires one week of security event retention. The log has not yet wrapped (or age is unreadable), so retention adequacy cannot be conclusively assessed; monitor after the log reaches capacity or verify sizing against observed daily audit volume." `
+                -CrossReferences @{ STIG='V2R8 addition'; NIST='AU-4' }
+        }
+    } else {
+        Add-Result -Category "STIG - V2R8 Currency" -Status "Error" `
+            -Severity "Medium" `
+            -Message "V2R8: Security event log configuration could not be read" `
+            -Details "Get-WinEvent -ListLog Security failed; the V2R8 one-week retention requirement could not be assessed" `
+            -CrossReferences @{ STIG='V2R8 addition'; NIST='AU-4' }
+    }
+
+    # --- V2R6-cycle addition: block consumer (Microsoft) account use
+    $noConnected = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name "NoConnectedUser" -Default $null
+    if ($noConnected -eq 3) {
+        Add-Result -Category "STIG - V2R8 Currency" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "Consumer account use is blocked (NoConnectedUser = 3: users cannot add or log on with Microsoft accounts)" `
+            -Details "The Windows 11 STIG (added in the Feb 2026 V2R6 cycle) requires blocking consumer Microsoft account usage on DOD systems ('Accounts: Block Microsoft accounts'). Value 3 blocks both adding and logging on with Microsoft accounts." `
+            -CrossReferences @{ STIG='V2R6 addition'; CIS='2.3.1.1'; NIST='AC-2' }
+    } elseif ($null -ne $noConnected) {
+        Add-Result -Category "STIG - V2R8 Currency" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "Consumer account policy partially configured (NoConnectedUser = $noConnected; STIG requires 3)" `
+            -Details "'Accounts: Block Microsoft accounts' is set but not to the fully-blocking value. Value 1 blocks adding accounts only; value 3 blocks adding and logging on and is the STIG-required state." `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name NoConnectedUser -Value 3" `
+            -CrossReferences @{ STIG='V2R6 addition'; CIS='2.3.1.1' }
+    } else {
+        Add-Result -Category "STIG - V2R8 Currency" -Status "Fail" `
+            -Severity "Medium" `
+            -Message "Consumer account use is not blocked (NoConnectedUser not configured)" `
+            -Details "The Windows 11 STIG requires blocking consumer Microsoft account use. Without 'Accounts: Block Microsoft accounts' = 3, users can attach or sign in with personal Microsoft accounts, moving data outside organizational control." `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name NoConnectedUser -Value 3" `
+            -CrossReferences @{ STIG='V2R6 addition'; CIS='2.3.1.1'; NIST='AC-2' }
+    }
+} catch {
+    Add-Result -Category "STIG - V2R8 Currency" -Status "Error" `
+        -Message "V2R8 currency checks could not be completed: $($_.Exception.Message)" `
+        -Details "Windows 11 STIG V2R8 alignment checks failed to execute"
+}
+
 # ============================================================================
 # STIG Summary and Categorization
 # ============================================================================
@@ -2191,7 +2337,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     }
 
     try {
-        $osInfo = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+        $osInfo = Get-ModOSInfo
         $standaloneData.OSVersion = "$($osInfo.Caption) (Build $($osInfo.BuildNumber))"
     } catch {
         $standaloneData.OSVersion = "Windows (version detection failed)"
