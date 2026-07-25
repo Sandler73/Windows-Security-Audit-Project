@@ -2,60 +2,67 @@
   <img src="assets/Windows-Security-Audit-Project-Updated-Banner.png" alt="Windows Security Audit Project" width="75%" />
 </p>
 
----
+<h1 align="center">Windows Security Audit Project</h1>
 
-<div align="center">
-  
-# Windows Security Audit Project
+<p align="center">
+  <b>Module-Based Multi-Framework Windows Security Assessment, Auditing, and Remediation Tool</b>
+</p>
 
-<div align="center">
+<!-- ========================================================================== -->
+<!-- Alignment note: each block below carries its own align attribute rather    -->
+<!-- than sitting inside one wrapping container. A single wrapping container     -->
+<!-- caused the centering to leak into the body content on the rendered page.    -->
+<!-- ========================================================================== -->
 
-<!-- ============================================================================ -->
-<!-- DYNAMIC BADGES - reflect live GitHub Actions workflow status and repo state -->
-<!-- ============================================================================ -->
+<!-- Workflow status: reflects live GitHub Actions state -->
+<p align="center">
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/lint.yml"><img src="https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/lint.yml/badge.svg?branch=main" alt="Lint" /></a>
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/unit-tests.yml"><img src="https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/unit-tests.yml/badge.svg?branch=main" alt="Unit Tests" /></a>
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/integration-tests.yml"><img src="https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/integration-tests.yml/badge.svg?branch=main" alt="Integration Tests" /></a>
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/full-matrix.yml"><img src="https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/full-matrix.yml/badge.svg?branch=main" alt="Full Matrix" /></a>
+</p>
 
-[![Lint](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/lint.yml)
-[![Unit Tests](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/unit-tests.yml/badge.svg?branch=main)](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/unit-tests.yml)
-[![Integration Tests](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/integration-tests.yml/badge.svg?branch=main)](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/integration-tests.yml)
-[![Full Matrix](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/full-matrix.yml/badge.svg?branch=main)](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/full-matrix.yml)
+<p align="center">
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/codeql.yml"><img src="https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL" /></a>
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/docs.yml"><img src="https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/docs.yml/badge.svg?branch=main" alt="Documentation" /></a>
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/security/code-scanning"><img src="https://img.shields.io/badge/code%20scanning-CodeQL%20%2B%20PSScriptAnalyzer-2C7BB6?logo=github&logoColor=white" alt="Code Scanning" /></a>
+</p>
 
-[![Latest Release](https://img.shields.io/github/v/release/Sandler73/Windows-Security-Audit-Project?logo=github&label=release)](https://github.com/Sandler73/Windows-Security-Audit-Project/releases/latest)
-[![License](https://img.shields.io/badge/license-MIT-yellow?logo=opensourceinitiative&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/docs/project/LICENSE.md)
-[![Last Commit](https://img.shields.io/github/last-commit/Sandler73/Windows-Security-Audit-Project?logo=git&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/commits/main)
-[![Open Issues](https://img.shields.io/github/issues/Sandler73/Windows-Security-Audit-Project?logo=github)](https://github.com/Sandler73/Windows-Security-Audit-Project/issues)
-[![Stars](https://img.shields.io/github/stars/Sandler73/Windows-Security-Audit-Project?logo=github&style=flat)](https://github.com/Sandler73/Windows-Security-Audit-Project/stargazers)
+<!-- Repository state -->
+<p align="center">
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/releases/latest"><img src="https://img.shields.io/github/v/release/Sandler73/Windows-Security-Audit-Project?logo=github&label=release" alt="Latest Release" /></a>
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/docs/project/LICENSE.md"><img src="https://img.shields.io/badge/license-MIT-yellow?logo=opensourceinitiative&logoColor=white" alt="License" /></a>
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/commits/main"><img src="https://img.shields.io/github/last-commit/Sandler73/Windows-Security-Audit-Project?logo=git&logoColor=white" alt="Last Commit" /></a>
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/issues"><img src="https://img.shields.io/github/issues/Sandler73/Windows-Security-Audit-Project?logo=github" alt="Open Issues" /></a>
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/stargazers"><img src="https://img.shields.io/github/stars/Sandler73/Windows-Security-Audit-Project?logo=github&style=flat" alt="Stars" /></a>
+</p>
 
-<!-- ============================================================================ -->
-<!-- STATIC BADGES - informational metadata that doesn't change without a release -->
-<!-- ============================================================================ -->
+<!-- Project posture -->
+<p align="center">
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/SECURITY.md"><img src="https://img.shields.io/badge/security-audited-green?logo=shieldsdotio&logoColor=white" alt="Security: Audited" /></a>
+  <a href="https://learn.microsoft.com/en-us/powershell/"><img src="https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%207.x-5391FE?logo=powershell&logoColor=white" alt="PowerShell 5.1+ | 7.x" /></a>
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/commits/main"><img src="https://img.shields.io/badge/maintained-yes-green?logo=github&logoColor=white" alt="Maintained" /></a>
+  <a href="https://www.microsoft.com/windows/"><img src="https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white" alt="Platform: Windows" /></a>
+  <a href="https://github.com/PowerShell/PSScriptAnalyzer"><img src="https://img.shields.io/badge/code%20style-PSScriptAnalyzer-blue?logo=powershell&logoColor=white" alt="Code Style" /></a>
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/docs/project/CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen?logo=github&logoColor=white" alt="PRs Welcome" /></a>
+</p>
 
-[![Security: Audited](https://img.shields.io/badge/security-audited-green?logo=shieldsdotio&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/docs/project/SECURITY.md)
-[![PowerShell 5.1+ | 7.x](https://img.shields.io/badge/PowerShell-5.1%2B%20%7C%207.x-5391FE?logo=powershell&logoColor=white)](https://learn.microsoft.com/en-us/powershell/)
-[![Maintained: Yes](https://img.shields.io/badge/maintained-yes-green?logo=github&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/commits/main)
+<!-- Scale -->
+<p align="center">
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project"><img src="https://img.shields.io/badge/lines%20of%20code-48%2C855-blue" alt="Lines of Code" /></a>
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project"><img src="https://img.shields.io/badge/dependencies-0%20external-brightgreen" alt="Dependencies: 0" /></a>
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/wiki"><img src="https://img.shields.io/badge/wiki-17%20pages-blue?logo=readthedocs&logoColor=white" alt="Wiki" /></a>
+  <a href="https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Module-Documentation"><img src="https://img.shields.io/badge/checks-4%2C053-brightgreen" alt="Checks" /></a>
+</p>
 
-[![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows/)
-[![Shell: PowerShell](https://img.shields.io/badge/shell-PowerShell-2671BE?logo=powershell&logoColor=white)](https://learn.microsoft.com/en-us/powershell/)
-[![Code Style: PSScriptAnalyzer](https://img.shields.io/badge/code%20style-PSScriptAnalyzer-blue?logo=powershell&logoColor=white)](https://github.com/PowerShell/PSScriptAnalyzer)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?logo=github&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/docs/project/CONTRIBUTING.md)
-
-[![Lines of Code: 42,630](https://img.shields.io/badge/lines%20of%20code-42%2C630-blue)](https://github.com/Sandler73/Windows-Security-Audit-Project)
-[![Dependencies: 0](https://img.shields.io/badge/dependencies-0%20external-brightgreen)](https://github.com/Sandler73/Windows-Security-Audit-Project)
-[![Wiki: 17 Pages](https://img.shields.io/badge/wiki-17%20pages-blue?logo=readthedocs&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki)
-[![Checks](https://img.shields.io/badge/checks-4%2C053-brightgreen)](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Module-Documentation)
-[![Frameworks](https://img.shields.io/badge/frameworks-16-orange)](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Framework-Reference)
-
-[![Windows 11](https://img.shields.io/badge/Windows%2011-21H2%20%7C%2022H2%20%7C%2023H2%20%7C%2024H2-0078D6?logo=windows11&logoColor=white)](https://www.microsoft.com/windows/windows-11)
-[![Windows 10](https://img.shields.io/badge/Windows%2010-21H2%20%7C%2022H2%20%7C%20IoT%20LTSC%202021-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows/)
-[![Server 2025](https://img.shields.io/badge/Server-2025-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows-server/)
-[![Server 2022](https://img.shields.io/badge/Server-2022-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows-server/)
-[![Server 2019](https://img.shields.io/badge/Server-2019-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows-server/)
-[![Server 2016](https://img.shields.io/badge/Server-2016-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows-server/)
-
-**Module-Based Multi-Framework Windows Security Assessment, Auditing, and Remediation Tool**
-
-[Overview](#-overview) • [Key Features](#-key-features) • [Quick Start](#-quick-start) • [Documentation](#-documentation) • [Remediation Capabilities](#-remediation-capabilities) • [Contributing](#-contributing)
-
-</div>
+<p align="center">
+  <a href="#-overview">Overview</a> &bull;
+  <a href="#-key-features">Key Features</a> &bull;
+  <a href="#-quick-start">Quick Start</a> &bull;
+  <a href="#-documentation">Documentation</a> &bull;
+  <a href="#-remediation-capabilities">Remediation Capabilities</a> &bull;
+  <a href="#-contributing">Contributing</a>
+</p>
 
 ---
 
@@ -63,9 +70,9 @@
 
 | OS | Versions | Status | PowerShell | Notes |
 |----|----------|--------|------------|-------|
-| **Windows 11** | 21H2, 22H2, 23H2, 24H2, 25H2 | ✅ Tested | 5.1, 7.x | Primary client target |
+| **Windows 11** | 21H2, 22H2, 23H2, 24H2 | ✅ Tested | 5.1, 7.x | Primary client target |
 | **Windows 10** | 21H2, 22H2, IoT LTSC 2021 | ✅ Tested | 5.1, 7.x | Legacy client support |
-| **Windows Server 2025** | 24H2 | ✅ Tested | 5.1, 7.x | Latest tested server release |
+| **Windows Server 2025** | 24H2 | ✅ Tested | 5.1, 7.x | Latest server release |
 | **Windows Server 2022** | 21H2 | ✅ Tested | 5.1, 7.x | Primary server target |
 | **Windows Server 2019** | 1809 | ✅ Tested | 5.1, 7.x | Long-term server support |
 | **Windows Server 2016** | 1607 | ✅ Tested | 5.1, 7.x | Minimum server target |
