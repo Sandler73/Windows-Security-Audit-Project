@@ -47,7 +47,7 @@ Describe 'Record contract' {
 Describe 'Pre-warm and retrieval' {
     It 'Initialize-SharedAssessments populates SharedData.Assessments for every name' {
         $sd = @{}
-        $bag = Initialize-SharedAssessments -SharedData $sd
+        $null = Initialize-SharedAssessments -SharedData $sd
         foreach ($n in Get-SharedAssessmentNames) {
             $sd.Assessments.ContainsKey($n) | Should -BeTrue
             $sd.Assessments[$n].Name | Should -Be $n
