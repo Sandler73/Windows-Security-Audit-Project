@@ -54,17 +54,17 @@ param(
 $moduleName = "CMMC"
 
 # ============================================================================
-# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# Memoized host-state accessors.
 # One live query per module run instead of one per check site. The helpers
 # return the SAME object the direct call would return (raw call, no error
 # swallowing beyond -ErrorAction SilentlyContinue already present at the
 # migrated sites), so call-site semantics are preserved exactly. Sites using
-# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# ErrorAction Stop inside try/catch are intentionally NOT migrated.
 # Standalone-safe: no shared-library dependency.
 # ============================================================================
 $script:HFMemo = @{}
 
-# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# Consult the run-wide HostFacts registry before
 # querying. HostFacts already collects these objects once per RUN; without this
 # lookup each module re-queried them once per MODULE. Raw objects are reused
 # rather than derived scalar facts, so every property a call site reads is still
@@ -107,9 +107,9 @@ function Get-ModFirewallProfiles {
 
 $moduleVersion = "6.6.0"
 $results = [System.Collections.Generic.List[object]]::new()
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 function Add-Result {
     param(
         [Parameter(Mandatory=$true)]
@@ -138,9 +138,9 @@ function Add-Result {
     })
 }
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Cache-aware registry helper
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 $useCache = ($null -ne $SharedData.Cache)
 function Get-RegValue {
     param([string]$Path, [string]$Name, $Default = $null)
@@ -972,7 +972,7 @@ Write-Host "[CMMC] Checking SI -- System and Information Integrity..." -Foregrou
 
 
 # ===========================================================================
-# v6.1: CMMC Level 1 explicit subset (15 basic safeguarding requirements)
+# CMMC Level 1 explicit subset (15 basic safeguarding requirements)
 # ===========================================================================
 Write-Host "[CMMC] Checking CMMC Level 1 basic safeguarding requirements..." -ForegroundColor Yellow
 
@@ -1049,7 +1049,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: CMMC Level 3 enhanced controls (NIST SP 800-172)
+# CMMC Level 3 enhanced controls (NIST SP 800-172)
 # ===========================================================================
 Write-Host "[CMMC] Checking CMMC Level 3 enhanced controls..." -ForegroundColor Yellow
 
@@ -1162,7 +1162,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: SPRS scoring calculation (NIST SP 800-171 DoD Assessment Methodology)
+# SPRS scoring calculation (NIST SP 800-171 DoD Assessment Methodology)
 # ===========================================================================
 Write-Host "[CMMC] Computing SPRS score (NIST 800-171 DoD methodology)..." -ForegroundColor Yellow
 
@@ -1228,7 +1228,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: DFARS 252.204-7012 Safeguarding Covered Defense Information
+# DFARS 252.204-7012 Safeguarding Covered Defense Information
 # ===========================================================================
 Write-Host "[CMMC] Checking DFARS 252.204-7012 safeguarding controls..." -ForegroundColor Yellow
 
@@ -1302,7 +1302,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: CDI/CUI marking and handling indicators
+# CDI/CUI marking and handling indicators
 # ===========================================================================
 Write-Host "[CMMC] Checking CDI/CUI handling indicators..." -ForegroundColor Yellow
 
@@ -1363,8 +1363,8 @@ catch {
 }
 
 # ===========================================================================
-# v6.3.0 currency (PR-1): CMMC Program Status under the 48 CFR final rule
-# Facts researched 2026-07-20; program milestones are dates, not host state,
+# Currency: CMMC Program Status under the 48 CFR final rule
+# Program milestones are dates, not host state,
 # so these checks report posture context plus detectable readiness state.
 # ===========================================================================
 Write-Host "[CMMC] Checking CMMC program status (48 CFR acquisition rule)..." -ForegroundColor Yellow
