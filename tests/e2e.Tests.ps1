@@ -235,7 +235,7 @@ Describe 'Full 16-Module Execution' -Tag 'Slow','Full' {
     }
 }
 
-Describe 'Baseline Drift (v6.1.0)' -Tag 'Slow' {
+Describe 'Baseline Drift ()' -Tag 'Slow' {
     It '-Baseline parameter accepts JSON path without error' {
         $baselineDir = Join-Path $TestDrive ('baseline-' + [guid]::NewGuid().ToString('N'))
         $currentDir  = Join-Path $TestDrive ('current-' + [guid]::NewGuid().ToString('N'))
