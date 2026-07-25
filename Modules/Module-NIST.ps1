@@ -1,11 +1,11 @@
 # Module-NIST.ps1
 # NIST (National Institute of Standards and Technology) Compliance Module
-# Version: 6.1.2 - Enhanced and Comprehensive
-# Based on NIST 800-53 Rev 5, NIST Cybersecurity Framework 2.0, and NIST 800-171 Rev 2
+# Version: 6.6.0 - Enhanced and Full
+# Based on NIST 800-53 Rev 5 (Release 5.2.0, Aug 2025), NIST Cybersecurity Framework 2.0, and NIST 800-171 Rev 2
 
 <#
 .SYNOPSIS
-    Comprehensive NIST security controls and Cybersecurity Framework compliance checks.
+    NIST security controls and Cybersecurity Framework compliance checks.
 
 .DESCRIPTION
     This module performs exhaustive checks aligned with NIST guidance including:
@@ -56,11 +56,14 @@
     Execute NIST compliance checks with shared data context
 
 .NOTES
-    Version: 6.1.2
+    Version: 6.6.0
     Author: Enhanced NIST Compliance Module
     
     Based on:
-    - NIST Special Publication 800-53 Revision 5 (Security and Privacy Controls)
+    - NIST Special Publication 800-53 Revision 5, Release 5.2.0 (Aug 27, 2025:
+      adds SA-15(13) Logging Syntax, SA-24 Design for Cyber Resiliency,
+      SI-2(7) Root Cause Analysis; revises SI-7(12) to cover all
+      organization-defined software; none added to 800-53B baselines)
     - NIST Cybersecurity Framework Version 2.0
     - NIST Special Publication 800-171 Revision 2 (Protecting CUI)
     - NIST Special Publication 800-171A (Assessment Procedures)
@@ -85,8 +88,61 @@ param(
 # Module Configuration
 # ============================================================================
 $moduleName = "NIST"
-$results = @()
-$moduleVersion = "6.1.2"
+
+# ============================================================================
+# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# One live query per module run instead of one per check site. The helpers
+# return the SAME object the direct call would return (raw call, no error
+# swallowing beyond -ErrorAction SilentlyContinue already present at the
+# migrated sites), so call-site semantics are preserved exactly. Sites using
+# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# Standalone-safe: no shared-library dependency.
+# ============================================================================
+$script:HFMemo = @{}
+
+# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# querying. HostFacts already collects these objects once per RUN; without this
+# lookup each module re-queried them once per MODULE. Raw objects are reused
+# rather than derived scalar facts, so every property a call site reads is still
+# available and no call site needed changing. Falls back to a live query when
+# HostFacts is absent (standalone module execution), preserving prior behaviour.
+function Get-ModHostFact {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    if ($SharedData -and $SharedData.ContainsKey('HostFacts') -and $SharedData.HostFacts) {
+        $hf = $SharedData.HostFacts
+        try {
+            if ($hf.ContainsKey($Name) -and $null -ne $hf[$Name]) { return $hf[$Name] }
+        } catch { return $null }
+    }
+    return $null
+}
+function Get-ModOSInfo {
+    if (-not $script:HFMemo.ContainsKey('OS')) {
+        $fromFacts = Get-ModHostFact -Name 'RawOSCim'
+        $script:HFMemo['OS'] = if ($fromFacts) { $fromFacts }
+                               else { Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['OS']
+}
+function Get-ModDefenderStatus {
+    if (-not $script:HFMemo.ContainsKey('MP')) {
+        $fromFacts = Get-ModHostFact -Name 'RawDefenderStatus'
+        $script:HFMemo['MP'] = if ($fromFacts) { $fromFacts }
+                               else { Get-MpComputerStatus -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['MP']
+}
+function Get-ModFirewallProfiles {
+    if (-not $script:HFMemo.ContainsKey('FW')) {
+        $fromFacts = Get-ModHostFact -Name 'RawFirewallProfiles'
+        $script:HFMemo['FW'] = if ($fromFacts) { @($fromFacts) }
+                               else { @(Get-NetFirewallProfile -ErrorAction SilentlyContinue) }
+    }
+    return $script:HFMemo['FW']
+}
+
+$results = [System.Collections.Generic.List[object]]::new()
+$moduleVersion = "6.6.0"
 $ErrorActionPreference = "Continue"
 
 # Control priority mapping
@@ -159,7 +215,7 @@ function Add-Result {
         Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     }
     
-    $script:results += $resultObject
+    $script:results.Add($resultObject)
 }
 
 <#
@@ -277,8 +333,8 @@ function Get-RegValue {
 }
 
 
-Write-Host "`n[NIST] Starting comprehensive NIST compliance checks..." -ForegroundColor Cyan
-Write-Host "[NIST] Framework versions: 800-53 Rev 5, CSF 2.0, 800-171 Rev 2" -ForegroundColor Gray
+Write-Host "`n[NIST] Starting NIST compliance checks..." -ForegroundColor Cyan
+Write-Host "[NIST] Framework versions: 800-53 Rev 5 (Release 5.2.0), CSF 2.0, 800-171 Rev 2" -ForegroundColor Gray
 
 # ============================================================================
 # NIST 800-53 Rev 5: Access Control (AC) - EXPANDED
@@ -353,7 +409,7 @@ try {
     } else {
         Add-Result -Category "NIST - AC Access Control" -Status "Fail" `
             -Message "Account management auditing incomplete" `
-            -Details "NIST 800-53 AC-2(4): Enable comprehensive account management auditing." `
+            -Details "NIST 800-53 AC-2(4): Enable account management auditing." `
             -Remediation "auditpol /set /subcategory:`"User Account Management`" /success:enable /failure:enable; auditpol /set /subcategory:`"Security Group Management`" /success:enable /failure:enable" `
             -Severity "High" `
             -CrossReferences @{ NIST='AC-2'; CIS='1.1'; STIG='V-220902' }
@@ -527,7 +583,7 @@ try {
     Write-Host "  [*] AC-4: Information Flow Enforcement" -ForegroundColor Gray
     
     # Check Windows Firewall rules
-    $firewallProfiles = Get-NetFirewallProfile -ErrorAction SilentlyContinue
+    $firewallProfiles = Get-ModFirewallProfiles
     $allEnabled = ($firewallProfiles | Where-Object { -not $_.Enabled }).Count -eq 0
     
     if ($allEnabled) {
@@ -1156,7 +1212,7 @@ catch {
 }
 
 # ============================================================================
-# NIST 800-53 Rev 5: Audit and Accountability (AU) - COMPREHENSIVE EXPANSION
+# NIST 800-53 Rev 5: Audit and Accountability (AU)
 # ============================================================================
 Write-Host "`n[NIST] Checking Audit and Accountability (AU) Controls..." -ForegroundColor Yellow
 
@@ -1167,7 +1223,7 @@ Add-Result -Category "NIST - AU Audit Accountability" -Status "Info" `
     -Severity "Medium" `
     -CrossReferences @{ NIST='CM-6' }
 
-# AU-2: Audit Events (COMPREHENSIVE)
+# AU-2: Audit Events
 try {
     Write-Host "  [*] AU-2: Audit Events" -ForegroundColor Gray
     
@@ -1204,7 +1260,7 @@ try {
     
     if ($percentConfigured -ge 90) {
         Add-Result -Category "NIST - AU Audit Accountability" -Status "Pass" `
-            -Message "Comprehensive audit event configuration: $percentConfigured`% ($configuredCount of $totalSubcategories)" `
+            -Message "audit event configuration: $percentConfigured`% ($configuredCount of $totalSubcategories)" `
             -Details "NIST 800-53 AU-2: Security-relevant events are being audited across critical categories." `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AU-2'; CIS='17.1'; STIG='V-220748' }
@@ -1212,13 +1268,13 @@ try {
         Add-Result -Category "NIST - AU Audit Accountability" -Status "Warning" `
             -Message "Audit event configuration: $percentConfigured`% ($configuredCount of $totalSubcategories)" `
             -Details "NIST 800-53 AU-2: Missing subcategories: $($missingSubcategories -join ', ')" `
-            -Remediation "Configure comprehensive audit policy via Group Policy or auditpol commands" `
+            -Remediation "Configure audit policy via Group Policy or auditpol commands" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AU-2'; CIS='17.1'; STIG='V-220748' }
     } else {
         Add-Result -Category "NIST - AU Audit Accountability" -Status "Fail" `
             -Message "Insufficient audit event configuration: $percentConfigured`% ($configuredCount of $totalSubcategories)" `
-            -Details "NIST 800-53 AU-2: Enable comprehensive audit logging. Missing: $($missingSubcategories -join ', ')" `
+            -Details "NIST 800-53 AU-2: Enable audit logging. Missing: $($missingSubcategories -join ', ')" `
             -Remediation "Enable audit policies for all critical categories using Group Policy: Computer Configuration `> Policies `> Windows Settings `> Security Settings `> Advanced Audit Policy Configuration" `
             -Severity "High" `
             -CrossReferences @{ NIST='AU-2'; CIS='17.1'; STIG='V-220748' }
@@ -1271,7 +1327,7 @@ try {
     } else {
         Add-Result -Category "NIST - AU Audit Accountability" -Status "Warning" `
             -Message "Advanced audit policy not enforced" `
-            -Details "NIST 800-53 AU-3: Enable Advanced Audit Policy for comprehensive audit record content." `
+            -Details "NIST 800-53 AU-3: Enable Advanced Audit Policy for audit record content." `
             -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name SCENoApplyLegacyAuditPolicy -Value 1" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AU-3'; STIG='V-220864' }
@@ -1731,7 +1787,7 @@ try {
     } else {
         Add-Result -Category "NIST - AU Audit Accountability" -Status "Warning" `
             -Message "Advanced Audit Policy may not be enforced" `
-            -Details "NIST 800-53 AU-12: Enable Advanced Audit Policy for comprehensive audit generation." `
+            -Details "NIST 800-53 AU-12: Enable Advanced Audit Policy for audit generation." `
             -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name SCENoApplyLegacyAuditPolicy -Value 1" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AU-12'; CIS='17.1' }
@@ -1789,7 +1845,7 @@ try {
     } else {
         Add-Result -Category "NIST - AU Audit Accountability" -Status "Fail" `
             -Message "Session auditing incomplete" `
-            -Details "NIST 800-53 AU-14: Enable comprehensive logon/logoff auditing." `
+            -Details "NIST 800-53 AU-14: Enable logon/logoff auditing." `
             -Remediation "auditpol /set /subcategory:`"Logon`" /success:enable /failure:enable; auditpol /set /subcategory:`"Logoff`" /success:enable /failure:enable" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AU-14' }
@@ -1813,7 +1869,7 @@ catch {
 }
 
 # ============================================================================
-# NIST 800-53 Rev 5: Identification and Authentication (IA) - COMPREHENSIVE
+# NIST 800-53 Rev 5: Identification and Authentication (IA)
 # ============================================================================
 Write-Host "`n[NIST] Checking Identification and Authentication (IA) Controls..." -ForegroundColor Yellow
 
@@ -1824,7 +1880,7 @@ Add-Result -Category "NIST - IA Identification Authentication" -Status "Info" `
     -Severity "Medium" `
     -CrossReferences @{ NIST='CM-6' }
 
-# IA-2: Identification and Authentication (Organizational Users) - COMPREHENSIVE
+# IA-2: Identification and Authentication (Organizational Users)
 try {
     Write-Host "  [*] IA-2: Identification and Authentication" -ForegroundColor Gray
     
@@ -2021,7 +2077,7 @@ catch {
         -Severity "Medium"
 }
 
-# IA-5: Authenticator Management (COMPREHENSIVE PASSWORD POLICY)
+# IA-5: Authenticator Management (PASSWORD POLICY)
 try {
     Write-Host "  [*] IA-5: Authenticator Management (Password Policy)" -ForegroundColor Gray
     
@@ -2442,7 +2498,7 @@ catch {
 }
 
 # ============================================================================
-# NIST 800-53 Rev 5: System and Communications Protection (SC) - COMPREHENSIVE
+# NIST 800-53 Rev 5: System and Communications Protection (SC)
 # ============================================================================
 Write-Host "`n[NIST] Checking System and Communications Protection (SC) Controls..." -ForegroundColor Yellow
 
@@ -2557,12 +2613,12 @@ catch {
         -Severity "Medium"
 }
 
-# SC-7: Boundary Protection (COMPREHENSIVE)
+# SC-7: Boundary Protection
 try {
     Write-Host "  [*] SC-7: Boundary Protection" -ForegroundColor Gray
     
     # Check Windows Firewall on all profiles
-    $firewallProfiles = Get-NetFirewallProfile -ErrorAction SilentlyContinue
+    $firewallProfiles = Get-ModFirewallProfiles
     $allEnabled = ($firewallProfiles | Where-Object { -not $_.Enabled }).Count -eq 0
     
     if ($allEnabled) {
@@ -2685,7 +2741,7 @@ catch {
         -Severity "Medium"
 }
 
-# SC-8: Transmission Confidentiality and Integrity (COMPREHENSIVE)
+# SC-8: Transmission Confidentiality and Integrity
 try {
     Write-Host "  [*] SC-8: Transmission Confidentiality and Integrity" -ForegroundColor Gray
     
@@ -3197,7 +3253,7 @@ catch {
         -Severity "Medium"
 }
 
-# SC-28: Protection of Information at Rest (COMPREHENSIVE)
+# SC-28: Protection of Information at Rest
 try {
     Write-Host "  [*] SC-28: Protection of Information at Rest" -ForegroundColor Gray
     
@@ -3269,7 +3325,7 @@ try {
     Write-Host "  [*] SC-39: Process Isolation" -ForegroundColor Gray
     
     # Check DEP (Data Execution Prevention)
-    $dep = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue
+    $dep = Get-ModOSInfo
     
     if ($dep -and $dep.DataExecutionPrevention_Available) {
         Add-Result -Category "NIST - SC System Communications Protection" -Status "Pass" `
@@ -3379,7 +3435,7 @@ catch {
 }
 
 # ============================================================================
-# NIST 800-53 Rev 5: System and Information Integrity (SI) - COMPREHENSIVE
+# NIST 800-53 Rev 5: System and Information Integrity (SI)
 # ============================================================================
 Write-Host "`n[NIST] Checking System and Information Integrity (SI) Controls..." -ForegroundColor Yellow
 
@@ -3390,7 +3446,7 @@ Add-Result -Category "NIST - SI System Information Integrity" -Status "Info" `
     -Severity "Medium" `
     -CrossReferences @{ NIST='CM-6' }
 
-# SI-2: Flaw Remediation (COMPREHENSIVE)
+# SI-2: Flaw Remediation
 try {
     Write-Host "  [*] SI-2: Flaw Remediation (Patching)" -ForegroundColor Gray
     
@@ -3542,6 +3598,9 @@ try {
             }
             catch {
                 # Silently continue if auto-update check also fails
+                Add-Result -Category "NIST - SI System Information Integrity" -Status "Info" `
+                    -Message "Automatic update state could not be determined" `
+                    -Details "Both primary and fallback update-state queries were unavailable"
             }
         } else {
             # Some other error occurred after successful session creation
@@ -3557,11 +3616,11 @@ catch {
         -Severity "Medium"
 }
 
-# SI-3: Malicious Code Protection (COMPREHENSIVE)
+# SI-3: Malicious Code Protection
 try {
     Write-Host "  [*] SI-3: Malicious Code Protection" -ForegroundColor Gray
     
-    $defenderStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
+    $defenderStatus = Get-ModDefenderStatus
     
     if ($defenderStatus) {
         # SI-3: Basic malware protection
@@ -3632,7 +3691,7 @@ try {
         }
         
         # SI-3(1): Central Management
-        $mpComputerStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
+        $mpComputerStatus = Get-ModDefenderStatus
         
         if ($mpComputerStatus.AMRunningMode -match "Managed") {
             Add-Result -Category "NIST - SI System Information Integrity" -Status "Pass" `
@@ -3735,7 +3794,7 @@ catch {
         -Severity "Medium"
 }
 
-# SI-4: System Monitoring (COMPREHENSIVE)
+# SI-4: System Monitoring
 try {
     Write-Host "  [*] SI-4: System Monitoring" -ForegroundColor Gray
     
@@ -3809,7 +3868,7 @@ try {
             -CrossReferences @{ NIST='SI-4' }
         
         # SI-4(12): Automated Alerts
-        $defenderStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
+        $defenderStatus = Get-ModDefenderStatus
         
         if ($defenderStatus -and $defenderStatus.RealTimeProtectionEnabled) {
             Add-Result -Category "NIST - SI System Information Integrity" -Status "Pass" `
@@ -3908,7 +3967,7 @@ catch {
         -Severity "Medium"
 }
 
-# SI-7: Software, Firmware, and Information Integrity (COMPREHENSIVE)
+# SI-7: Software, Firmware, and Information Integrity
 try {
     Write-Host "  [*] SI-7: Software and Information Integrity" -ForegroundColor Gray
     
@@ -3953,7 +4012,7 @@ try {
     }
     
     # SI-7(5): Automated Response to Integrity Violations
-    $defenderStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
+    $defenderStatus = Get-ModDefenderStatus
     
     if ($defenderStatus -and $defenderStatus.RealTimeProtectionEnabled) {
         Add-Result -Category "NIST - SI System Information Integrity" -Status "Pass" `
@@ -4115,7 +4174,7 @@ try {
     Write-Host "  [*] SI-16: Memory Protection" -ForegroundColor Gray
     
     # Check DEP (Data Execution Prevention)
-    $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue
+    $os = Get-ModOSInfo
     
     if ($os -and $os.DataExecutionPrevention_Available) {
         Add-Result -Category "NIST - SI System Information Integrity" -Status "Pass" `
@@ -4388,7 +4447,7 @@ catch {
         -Severity "Medium"
 }
 
-# CM-6: Configuration Settings (COMPREHENSIVE)
+# CM-6: Configuration Settings
 try {
     Write-Host "  [*] CM-6: Configuration Settings" -ForegroundColor Gray
     
@@ -4602,7 +4661,7 @@ Write-Host "`n[NIST] Checking Incident Response (IR) Controls..." -ForegroundCol
 try {
     Write-Host "  [*] IR-4: Incident Handling" -ForegroundColor Gray
     
-    $defenderStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
+    $defenderStatus = Get-ModDefenderStatus
     
     if ($defenderStatus -and $defenderStatus.RealTimeProtectionEnabled) {
         Add-Result -Category "NIST - IR Incident Response" -Status "Pass" `
@@ -4719,7 +4778,7 @@ Add-Result -Category "NIST - CSF PR" -Status "Info" `
 
 # CSF - DETECT (DE)
 try {
-    $defenderStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
+    $defenderStatus = Get-ModDefenderStatus
     
     if ($defenderStatus -and $defenderStatus.RealTimeProtectionEnabled) {
         Add-Result -Category "NIST - CSF DE" -Status "Pass" `
@@ -5130,6 +5189,76 @@ catch {
 }
 
 # ============================================================================
+# v6.3.0 currency (PR-3): NIST SP 800-53 Release 5.2.0 (Aug 27, 2025)
+# New: SA-15(13) Logging Syntax, SA-24 Design for Cyber Resiliency,
+# SI-2(7) Flaw Remediation | Root Cause Analysis. Revised: SI-7(12) now covers
+# all organization-defined software. None are in 800-53B baselines; they are
+# assessed here as posture context with detectable host state where it exists.
+# Control names verified against the NIST 5.2.0 summary of changes.
+# ============================================================================
+Write-Host "[NIST] Checking 800-53 Release 5.2.0 additions (SA-15(13), SA-24, SI-2(7), SI-7(12))..." -ForegroundColor Yellow
+
+try {
+    # SA-15(13) Development Process, Standards, and Tools | Logging Syntax.
+    # Org/development-process enhancement; host-side context is whether this
+    # system emits structured, parseable security logging.
+    Add-Result -Category "NIST - 800-53 R5.2.0 Additions" -Status "Info" `
+        -Severity "Informational" `
+        -Message "SA-15(13) Logging Syntax (new in 5.2.0): security-relevant events must be logged in a defined, structured syntax" `
+        -Details "New control enhancement (not in any 800-53B baseline) requiring clear logging-format requirements in the development process, driven by secure patch/update direction. For this host, structured event logging (Windows Event Log channels; JSON SIEM export from this framework's -JsonLog) supports the intent; the control itself is assessed at the development-organization level." `
+        -CrossReferences @{ NIST='SA-15(13)'; CSF='PR.PS'; ISO27001='A.8.15' }
+
+    # SA-24 Design for Cyber Resiliency: system-design control; report the
+    # host's resiliency-relevant detectable state as supporting context.
+    $vssService = Get-Service -Name 'VSS' -ErrorAction SilentlyContinue
+    $wbengine = Get-Service -Name 'wbengine' -ErrorAction SilentlyContinue
+    $resilSignals = @()
+    if ($vssService) { $resilSignals += "VSS present ($($vssService.Status))" }
+    if ($wbengine) { $resilSignals += "Windows Backup engine present" }
+    Add-Result -Category "NIST - 800-53 R5.2.0 Additions" -Status "Info" `
+        -Severity "Informational" `
+        -Message "SA-24 Design for Cyber Resiliency (new in 5.2.0): anticipate, withstand, respond, recover while maintaining critical functions" `
+        -Details "New control (not in any 800-53B baseline) requiring cyber resiliency as a design property. Host resiliency signals detected: $(if ($resilSignals.Count -gt 0) { $resilSignals -join '; ' } else { 'none detected' }). Full assessment is architectural (redundancy, segmentation, recovery objectives) and organization-level." `
+        -CrossReferences @{ NIST='SA-24'; CSF='RC.RP'; NIST2='SP 800-160v2' }
+
+    # SI-2(7) Flaw Remediation | Root Cause Analysis: process enhancement tied
+    # to the host's flaw-remediation machinery.
+    $wuService = Get-Service -Name 'wuauserv' -ErrorAction SilentlyContinue
+    $wuState = if ($wuService) { "$($wuService.Status)/$($wuService.StartType)" } else { "not present" }
+    Add-Result -Category "NIST - 800-53 R5.2.0 Additions" -Status "Info" `
+        -Severity "Informational" `
+        -Message "SI-2(7) Root Cause Analysis (new in 5.2.0): flaw remediation must include documented root cause analysis of update failures" `
+        -Details "New control enhancement (not in any 800-53B baseline; identified from SSDF gap analysis) requiring RCA when software updates fail, with an action plan. Windows Update service on this host: $wuState. Verify the patch-management process performs and documents RCA for failed or regressed updates." `
+        -CrossReferences @{ NIST='SI-2(7)'; NIST2='SP 800-218 SSDF'; CSF='ID.RA' }
+
+    # SI-7(12) revision: integrity verification now for ALL organization-defined
+    # software, not only user software. Host-detectable: code-integrity stack.
+    $appIdSvc = Get-Service -Name 'AppIDSvc' -ErrorAction SilentlyContinue
+    $sacState = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\CI\Policy" -Name "VerifiedAndReputablePolicyState" -ErrorAction SilentlyContinue
+    $integrityMechs = @()
+    if ($appIdSvc -and $appIdSvc.Status -eq 'Running') { $integrityMechs += 'AppLocker (AppIDSvc running)' }
+    if ($sacState -and $sacState.VerifiedAndReputablePolicyState -eq 1) { $integrityMechs += 'Smart App Control enforced' }
+    if ($integrityMechs.Count -gt 0) {
+        Add-Result -Category "NIST - 800-53 R5.2.0 Additions" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "SI-7(12) (revised in 5.2.0): software integrity verification mechanisms active: $($integrityMechs -join '; ')" `
+            -Details "5.2.0 broadened SI-7(12) from user software to all organization-defined software. Active code-integrity enforcement on this host supports integrity verification prior to installation/execution; confirm policy scope covers the organization-defined software set." `
+            -CrossReferences @{ NIST='SI-7(12)'; CIS='2.5'; STIG='V-220727' }
+    } else {
+        Add-Result -Category "NIST - 800-53 R5.2.0 Additions" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "SI-7(12) (revised in 5.2.0): no active software integrity verification mechanism detected (AppLocker not running, Smart App Control not enforced)" `
+            -Details "5.2.0 requires integrity verification for all organization-defined software, not only user software. Without AppLocker/WDAC/Smart App Control enforcement, integrity verification depends on process controls alone." `
+            -Remediation "Enable an application control mechanism (AppLocker policy with AppIDSvc, WDAC policy, or Smart App Control) covering organization-defined software" `
+            -CrossReferences @{ NIST='SI-7(12)'; CIS='2.5' }
+    }
+} catch {
+    Add-Result -Category "NIST - 800-53 R5.2.0 Additions" -Status "Error" `
+        -Message "Release 5.2.0 addition checks could not be completed: $($_.Exception.Message)" `
+        -Details "800-53 Release 5.2.0 posture checks failed to execute"
+}
+
+# ============================================================================
 # Module Summary Statistics
 # ============================================================================
 $passCount  = @($results | Where-Object { $_.Status -eq "Pass" }).Count
@@ -5192,7 +5321,7 @@ if ($MyInvocation.InvocationName -ne '.') {
         IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
         ScriptPath = $PSScriptRoot; Cache = $null
     }
-    try { $osi = Get-CimInstance Win32_OperatingSystem -EA SilentlyContinue; $standaloneData.OSVersion = "$($osi.Caption) (Build $($osi.BuildNumber))" } catch { $standaloneData.OSVersion = "Windows" }
+    try { $osi = Get-ModOSInfo; $standaloneData.OSVersion = "$($osi.Caption) (Build $($osi.BuildNumber))" } catch { $standaloneData.OSVersion = "Windows" }
     try { $standaloneData.IPAddresses = @((Get-NetIPAddress -AddressFamily IPv4 -EA SilentlyContinue | Where-Object { $_.IPAddress -ne '127.0.0.1' }).IPAddress) } catch { $standaloneData.IPAddresses = @("N/A") }
 
     $commonLibPath = Join-Path (Split-Path $PSScriptRoot -Parent) "shared_components\audit-common.ps1"
