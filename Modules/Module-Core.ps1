@@ -68,17 +68,17 @@ param(
 $moduleName = "Core"
 
 # ============================================================================
-# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# Memoized host-state accessors.
 # One live query per module run instead of one per check site. The helpers
 # return the SAME object the direct call would return (raw call, no error
 # swallowing beyond -ErrorAction SilentlyContinue already present at the
 # migrated sites), so call-site semantics are preserved exactly. Sites using
-# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# ErrorAction Stop inside try/catch are intentionally NOT migrated.
 # Standalone-safe: no shared-library dependency.
 # ============================================================================
 $script:HFMemo = @{}
 
-# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# Consult the run-wide HostFacts registry before
 # querying. HostFacts already collects these objects once per RUN; without this
 # lookup each module re-queried them once per MODULE. Raw objects are reused
 # rather than derived scalar facts, so every property a call site reads is still
@@ -121,11 +121,11 @@ function Get-ModFirewallProfiles {
 
 $moduleVersion = "6.6.0"
 $results = [System.Collections.Generic.List[object]]::new()
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Result helper: Creates a canonical audit result with Severity and
 # CrossReferences fields. Severity values: Critical, High, Medium, Low,
 # Informational. CrossReferences maps framework names to control identifiers.
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 function Add-Result {
     param(
         [Parameter(Mandatory=$true)]
@@ -154,11 +154,11 @@ function Add-Result {
     })
 }
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Cache integration helpers: Use SharedDataCache when available, fall back
 # to direct system queries otherwise. This avoids redundant WMI/registry
 # calls when multiple modules run in the same audit session.
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 $useCache = ($null -ne $SharedData.Cache)
 
 function Get-RegValue {
@@ -1871,7 +1871,7 @@ try {
 
 
 # ============================================================================
-# v6.1: Windows Hello / passwordless authentication
+# Windows Hello / passwordless authentication
 # ============================================================================
 Write-Host "[Core] Checking Windows Hello and passwordless authentication..." -ForegroundColor Yellow
 
@@ -1936,7 +1936,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: WDAC enforcement and HVCI/Memory Integrity
+# WDAC enforcement and HVCI/Memory Integrity
 # ============================================================================
 Write-Host "[Core] Checking WDAC and Memory Integrity..." -ForegroundColor Yellow
 
@@ -2016,7 +2016,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Kernel DMA Protection
+# Kernel DMA Protection
 # ============================================================================
 Write-Host "[Core] Checking Kernel DMA Protection..." -ForegroundColor Yellow
 
@@ -2051,7 +2051,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: TPM 2.0 expanded checks
+# TPM 2.0 expanded checks
 # ============================================================================
 Write-Host "[Core] Checking TPM 2.0 expanded state..." -ForegroundColor Yellow
 
@@ -2123,7 +2123,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: USB / removable storage policy
+# USB / removable storage policy
 # ============================================================================
 Write-Host "[Core] Checking USB and removable storage policy..." -ForegroundColor Yellow
 
@@ -2164,7 +2164,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Print Spooler post-PrintNightmare hardening
+# Print Spooler post-PrintNightmare hardening
 # ============================================================================
 Write-Host "[Core] Checking Print Spooler post-PrintNightmare hardening..." -ForegroundColor Yellow
 
@@ -2229,7 +2229,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Windows Sandbox availability
+# Windows Sandbox availability
 # ============================================================================
 Write-Host "[Core] Checking Windows Sandbox state..." -ForegroundColor Yellow
 
@@ -2263,7 +2263,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Enhanced Phishing Protection (Win11 22H2+)
+# Enhanced Phishing Protection (Win11 22H2+)
 # ============================================================================
 Write-Host "[Core] Checking Enhanced Phishing Protection..." -ForegroundColor Yellow
 
@@ -2297,7 +2297,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Mark-of-the-Web (MOTW) preservation
+# Mark-of-the-Web (MOTW) preservation
 # ============================================================================
 Write-Host "[Core] Checking Mark-of-the-Web preservation policy..." -ForegroundColor Yellow
 
@@ -2339,7 +2339,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Microsoft Pluton and System Guard Secure Launch
+# Microsoft Pluton and System Guard Secure Launch
 # ============================================================================
 Write-Host "[Core] Checking Microsoft Pluton and System Guard..." -ForegroundColor Yellow
 
@@ -2387,7 +2387,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Hardware-enforced Stack Protection (kCET)
+# Hardware-enforced Stack Protection (kCET)
 # ============================================================================
 Write-Host "[Core] Checking Kernel Mode Hardware-enforced Stack Protection..." -ForegroundColor Yellow
 
@@ -2479,7 +2479,7 @@ return $results
 # ============================================================================
 # When invoked directly (not dot-sourced), run in standalone test mode
 # with automatic SharedData initialization, cache warmup, and detailed analysis.
-# Usage: .\modules\module-core.ps1
+# Usage:.\modules\module-core.ps1
 # ============================================================================
 if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "=" * 80 -ForegroundColor White
