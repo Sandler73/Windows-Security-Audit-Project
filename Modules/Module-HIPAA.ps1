@@ -1,6 +1,6 @@
 # module-hipaa.ps1
 # HIPAA Security Rule Compliance Module for Windows Security Audit
-# Version: 6.1.2
+# Version: 6.6.0
 #
 # Evaluates Windows configuration against HIPAA Security Rule (45 CFR Part 164 Subpart C)
 # with Severity ratings and cross-framework references.
@@ -31,8 +31,10 @@
 .NOTES
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
-    References: HIPAA Security Rule (45 CFR 164.302-318), HITECH Act, HHS Guidance on Risk Analysis
-    Version: 6.1.2
+    References: HIPAA Security Rule (45 CFR 164.302-318 -- CURRENT and sole
+                authoritative basis; Jan 2025 NPRM proposed update pending, final
+                action projected July 2027), HITECH Act, HHS Guidance on Risk Analysis
+    Version: 6.6.0
 
 .EXAMPLE
     $results = & .\modules\module-hipaa.ps1 -SharedData $sharedData
@@ -44,16 +46,72 @@ param(
 )
 
 $moduleName = "HIPAA"
-$moduleVersion = "6.1.2"
-$results = @()
 
+# ============================================================================
+# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# One live query per module run instead of one per check site. The helpers
+# return the SAME object the direct call would return (raw call, no error
+# swallowing beyond -ErrorAction SilentlyContinue already present at the
+# migrated sites), so call-site semantics are preserved exactly. Sites using
+# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# Standalone-safe: no shared-library dependency.
+# ============================================================================
+$script:HFMemo = @{}
+
+# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# querying. HostFacts already collects these objects once per RUN; without this
+# lookup each module re-queried them once per MODULE. Raw objects are reused
+# rather than derived scalar facts, so every property a call site reads is still
+# available and no call site needed changing. Falls back to a live query when
+# HostFacts is absent (standalone module execution), preserving prior behaviour.
+function Get-ModHostFact {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    if ($SharedData -and $SharedData.ContainsKey('HostFacts') -and $SharedData.HostFacts) {
+        $hf = $SharedData.HostFacts
+        try {
+            if ($hf.ContainsKey($Name) -and $null -ne $hf[$Name]) { return $hf[$Name] }
+        } catch { return $null }
+    }
+    return $null
+}
+function Get-ModOSInfo {
+    if (-not $script:HFMemo.ContainsKey('OS')) {
+        $fromFacts = Get-ModHostFact -Name 'RawOSCim'
+        $script:HFMemo['OS'] = if ($fromFacts) { $fromFacts }
+                               else { Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['OS']
+}
+function Get-ModDefenderStatus {
+    if (-not $script:HFMemo.ContainsKey('MP')) {
+        $fromFacts = Get-ModHostFact -Name 'RawDefenderStatus'
+        $script:HFMemo['MP'] = if ($fromFacts) { $fromFacts }
+                               else { Get-MpComputerStatus -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['MP']
+}
+function Get-ModFirewallProfiles {
+    if (-not $script:HFMemo.ContainsKey('FW')) {
+        $fromFacts = Get-ModHostFact -Name 'RawFirewallProfiles'
+        $script:HFMemo['FW'] = if ($fromFacts) { @($fromFacts) }
+                               else { @(Get-NetFirewallProfile -ErrorAction SilentlyContinue) }
+    }
+    return $script:HFMemo['FW']
+}
+
+$moduleVersion = "6.6.0"
+$results = [System.Collections.Generic.List[object]]::new()
 # ---------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
 # ---------------------------------------------------------------------------
 function Add-Result {
     param(
+        [Parameter(Mandatory=$true)]
         [string]$Category,
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("Pass","Fail","Warning","Info","Error")]
         [string]$Status,
+        [Parameter(Mandatory=$true)]
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
@@ -61,7 +119,7 @@ function Add-Result {
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
-    $script:results += [PSCustomObject]@{
+    $script:results.Add([PSCustomObject]@{
         Module          = $moduleName
         Category        = $Category
         Status          = $Status
@@ -71,7 +129,7 @@ function Add-Result {
         Remediation     = $Remediation
         CrossReferences = $CrossReferences
         Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    }
+    })
 }
 
 # ---------------------------------------------------------------------------
@@ -1358,7 +1416,7 @@ Write-Host "[HIPAA] Checking HITECH Act & ePHI Protection..." -ForegroundColor Y
 
     # HITECH-1: Breach readiness -- firewall enabled all profiles
     try {
-        $fwProfiles = Get-NetFirewallProfile -ErrorAction SilentlyContinue
+        $fwProfiles = Get-ModFirewallProfiles
         $allEnabled = $true
         foreach ($fw in $fwProfiles) { if ($fw.Enabled -ne $true) { $allEnabled = $false } }
         if ($allEnabled -and $null -ne $fwProfiles) {
@@ -2004,6 +2062,61 @@ catch {
 }
 
 # ===========================================================================
+# v6.3.0 currency (PR-9): HIPAA Security Rule NPRM forward-looking
+# indicators. OPERATOR DECISION (2026-07-20): keep these as labeled Info.
+# DISCIPLINE: the January 2025 NPRM is PROPOSED, not law -- OMB's unified
+# agenda moves final action to July 2027, and the current Security Rule
+# remains the sole authoritative basis. Every check in this section is
+# Status=Info, explicitly labeled proposed, and never scored as a current
+# requirement. Do not change these to Pass/Fail against the proposed text.
+# ===========================================================================
+Write-Host "[HIPAA] Checking Security Rule NPRM forward-looking indicators (proposed, not law)..." -ForegroundColor Yellow
+
+try {
+    Add-Result -Category "HIPAA - Proposed Rule (NPRM)" -Status "Info" `
+        -Severity "Informational" `
+        -Message "PROPOSED: HHS Security Rule NPRM (Jan 2025) remains pending; final action projected July 2027; current Security Rule stays authoritative" `
+        -Details "The January 2025 NPRM would remove the required/addressable distinction and mandate controls including MFA, encryption at rest and in transit, asset inventories, network segmentation, and 72-hour restore capability. None of this is enforceable today. All Pass/Fail results in this module reflect the CURRENT Security Rule; the indicators below preview proposed obligations only." `
+        -CrossReferences @{ HIPAA='NPRM Jan 2025'; HHS='OCR'; Status='Proposed' }
+
+    # Proposed MFA mandate -- detectable posture preview (WHfB policy)
+    $whfbNprm = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\PassportForWork" -Name "Enabled" -Default $null
+    $whfbLbl = if ($whfbNprm -eq 1) { "Windows Hello for Business policy enabled on this host" } else { "no native MFA policy detected on this host" }
+    Add-Result -Category "HIPAA - Proposed Rule (NPRM)" -Status "Info" `
+        -Severity "Informational" `
+        -Message "PROPOSED: NPRM would mandate MFA for ePHI system access ($whfbLbl)" `
+        -Details "Under the proposed rule, MFA would become a required specification rather than addressable. Current-rule compliance does not require this specific posture; entities planning ahead of a potential 2027 final rule can track MFA coverage now. Third-party MFA agents are not host-detectable and are not assessed." `
+        -CrossReferences @{ HIPAA='NPRM Jan 2025'; NIST='IA-2(1)'; Status='Proposed' }
+
+    # Proposed encryption-at-rest mandate -- detectable posture preview (BitLocker)
+    $blStateLbl = "encryption state not readable (BitLocker cmdlets unavailable or insufficient privilege)"
+    try {
+        if (Get-Command 'Get-BitLockerVolume' -ErrorAction SilentlyContinue) {
+            $sysVol = Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction Stop
+            if ($sysVol) { $blStateLbl = "system drive protection: $($sysVol.ProtectionStatus)" }
+        }
+    } catch { }
+    Add-Result -Category "HIPAA - Proposed Rule (NPRM)" -Status "Info" `
+        -Severity "Informational" `
+        -Message "PROPOSED: NPRM would mandate encryption of ePHI at rest and in transit ($blStateLbl)" `
+        -Details "The proposed rule would make encryption a required specification with limited exceptions, replacing today's addressable status. This module's current-rule checks already assess encryption as an addressable safeguard; this indicator only previews the proposed mandatory status." `
+        -CrossReferences @{ HIPAA='NPRM Jan 2025'; HIPAA2='Sec.164.312(a)(2)(iv)'; Status='Proposed' }
+
+    # Proposed 72-hour restoration -- detectable posture preview (VSS/backup machinery)
+    $vssNprm = Get-Service -Name 'VSS' -ErrorAction SilentlyContinue
+    $vssLbl = if ($vssNprm) { "VSS present ($($vssNprm.Status))" } else { "VSS not present" }
+    Add-Result -Category "HIPAA - Proposed Rule (NPRM)" -Status "Info" `
+        -Severity "Informational" `
+        -Message "PROPOSED: NPRM would require restoring critical ePHI systems and data within 72 hours ($vssLbl on this host)" `
+        -Details "The proposed rule would set a concrete 72-hour restoration objective for critical systems as part of contingency planning. Current-rule contingency requirements (Sec.164.308(a)(7)) carry no fixed clock. Local snapshot machinery is a weak proxy; actual restore-time capability is an organizational recovery-architecture question." `
+        -CrossReferences @{ HIPAA='NPRM Jan 2025'; HIPAA2='Sec.164.308(a)(7)'; Status='Proposed' }
+} catch {
+    Add-Result -Category "HIPAA - Proposed Rule (NPRM)" -Status "Error" `
+        -Message "NPRM indicator checks could not be completed: $($_.Exception.Message)" `
+        -Details "Proposed-rule preview indicators failed to execute; current-rule results are unaffected"
+}
+
+# ===========================================================================
 # Module Summary
 # ===========================================================================
 $passCount    = @($results | Where-Object { $_.Status -eq "Pass" }).Count
@@ -2053,7 +2166,7 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
 
     $standaloneData = @{
         ComputerName = $env:COMPUTERNAME
-        OSVersion    = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
+        OSVersion    = (Get-ModOSInfo).Caption
         IPAddresses  = @((Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -ne "127.0.0.1" }).IPAddress)
         IsAdmin      = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
         ScanDate     = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
@@ -2090,7 +2203,7 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
     $useCache = ($null -ne $SharedData.Cache)
 
     Write-Host "[HIPAA] Executing checks with standalone environment...`n" -ForegroundColor Cyan
-    $script:results = @()
+    $script:results = [System.Collections.Generic.List[object]]::new()
 
     Write-Host "`n$("=" * 80)" -ForegroundColor White
     Write-Host "  DETAILED STANDALONE RESULTS" -ForegroundColor Cyan
