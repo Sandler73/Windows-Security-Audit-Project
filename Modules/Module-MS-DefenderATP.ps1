@@ -87,17 +87,17 @@ param(
 $moduleName = "MS-DefenderATP"
 
 # ============================================================================
-# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# Memoized host-state accessors.
 # One live query per module run instead of one per check site. The helpers
 # return the SAME object the direct call would return (raw call, no error
 # swallowing beyond -ErrorAction SilentlyContinue already present at the
 # migrated sites), so call-site semantics are preserved exactly. Sites using
-# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# ErrorAction Stop inside try/catch are intentionally NOT migrated.
 # Standalone-safe: no shared-library dependency.
 # ============================================================================
 $script:HFMemo = @{}
 
-# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# Consult the run-wide HostFacts registry before
 # querying. HostFacts already collects these objects once per RUN; without this
 # lookup each module re-queried them once per MODULE. Raw objects are reused
 # rather than derived scalar facts, so every property a call site reads is still
@@ -171,9 +171,9 @@ function Add-Result {
 }
 
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Cache-aware registry helper
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 $useCache = ($null -ne $SharedData.Cache)
 function Get-RegValue {
     param([string]$Path, [string]$Name, $Default = $null)
@@ -1036,7 +1036,7 @@ try {
 
 
 # ============================================================================
-# v6.1: Defender Antivirus Component Currency
+# Defender Antivirus Component Currency
 # ============================================================================
 Write-Host "[MS-DefenderATP] Checking Defender Component Currency..." -ForegroundColor Yellow
 
@@ -1119,7 +1119,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Network Protection per-profile state
+# Network Protection per-profile state
 # ============================================================================
 Write-Host "[MS-DefenderATP] Checking Network Protection per-profile state..." -ForegroundColor Yellow
 
@@ -1158,7 +1158,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Controlled Folder Access protected folders enumeration
+# Controlled Folder Access protected folders enumeration
 # ============================================================================
 Write-Host "[MS-DefenderATP] Checking Controlled Folder Access configuration..." -ForegroundColor Yellow
 
@@ -1225,7 +1225,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: SmartScreen enhanced phishing protection
+# SmartScreen enhanced phishing protection
 # ============================================================================
 Write-Host "[MS-DefenderATP] Checking Enhanced Phishing Protection..." -ForegroundColor Yellow
 
@@ -1301,7 +1301,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Windows Defender Application Control (WDAC) policy enumeration
+# Windows Defender Application Control (WDAC) policy enumeration
 # ============================================================================
 Write-Host "[MS-DefenderATP] Checking WDAC policy state..." -ForegroundColor Yellow
 
@@ -1351,7 +1351,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Defender for Endpoint device tags and group assignment
+# Defender for Endpoint device tags and group assignment
 # ============================================================================
 Write-Host "[MS-DefenderATP] Checking device tags and group assignment..." -ForegroundColor Yellow
 
@@ -1381,7 +1381,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Defender for Identity sensor detection
+# Defender for Identity sensor detection
 # ============================================================================
 Write-Host "[MS-DefenderATP] Checking Defender for Identity sensor..." -ForegroundColor Yellow
 
@@ -1419,7 +1419,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Per-rule ASR audit/block mode detail
+# Per-rule ASR audit/block mode detail
 # ============================================================================
 Write-Host "[MS-DefenderATP] Checking individual ASR rule states..." -ForegroundColor Yellow
 
@@ -1517,7 +1517,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Defender for Endpoint Plan detection (P1 vs P2)
+# Defender for Endpoint Plan detection (P1 vs P2)
 # ============================================================================
 Write-Host "[MS-DefenderATP] Detecting Defender for Endpoint plan tier..." -ForegroundColor Yellow
 
@@ -1562,7 +1562,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Live Response capability verification
+# Live Response capability verification
 # ============================================================================
 Write-Host "[MS-DefenderATP] Checking Live Response capability..." -ForegroundColor Yellow
 
@@ -1615,7 +1615,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Defender for Cloud Apps integration indicators
+# Defender for Cloud Apps integration indicators
 # ============================================================================
 Write-Host "[MS-DefenderATP] Checking Defender for Cloud Apps integration..." -ForegroundColor Yellow
 
@@ -1671,7 +1671,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Custom IOC management state
+# Custom IOC management state
 # ============================================================================
 Write-Host "[MS-DefenderATP] Checking custom IOC management..." -ForegroundColor Yellow
 
