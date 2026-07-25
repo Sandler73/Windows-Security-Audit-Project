@@ -54,17 +54,17 @@ param(
 $moduleName = "CIS"
 
 # ============================================================================
-# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# Memoized host-state accessors.
 # One live query per module run instead of one per check site. The helpers
 # return the SAME object the direct call would return (raw call, no error
 # swallowing beyond -ErrorAction SilentlyContinue already present at the
 # migrated sites), so call-site semantics are preserved exactly. Sites using
-# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# ErrorAction Stop inside try/catch are intentionally NOT migrated.
 # Standalone-safe: no shared-library dependency.
 # ============================================================================
 $script:HFMemo = @{}
 
-# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# Consult the run-wide HostFacts registry before
 # querying. HostFacts already collects these objects once per RUN; without this
 # lookup each module re-queried them once per MODULE. Raw objects are reused
 # rather than derived scalar facts, so every property a call site reads is still
@@ -136,9 +136,9 @@ function Add-Result {
     })
 }
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Cache-aware registry helper
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 $useCache = ($null -ne $SharedData.Cache)
 function Get-RegValue {
     param([string]$Path, [string]$Name, $Default = $null)
@@ -2298,7 +2298,7 @@ try {
 
 
 # ============================================================================
-# v6.1: CIS Controls v8 IG2/IG3 maturity gap analysis
+# CIS Controls v8 IG2/IG3 maturity gap analysis
 # ============================================================================
 Write-Host "[CIS] Checking CIS Controls v8 IG2/IG3 maturity..." -ForegroundColor Yellow
 
@@ -2371,7 +2371,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: CIS Cloud Companion Guide alignment
+# CIS Cloud Companion Guide alignment
 # ============================================================================
 Write-Host "[CIS] Checking CIS Cloud Companion Guide alignment..." -ForegroundColor Yellow
 
@@ -2428,7 +2428,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: CIS Mobile Companion (BYOD/MDM signal extraction)
+# CIS Mobile Companion (BYOD/MDM signal extraction)
 # ============================================================================
 Write-Host "[CIS] Checking CIS Mobile Companion device management indicators..." -ForegroundColor Yellow
 
@@ -2487,7 +2487,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: CIS ICS/OT Companion Guide indicators
+# CIS ICS/OT Companion Guide indicators
 # ============================================================================
 Write-Host "[CIS] Checking CIS ICS/OT Companion indicators..." -ForegroundColor Yellow
 
@@ -2533,7 +2533,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: CIS Microsoft 365 / Exchange / IIS workload signals
+# CIS Microsoft 365 / Exchange / IIS workload signals
 # ============================================================================
 Write-Host "[CIS] Checking workload-specific CIS Benchmark indicators..." -ForegroundColor Yellow
 
@@ -2572,7 +2572,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: CIS Critical Security Controls - Asset and Software Inventory
+# CIS Critical Security Controls - Asset and Software Inventory
 # ============================================================================
 Write-Host "[CIS] Checking inventory enumeration capability..." -ForegroundColor Yellow
 
@@ -2615,7 +2615,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.3.0 currency (PR-6): CIS Controls v8.1 (June 2024) alignment.
+# Currency: CIS Controls v8.1 (June 2024) alignment.
 # v8.1 introduces the Governance (GV) security function, adds a Documentation
 # asset class, clarifies safeguard descriptions, and realigns mappings to
 # NIST CSF 2.0 (whose GOVERN function it mirrors). Host-detectable governance
@@ -2625,7 +2625,7 @@ catch {
 Write-Host "[CIS] Checking CIS Controls v8.1 Governance alignment..." -ForegroundColor Yellow
 
 try {
-    # --- Governance-by-policy signal: centrally-managed configuration presence.
+    # -- Governance-by-policy signal: centrally-managed configuration presence.
     # A populated HKLM policy hive indicates configuration is governed via
     # GPO/MDM rather than local drift, the host-observable core of GV intent.
     $policyRoots = @(
@@ -2660,7 +2660,7 @@ try {
             -CrossReferences @{ CIS='4.1'; CSF='GV.PO'; NIST='CM-1' }
     }
 
-    # --- v8.1 Documentation asset class + CSF 2.0 realignment (informational)
+    # -- v8.1 Documentation asset class + CSF 2.0 realignment (informational)
     Add-Result -Category "CIS - v8.1 Governance" -Status "Info" `
         -Severity "Informational" `
         -Message "v8.1 adds a Documentation asset class and realigns safeguard mappings to NIST CSF 2.0" `
@@ -2728,7 +2728,7 @@ return $results
 # ============================================================================
 # When invoked directly (not dot-sourced), run in standalone test mode
 # with automatic SharedData initialization, cache warmup, and detailed analysis.
-# Usage: .\modules\module-cis.ps1
+# Usage:.\modules\module-cis.ps1
 # ============================================================================
 if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "=" * 80 -ForegroundColor White
