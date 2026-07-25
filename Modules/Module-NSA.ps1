@@ -1,6 +1,6 @@
 # Module-NSA.ps1
 # NSA Cybersecurity Guidance Compliance Module for Windows Security Audit
-# Version: 6.1.2
+# Version: 6.6.0
 #
 # Evaluates Windows configuration against NSA Cybersecurity Information
 # Sheets, technical reports, and hardening guidance across 14 categories.
@@ -37,7 +37,7 @@
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
     References: NSA Cybersecurity Information Sheets (CIS), NSA IAM/IAD guidance
-    Version: 6.1.2
+    Version: 6.6.0
 
 .EXAMPLE
     $results = & .\modules\module-nsa.ps1 -SharedData $sharedData
@@ -49,16 +49,72 @@ param(
 )
 
 $moduleName = "NSA"
-$moduleVersion = "6.1.2"
-$results = @()
 
+# ============================================================================
+# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# One live query per module run instead of one per check site. The helpers
+# return the SAME object the direct call would return (raw call, no error
+# swallowing beyond -ErrorAction SilentlyContinue already present at the
+# migrated sites), so call-site semantics are preserved exactly. Sites using
+# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# Standalone-safe: no shared-library dependency.
+# ============================================================================
+$script:HFMemo = @{}
+
+# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# querying. HostFacts already collects these objects once per RUN; without this
+# lookup each module re-queried them once per MODULE. Raw objects are reused
+# rather than derived scalar facts, so every property a call site reads is still
+# available and no call site needed changing. Falls back to a live query when
+# HostFacts is absent (standalone module execution), preserving prior behaviour.
+function Get-ModHostFact {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    if ($SharedData -and $SharedData.ContainsKey('HostFacts') -and $SharedData.HostFacts) {
+        $hf = $SharedData.HostFacts
+        try {
+            if ($hf.ContainsKey($Name) -and $null -ne $hf[$Name]) { return $hf[$Name] }
+        } catch { return $null }
+    }
+    return $null
+}
+function Get-ModOSInfo {
+    if (-not $script:HFMemo.ContainsKey('OS')) {
+        $fromFacts = Get-ModHostFact -Name 'RawOSCim'
+        $script:HFMemo['OS'] = if ($fromFacts) { $fromFacts }
+                               else { Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['OS']
+}
+function Get-ModDefenderStatus {
+    if (-not $script:HFMemo.ContainsKey('MP')) {
+        $fromFacts = Get-ModHostFact -Name 'RawDefenderStatus'
+        $script:HFMemo['MP'] = if ($fromFacts) { $fromFacts }
+                               else { Get-MpComputerStatus -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['MP']
+}
+function Get-ModFirewallProfiles {
+    if (-not $script:HFMemo.ContainsKey('FW')) {
+        $fromFacts = Get-ModHostFact -Name 'RawFirewallProfiles'
+        $script:HFMemo['FW'] = if ($fromFacts) { @($fromFacts) }
+                               else { @(Get-NetFirewallProfile -ErrorAction SilentlyContinue) }
+    }
+    return $script:HFMemo['FW']
+}
+
+$moduleVersion = "6.6.0"
+$results = [System.Collections.Generic.List[object]]::new()
 # ---------------------------------------------------------------------------
 # Result helper with Severity and CrossReferences support
 # ---------------------------------------------------------------------------
 function Add-Result {
     param(
+        [Parameter(Mandatory=$true)]
         [string]$Category,
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("Pass","Fail","Warning","Info","Error")]
         [string]$Status,
+        [Parameter(Mandatory=$true)]
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
@@ -66,7 +122,7 @@ function Add-Result {
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
-    $script:results += [PSCustomObject]@{
+    $script:results.Add([PSCustomObject]@{
         Module          = $moduleName
         Category        = $Category
         Status          = $Status
@@ -76,7 +132,7 @@ function Add-Result {
         Remediation     = $Remediation
         CrossReferences = $CrossReferences
         Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    }
+    })
 }
 
 # ---------------------------------------------------------------------------
@@ -653,7 +709,7 @@ try {
 Write-Host "[NSA] Checking endpoint protection..." -ForegroundColor Yellow
 
 try {
-    $defender = Get-MpComputerStatus -ErrorAction SilentlyContinue
+    $defender = Get-ModDefenderStatus
 
     if ($defender) {
         # Real-time protection
@@ -904,7 +960,7 @@ try {
 
     # Windows Firewall - all profiles enabled
     try {
-        $fwProfiles = Get-NetFirewallProfile -ErrorAction SilentlyContinue
+        $fwProfiles = Get-ModFirewallProfiles
         $disabledProfiles = @($fwProfiles | Where-Object { -not $_.Enabled })
         if ($disabledProfiles.Count -eq 0) {
             Add-Result -Category "NSA - Network Hardening" -Status "Pass" `
@@ -2148,7 +2204,7 @@ if ($MyInvocation.InvocationName -ne '.') {
 
     # Detect OS
     try {
-        $osInfo = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+        $osInfo = Get-ModOSInfo
         $standaloneData.OSVersion = "$($osInfo.Caption) (Build $($osInfo.BuildNumber))"
     } catch {
         $standaloneData.OSVersion = "Windows (version detection failed)"
@@ -2201,7 +2257,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "[NSA] Executing checks with standalone environment...`n" -ForegroundColor Cyan
 
     # Clear results from the initial pass (which used empty SharedData)
-    $script:results = @()
+    $script:results = [System.Collections.Generic.List[object]]::new()
 
     # The actual check sections are above -- they reference $SharedData and $useCache
     # which are now set to the standalone values. We need to re-run the check body.
