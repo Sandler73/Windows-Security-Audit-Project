@@ -32,7 +32,7 @@
         BreakBoot
 
     EXECUTION BOUNDARY (deliberate): this component contains NO execution
-    path. Build-RemediationPlan produces an ordered, impact-annotated plan;
+    path. New-RemediationPlan produces an ordered, impact-annotated plan;
     applying it is reserved for the orchestrator's gated remediation flow
     once the rollback generator exists, because capture-before-apply is a
     hard rule of this framework. Verification (read-only) is the only thing
@@ -304,7 +304,7 @@ function Test-RemediationApplied {
     try { return (& $entry.Verify) } catch { return $null }
 }
 
-function Build-RemediationPlan {
+function New-RemediationPlan {
     <#
     .SYNOPSIS
         Build an ordered, impact-annotated plan for a topic set. The plan is
@@ -343,3 +343,6 @@ function Build-RemediationPlan {
         UnknownTopics  = @($unknown)
     }
 }
+
+# Backwards-compatible alias (see note in attack-surface.ps1).
+Set-Alias -Name Build-RemediationPlan -Value New-RemediationPlan -Scope Script -Force
