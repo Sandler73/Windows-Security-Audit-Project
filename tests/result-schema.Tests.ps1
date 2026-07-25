@@ -37,7 +37,7 @@ BeforeAll {
 
     # Run each module ONCE and cache results
     $script:ModuleResults = @{}
-    $script:ModuleFiles = Get-ChildItem -Path $script:ModulesDir -Filter 'module-*.ps1'
+    $script:ModuleFiles = Get-ChildItem -Path $script:ModulesDir -Recurse -Filter 'module-*.ps1'
 
     foreach ($file in $script:ModuleFiles) {
         try {
@@ -98,8 +98,8 @@ Describe 'Result Object Schema' {
             # with separators (e.g., "PCI-DSS", "MS-DefenderATP") that differs from
             # the filename. Strip non-alphanumeric chars from BOTH sides before
             # comparing, so that:
-            #     module-pcidss.ps1       -> "pcidss" matches Module="PCI-DSS"
-            #     module-ms-defenderatp.ps1 -> "msdefenderatp" matches Module="MS-DefenderATP"
+            # module-pcidss.ps1       -> "pcidss" matches Module="PCI-DSS"
+            # module-ms-defenderatp.ps1 -> "msdefenderatp" matches Module="MS-DefenderATP"
             $expectedNorm = (($key -replace '^module-', '') -replace '\.ps1$', '') -replace '[^a-zA-Z0-9]',''
 
             foreach ($result in $script:ModuleResults[$key]) {
@@ -218,7 +218,7 @@ Describe 'Status Distribution Reasonableness' {
 }
 
 Describe 'NIST Module Category Consolidation' {
-    It 'NIST module has 20 unique categories (consolidated from 230 in v6.1.0)' {
+    It 'NIST module has 20 unique categories' {
         $nistResults = $script:ModuleResults['module-nist.ps1']
         if ($nistResults) {
             $uniqueCategories = @($nistResults.Category | Sort-Object -Unique)
