@@ -118,17 +118,17 @@ param(
 $moduleName = "MS"
 
 # ============================================================================
-# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# Memoized host-state accessors.
 # One live query per module run instead of one per check site. The helpers
 # return the SAME object the direct call would return (raw call, no error
 # swallowing beyond -ErrorAction SilentlyContinue already present at the
 # migrated sites), so call-site semantics are preserved exactly. Sites using
-# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# ErrorAction Stop inside try/catch are intentionally NOT migrated.
 # Standalone-safe: no shared-library dependency.
 # ============================================================================
 $script:HFMemo = @{}
 
-# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# Consult the run-wide HostFacts registry before
 # querying. HostFacts already collects these objects once per RUN; without this
 # lookup each module re-queried them once per MODULE. Raw objects are reused
 # rather than derived scalar facts, so every property a call site reads is still
@@ -202,9 +202,9 @@ function Add-Result {
 }
 
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Cache-aware registry helper
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 $useCache = ($null -ne $SharedData.Cache)
 function Get-RegValue {
     param([string]$Path, [string]$Name, $Default = $null)
@@ -3206,7 +3206,7 @@ Write-Host "`n[MS] Sections 1-32 checks complete" -ForegroundColor Cyan
 
 
 # ============================================================================
-# v6.1: Windows 11 24H2 / Server 2025 baseline alignment (see also v6.3.0 25H2/v2602 section)
+# Windows 11 24H2 / Server 2025 baseline alignment (see also 25H2/v2602 section)
 # ============================================================================
 Write-Host "[MS] Checking Windows 11 24H2 / Server 2025 baseline alignment..." -ForegroundColor Yellow
 
@@ -3270,7 +3270,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Microsoft Edge security baseline
+# Microsoft Edge security baseline
 # ============================================================================
 Write-Host "[MS] Checking Microsoft Edge security baseline..." -ForegroundColor Yellow
 
@@ -3378,7 +3378,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Microsoft 365 Apps for Enterprise security baseline
+# Microsoft 365 Apps for Enterprise security baseline
 # ============================================================================
 Write-Host "[MS] Checking Microsoft 365 Apps security baseline..." -ForegroundColor Yellow
 
@@ -3457,7 +3457,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Microsoft Security Compliance Toolkit (MSCT) signal extraction
+# Microsoft Security Compliance Toolkit (MSCT) signal extraction
 # ============================================================================
 Write-Host "[MS] Checking Security Compliance Toolkit deployment indicators..." -ForegroundColor Yellow
 
@@ -3494,7 +3494,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Pluton security processor and DRTM signals
+# Pluton security processor and DRTM signals
 # ============================================================================
 Write-Host "[MS] Checking Pluton and DRTM signals..." -ForegroundColor Yellow
 
@@ -3541,7 +3541,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Smart App Control state
+# Smart App Control state
 # ============================================================================
 Write-Host "[MS] Checking Smart App Control state..." -ForegroundColor Yellow
 
@@ -3584,7 +3584,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: Microsoft cloud-managed update channels
+# Microsoft cloud-managed update channels
 # ============================================================================
 Write-Host "[MS] Checking cloud-managed update channels..." -ForegroundColor Yellow
 
@@ -3640,7 +3640,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.3.0 currency (PR-4): Windows 11 25H2 baseline (Sep 2025) and
+# Currency: Windows 11 25H2 baseline (Sep 2025) and
 # Windows Server 2025 baseline v2602 (Feb 2026) deltas.
 # Verified sources: Microsoft Security Baselines blog (25H2, v2602), Microsoft
 # Support NTLMv1 change notice, CIS 25H2 audit content. Where a policy's
@@ -3660,7 +3660,7 @@ try {
     $isDC = ($osProd -eq 2)
     $isSrv = ($osProd -ne 1)
 
-    # --- 25H2: Require IPPS for IPP printers (Administrative Templates\Printers)
+    # -- 25H2: Require IPPS for IPP printers (Administrative Templates\Printers)
     $printersPolicyKey = "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers"
     $printersPolicyPresent = $false
     try { $printersPolicyPresent = [bool](Test-Path $printersPolicyKey -ErrorAction Stop) } catch { $printersPolicyPresent = $false }
@@ -3670,7 +3670,7 @@ try {
         -Details "The Windows 11 25H2 baseline adds two IPP printing policies enforcing TLS (IPPS) for IPP printers; printers that do not support TLS are blocked from installation. Verify 'Require IPPS for IPP printers' (Administrative Templates > Printers, Printing.admx from 25H2 templates or newer) is Enabled via gpresult; note self-signed/locally-issued printer certificates may be impacted." `
         -CrossReferences @{ MS='Baseline 25H2'; CIS='18.7.14' }
 
-    # --- 24H2+/Server 2025: NTLMv1-derived SSO audit/enforce (BlockNtlmv1SSO)
+    # -- 24H2+/Server 2025: NTLMv1-derived SSO audit/enforce (BlockNtlmv1SSO)
     $ntlmv1Sso = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0" -Name "BlockNtlmv1SSO" -Default $null
     if ($ntlmv1Sso -eq 1) {
         Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Pass" `
@@ -3693,7 +3693,7 @@ try {
             -CrossReferences @{ MS='NTLMv1 deprecation' }
     }
 
-    # --- v2602 (servers): expanded incoming NTLM auditing
+    # -- v2602 (servers): expanded incoming NTLM auditing
     if ($isSrv) {
         $auditIncoming = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0" -Name "AuditReceivingNTLMTraffic" -Default $null
         if ($auditIncoming -ge 1) {
@@ -3712,7 +3712,7 @@ try {
         }
     }
 
-    # --- v2602 (servers): sudo for Windows lockdown
+    # -- v2602 (servers): sudo for Windows lockdown
     $sysRoot = if ($env:SystemRoot) { $env:SystemRoot } else { 'C:\Windows' }
     $sudoExe = "$sysRoot\System32\sudo.exe"
     $sudoPresent = $false
@@ -3734,7 +3734,7 @@ try {
         }
     }
 
-    # --- v2602 (DCs): ROCA-vulnerable WHfB key validation
+    # -- v2602 (DCs): ROCA-vulnerable WHfB key validation
     if ($isDC) {
         Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Info" `
             -Severity "High" `
@@ -3743,14 +3743,14 @@ try {
             -CrossReferences @{ MS='Baseline v2602'; CVE='CVE-2017-15361'; NIST='IA-5(2)' }
     }
 
-    # --- 25H2 + v2602: IE11 launch via COM automation disabled
+    # -- 25H2 + v2602: IE11 launch via COM automation disabled
     Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Info" `
         -Severity "Medium" `
         -Message "25H2/v2602 baseline: 'Disable Internet Explorer 11 Launch Via COM Automation' should be Enabled" `
         -Details "Both the Windows 11 25H2 and Server 2025 v2602 baselines prevent scripts and applications from programmatically launching the legacy IE11 engine through COM automation, closing a legacy execution vector. Verify the policy state via gpresult; legacy apps invoking IE COM automation will be affected." `
         -CrossReferences @{ MS='Baseline 25H2/v2602'; NIST='CM-7' }
 
-    # --- v2602: Mark-of-the-Web preservation (existing verified path)
+    # -- v2602: Mark-of-the-Web preservation (existing verified path)
     $mzPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Attachments"
     $saveZone = Get-RegValue -Path $mzPath -Name "SaveZoneInformation" -Default $null
     if ($saveZone -eq 2) {
@@ -3768,7 +3768,7 @@ try {
             -CrossReferences @{ MS='Baseline v2602'; NIST='SI-3' }
     }
 
-    # --- 25H2: ASR PSExec/WMI rule now baseline-recommended (Audit)
+    # -- 25H2: ASR PSExec/WMI rule now baseline-recommended (Audit)
     $asrIds = $null; $asrActions = $null
     try {
         if (Get-Command 'Get-MpPreference' -ErrorAction SilentlyContinue) {
