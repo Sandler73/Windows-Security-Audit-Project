@@ -76,7 +76,7 @@
 | **Windows Server 2019** | 1809 | ✅ Tested | 5.1, 7.x | Long-term server support |
 | **Windows Server 2016** | 1607 | ✅ Tested | 5.1, 7.x | Minimum server target |
 | Server Core variants | All above | ✅ Compatible | 5.1, 7.x | All checks work headless |
-| Windows < 21H2 / Server < 2016 | -- | ❌ Not supported | -- | See [deferred work](tasks/deferred-work.md) |
+| Windows < 21H2 / Server < 2016 | -- | ❌ Not supported | -- | See deferred work |
 
 **Requirements:** Administrator privileges · 100 MB free disk space · No internet access required
 
@@ -710,6 +710,12 @@ Windows-Security-Audit/
 │   └── attack-surface.ps1               # Attack-surface exposure assessment and report
 │
 ├── tests/                                # Pester test suites (13 files)
+│
+├── docs/                                 # Documentation
+│   ├── project/                         # CHANGELOG, README, USAGE_GUIDE, SECURITY, decisions/
+│   └── wiki/                            # User and developer wiki pages
+│
+├── tasks/                                # Working state: plan, lessons, component manifest
 │
 ├── reports/                              # Generated reports (auto-created)
 │   ├── Windows-Security-Audit-<HOSTNAME>-<date>.html|json|csv|xml
