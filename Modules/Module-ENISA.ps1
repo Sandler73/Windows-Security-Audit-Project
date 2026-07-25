@@ -54,17 +54,17 @@ param(
 $moduleName = "ENISA"
 
 # ============================================================================
-# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# Memoized host-state accessors.
 # One live query per module run instead of one per check site. The helpers
 # return the SAME object the direct call would return (raw call, no error
 # swallowing beyond -ErrorAction SilentlyContinue already present at the
 # migrated sites), so call-site semantics are preserved exactly. Sites using
-# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# ErrorAction Stop inside try/catch are intentionally NOT migrated.
 # Standalone-safe: no shared-library dependency.
 # ============================================================================
 $script:HFMemo = @{}
 
-# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# Consult the run-wide HostFacts registry before
 # querying. HostFacts already collects these objects once per RUN; without this
 # lookup each module re-queried them once per MODULE. Raw objects are reused
 # rather than derived scalar facts, so every property a call site reads is still
@@ -107,9 +107,9 @@ function Get-ModFirewallProfiles {
 
 $moduleVersion = "6.6.0"
 $results = [System.Collections.Generic.List[object]]::new()
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 function Add-Result {
     param(
         [Parameter(Mandatory=$true)]
@@ -138,9 +138,9 @@ function Add-Result {
     })
 }
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Cache-aware registry helper
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 $useCache = ($null -ne $SharedData.Cache)
 function Get-RegValue {
     param([string]$Path, [string]$Name, $Default = $null)
@@ -1410,7 +1410,7 @@ Write-Host "[ENISA] Checking GP.10 -- Endpoint Protection..." -ForegroundColor Y
 
 
 # ===========================================================================
-# v6.1: NIS2 Directive specific control mapping
+# NIS2 Directive specific control mapping
 # ===========================================================================
 Write-Host "[ENISA] Checking NIS2 Directive technical controls..." -ForegroundColor Yellow
 
@@ -1497,7 +1497,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: Cyber Resilience Act (CRA) alignment for products
+# Cyber Resilience Act (CRA) alignment for products
 # ===========================================================================
 Write-Host "[ENISA] Checking Cyber Resilience Act technical alignment..." -ForegroundColor Yellow
 
@@ -1555,7 +1555,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: ENISA Threat Landscape categorization
+# ENISA Threat Landscape categorization
 # ===========================================================================
 Write-Host "[ENISA] Checking Threat Landscape category coverage..." -ForegroundColor Yellow
 
@@ -1627,7 +1627,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: ENISA Reference Incident Classification Taxonomy
+# ENISA Reference Incident Classification Taxonomy
 # ===========================================================================
 Write-Host "[ENISA] Checking Reference Incident Classification Taxonomy support..." -ForegroundColor Yellow
 
@@ -1684,7 +1684,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: ENISA IoC good practice and AI Threat Landscape
+# ENISA IoC good practice and AI Threat Landscape
 # ===========================================================================
 Write-Host "[ENISA] Checking IoC and AI threat landscape indicators..." -ForegroundColor Yellow
 
@@ -1757,7 +1757,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: EUCC and DORA alignment
+# EUCC and DORA alignment
 # ===========================================================================
 Write-Host "[ENISA] Checking EUCC and DORA technical alignment..." -ForegroundColor Yellow
 
@@ -1815,7 +1815,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.3.0 currency (PR-13): EU instrument timeline checks.
+# Currency: EU instrument timeline checks.
 # CRA (2024/2847): Art. 14 reporting obligations apply from 2026-09-11 --
 # including for products already on the EU market -- with 24h/72h notification
 # windows to ENISA's Single Reporting Platform; full application 2027-12-11.
