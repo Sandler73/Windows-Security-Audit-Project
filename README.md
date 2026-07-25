@@ -712,12 +712,6 @@ Windows-Security-Audit/
 │
 ├── tests/                                # Pester test suites (13 files)
 │
-├── docs/                                 # Documentation
-│   ├── project/                         # CHANGELOG, README, USAGE_GUIDE, SECURITY, decisions/
-│   └── wiki/                            # User and developer wiki pages
-│
-├── tasks/                                # Working state: plan, lessons, component manifest
-│
 ├── reports/                              # Generated reports (auto-created)
 │   ├── Windows-Security-Audit-<HOSTNAME>-<date>.html|json|csv|xml
 │   ├── by-framework/                    # Per-framework reports (-SplitReports)
