@@ -90,11 +90,11 @@ $script:RemediationBundles = [ordered]@{
 # ============================================================================
 
 # ============================================================================
-# Deprecated v6.1 bundle-name aliases (option B migration). The v6.1
-# -RemediationBundle ValidateSet shipped five pattern-based bundle names.
-# They now map onto the v6.4 topic-based bundles so existing command lines
-# keep working while emitting a deprecation notice. Where a v6.1 bundle spans
-# multiple v6.4 bundles, the alias resolves to the ordered union of their
+# Deprecated bundle-name aliases. The original
+# RemediationBundle ValidateSet shipped five pattern-based bundle names.
+# They now map onto the topic-based bundles so existing command lines
+# Keep working while emitting a deprecation notice. Where a legacy bundle spans
+# Multiple topic-based bundles, the alias resolves to the ordered union of their
 # topics via a synthetic bundle.
 # ============================================================================
 $script:V61BundleAliases = [ordered]@{
@@ -213,7 +213,7 @@ function Get-BundlePlan {
     param([Parameter(Mandatory=$true)][string]$Name)
     $bundle = Get-RemediationBundle -Name $Name
     if (-not $bundle) { return $null }
-    if (-not (Get-Command 'Build-RemediationPlan' -ErrorAction SilentlyContinue)) {
+    if (-not (Get-Command 'New-RemediationPlan' -ErrorAction SilentlyContinue)) {
         # Library absent: degrade to a topic list at the most conservative tier
         return [PSCustomObject]@{
             Name             = $Name
@@ -227,7 +227,7 @@ function Get-BundlePlan {
             LibraryAvailable = $false
         }
     }
-    $plan = Build-RemediationPlan -Topics $bundle.Topics
+    $plan = New-RemediationPlan -Topics $bundle.Topics
     return [PSCustomObject]@{
         Name             = $Name
         Description      = $bundle.Description
