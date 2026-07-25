@@ -5,7 +5,7 @@
 
 <#
 .SYNOPSIS
-    Module-based Windows security audit script suite supporting multiple
+    Module-based Windows security audit script supporting multiple
     compliance frameworks with parallel execution, caching, structured logging,
     and compliance scoring.
 
@@ -197,7 +197,10 @@ param(
     [switch]$SplitReports,
     [switch]$SplitOnly,
     [switch]$AttackSurfaceReport,
-    [string]$Profile = "",
+    # 'Profile' is an automatic PowerShell variable, so the parameter variable
+    # is named AuditProfile and -Profile is retained as an alias for callers.
+    [Alias('Profile')]
+    [string]$AuditProfile = "",
     [ValidateRange(1,10)]
     [int]$AssetCriticality = 0,
     [ValidateRange(0,100)]
@@ -274,7 +277,7 @@ if (Test-Path $script:CommonLibPath) {
     catch { Write-Warning "Failed to load shared library: $_" }
 }
 
-# v6.3.0 (GAP-4): Load the derived host-facts registry component. Optional;
+# Load the derived host-facts registry component. Optional;
 # modules consume $SharedData.HostFacts as data, so runspaces do not need this
 # file. Availability-guarded like the shared library.
 $script:HAS_HOST_FACTS = $false
@@ -289,7 +292,7 @@ if (Test-Path $script:HostFactsPath) {
     catch { Write-Warning "Failed to load host-facts component: $_" }
 }
 
-# v6.3.0 (GAP-2, tailored split reports): load the per-framework report
+# Load the per-framework report
 # renderer component. Availability-guarded like the other shared components.
 $script:HAS_REPORT_TEMPLATES = $false
 $script:ReportTemplatesPath = Join-Path $script:ScriptPath "shared_components\report-templates.ps1"
@@ -303,7 +306,7 @@ if (Test-Path $script:ReportTemplatesPath) {
     catch { Write-Warning "Failed to load report-templates component: $_" }
 }
 
-# v6.3.0 (GAP-1): audit profiles component.
+# Audit profiles component.
 $script:HAS_PROFILES = $false
 $script:ProfilesPath = Join-Path $script:ScriptPath "shared_components\profiles.ps1"
 if (Test-Path $script:ProfilesPath) {
@@ -316,7 +319,7 @@ if (Test-Path $script:ProfilesPath) {
     catch { Write-Warning "Failed to load profiles component: $_" }
 }
 
-# v6.4.0: shared assessments (expensive host-wide collections, pre-warmed
+# Shared assessments (expensive host-wide collections, pre-warmed
 # once) and canonical remediations (topic classifier + canonical fix forms).
 $script:HAS_SHARED_ASSESSMENTS = $false
 $script:SharedAssessmentsPath = Join-Path $script:ScriptPath "shared_components\shared-assessments.ps1"
@@ -342,14 +345,14 @@ if (Test-Path $script:CanonicalRemediationsPath) {
     catch { Write-Warning "Failed to load canonical-remediations component: $_" }
 }
 
-# v6.4.0 item 3: remediation library + bundles (data/plan layer only;
+# Remediation library + bundles (data/plan layer only;
 # execution stays behind the gated flow and requires the rollback generator).
 $script:HAS_REMEDIATION_LIBRARY = $false
 $script:RemediationLibraryPath = Join-Path $script:ScriptPath "shared_components\remediation-library.ps1"
 if (Test-Path $script:RemediationLibraryPath) {
     try {
         . $script:RemediationLibraryPath
-        if (Get-Command 'Build-RemediationPlan' -ErrorAction SilentlyContinue) {
+        if (Get-Command 'New-RemediationPlan' -ErrorAction SilentlyContinue) {
             $script:HAS_REMEDIATION_LIBRARY = $true
         }
     }
@@ -368,8 +371,8 @@ if (Test-Path $script:RemediationBundlesPath) {
     catch { Write-Warning "Failed to load remediation-bundles component: $_" }
 }
 
-# v6.4.0 item 4: rollback generator (capture-before-apply). With this
-# loaded, the gated execution wiring becomes legitimate (item 4b).
+# Rollback generator (capture-before-apply). With this
+# loaded, the gated execution wiring becomes legitimate.
 $script:HAS_ROLLBACK_GENERATOR = $false
 $script:RollbackGeneratorPath = Join-Path $script:ScriptPath "shared_components\rollback-generator.ps1"
 if (Test-Path $script:RollbackGeneratorPath) {
@@ -382,21 +385,21 @@ if (Test-Path $script:RollbackGeneratorPath) {
     catch { Write-Warning "Failed to load rollback-generator component: $_" }
 }
 
-# v6.4.0 item 5: attack-surface assessment (synthesizes exposure domains
+# Attack-surface assessment (synthesizes exposure domains
 # from audit results; renders through the report-templates spine when present).
 $script:HAS_ATTACK_SURFACE = $false
 $script:AttackSurfacePath = Join-Path $script:ScriptPath "shared_components\attack-surface.ps1"
 if (Test-Path $script:AttackSurfacePath) {
     try {
         . $script:AttackSurfacePath
-        if (Get-Command 'Build-AttackSurface' -ErrorAction SilentlyContinue) {
+        if (Get-Command 'New-AttackSurface' -ErrorAction SilentlyContinue) {
             $script:HAS_ATTACK_SURFACE = $true
         }
     }
     catch { Write-Warning "Failed to load attack-surface component: $_" }
 }
 
-# v6.5.0: composed post-execution pipeline. Composes the existing enrichment
+# Composed post-execution pipeline. Composes the existing enrichment
 # functions into one pass with per-phase timing and a machine-readable summary.
 $script:HAS_AUDIT_PIPELINE = $false
 $script:AuditPipelinePath = Join-Path $script:ScriptPath "shared_components\audit-pipeline.ps1"
@@ -410,13 +413,13 @@ if (Test-Path $script:AuditPipelinePath) {
     catch { Write-Warning "Failed to load audit-pipeline component: $_" }
 }
 
-# -ListProfiles: print catalog and exit before any audit work
+# ListProfiles: print catalog and exit before any audit work
 if ($ListProfiles) {
     if ($script:HAS_PROFILES) { Show-AuditProfiles } else { Write-Host "[!] profiles component unavailable" -ForegroundColor Yellow }
     exit 0
 }
 
-# -ListBundles: print remediation bundle catalog and exit
+# ListBundles: print remediation bundle catalog and exit
 if ($ListBundles) {
     if ($script:HAS_REMEDIATION_BUNDLES) {
         Show-RemediationBundles
@@ -586,7 +589,7 @@ function Show-Banner {
 # ============================================================================
 function Test-Prerequisites {
     # Validates PowerShell version, admin privileges, and OS compatibility
-    # Returns: PSCustomObject with .Success (bool) and .Messages (string[])
+    # Returns: PSCustomObject with.Success (bool) and.Messages (string[])
     $messages = @()
     $success = $true
     $psVersion = $PSVersionTable.PSVersion
@@ -667,7 +670,7 @@ function Get-ValidatedResults {
         Write-Host "[!] Module $ModuleName returned no results" -ForegroundColor Yellow
         return @()
     }
-    # v6.2.0 (WSA-P1): Generic List accumulation replaces O(n^2) array append.
+    # Generic List accumulation replaces O(n^2) array append.
     $validated = [System.Collections.Generic.List[object]]::new()
     foreach ($result in $Results) {
         if (-not (Test-ResultObject -Result $result -ModuleName $ModuleName)) {
@@ -682,7 +685,7 @@ function Get-ValidatedResults {
 
 function Get-ModuleStatistics {
     param([array]$Results)
-    # v6.2.0 (WSA-P2): single Group-Object pass replaces five full-collection
+    # Single Group-Object pass replaces five full-collection
     # Where-Object scans.
     $byStatus = @{}
     foreach ($grp in ($Results | Group-Object -Property Status)) {
@@ -699,7 +702,7 @@ function Get-ModuleStatistics {
 }
 
 # ============================================================================
-# Compliance Scoring (v6.0)
+# Compliance Scoring
 # ============================================================================
 function Get-ComplianceScore {
     param([string]$ModuleName, [array]$Results, [double]$Threshold = 70.0)
@@ -782,7 +785,7 @@ function Show-DetailedHelp {
         Write-Host "      $Desc" -ForegroundColor DarkGray
     }
 
-    # ---- Banner ----
+    # --- Banner ----
     Write-Host ""
     Write-Host ("=" * $w) -ForegroundColor Cyan
     Write-Host "                Windows Security Audit Project - v$version Help" -ForegroundColor Cyan
@@ -790,7 +793,7 @@ function Show-DetailedHelp {
     Write-Host "  PowerShell-based security compliance auditor for Windows systems" -ForegroundColor White
     Write-Host "  16 frameworks, 3,994 automated checks, multi-format reporting" -ForegroundColor Gray
 
-    # ---- Synopsis ----
+    # --- Synopsis ----
     Write-Section "SYNOPSIS"
     Write-Host "    .\Windows-Security-Audit.ps1 [-Modules <list>] [-OutputFormat <fmt>]" -ForegroundColor White
     Write-Host "                                 [-OutputPath <path>] [remediation switches]" -ForegroundColor White
@@ -800,7 +803,7 @@ function Show-DetailedHelp {
     Write-Host "                                 [-ShowRiskPriority] [-ShowCorrelations]" -ForegroundColor White
     Write-Host "                                 [-ShowCompensatingControls] [logging switches]" -ForegroundColor White
 
-    # ---- Description ----
+    # --- Description ----
     Write-Section "DESCRIPTION"
     Write-Host "    Windows security compliance audit tool that evaluates the system" -ForegroundColor White
     Write-Host "    against multiple industry-standard frameworks. Each module performs hundreds" -ForegroundColor White
@@ -808,7 +811,7 @@ function Show-DetailedHelp {
     Write-Host "    results by severity, and maps findings to equivalent controls across other" -ForegroundColor White
     Write-Host "    frameworks. Generates HTML, JSON, CSV, and XML reports." -ForegroundColor White
 
-    # ---- Frameworks ----
+    # --- Frameworks ----
     Write-Section "SUPPORTED FRAMEWORKS (16 modules)"
     $frameworks = @(
         @('ACSC',           'Australian Cyber Security Centre Essential Eight + Maturity Levels'),
@@ -832,7 +835,7 @@ function Show-DetailedHelp {
         Write-Host ("    {0,-16} {1}" -f $f[0], $f[1]) -ForegroundColor White
     }
 
-    # ---- Parameters: Module Selection ----
+    # --- Parameters: Module Selection ----
     Write-Section "PARAMETERS"
 
     Write-SubSection "Module Selection and Output"
@@ -889,7 +892,7 @@ function Show-DetailedHelp {
     Write-Param "-Help, -H, -?" "[switch]" "Display this help screen"
     Write-Host "    Also accepts:                            help, -help, --help, --h" -ForegroundColor Gray
 
-    # ---- Examples ----
+    # --- Examples ----
     Write-Section "EXAMPLES"
 
     Write-Example "Run all modules with default HTML output:" `
@@ -932,7 +935,7 @@ function Show-DetailedHelp {
         ".\Windows-Security-Audit.ps1 -ListModules" `
         "Displays all 16 available modules and exits."
 
-    # ---- Bundles ----
+    # --- Bundles ----
     Write-Section "REMEDIATION BUNDLES (v6.1)"
     Write-Host "    Bundles select related remediations from the discovered findings." -ForegroundColor White
     Write-Host ""
@@ -947,7 +950,7 @@ function Show-DetailedHelp {
         Write-Host ("    {0,-26} {1}" -f $b[0], $b[1]) -ForegroundColor Gray
     }
 
-    # ---- Quick Reference ----
+    # --- Quick Reference ----
     Write-Section "QUICK REFERENCE"
     Write-SubSection "Output Formats"
     Write-Host "    HTML       Interactive report with charts, filters, and remediation panel" -ForegroundColor White
@@ -971,14 +974,14 @@ function Show-DetailedHelp {
     Write-Host "    Low            Minor risk; informational hardening" -ForegroundColor Cyan
     Write-Host "    Informational  Reference data; no risk implication" -ForegroundColor Gray
 
-    # ---- Requirements ----
+    # --- Requirements ----
     Write-Section "REQUIREMENTS"
     Write-Host "    OS              Windows 10/11 or Windows Server 2016+" -ForegroundColor White
     Write-Host "    PowerShell      5.1 or later" -ForegroundColor White
     Write-Host "    Privileges      Administrator (run as elevated PowerShell)" -ForegroundColor White
     Write-Host "    Dependencies    None - all checks use built-in cmdlets" -ForegroundColor White
 
-    # ---- Footer ----
+    # --- Footer ----
     Write-Section "MORE INFORMATION"
     Write-Host "    Documentation:  docs\project\README.md" -ForegroundColor White
     Write-Host "    Wiki:           docs\wiki\Home.md" -ForegroundColor White
@@ -1015,7 +1018,7 @@ function Invoke-SecurityModule {
     try {
         Write-Host "`n[*] Executing module: $ModuleName" -ForegroundColor Cyan
         Write-AuditLog -Message "Module starting: path=$modulePath" -Level 'DEBUG' -Module $ModuleName
-        # v6.2.0 (WSA-D1): direct call-operator invocation, matching the parallel
+        # Direct call-operator invocation, matching the parallel
         # path. Avoids unnecessary dynamic scriptblock construction from a string.
         $moduleResults = & $modulePath -SharedData $SharedData
         $moduleElapsed = ((Get-Date) - $moduleStartTime).TotalSeconds
@@ -1106,10 +1109,10 @@ function Invoke-Remediation {
         })
 
         # Apply bundle filter when -RemediationBundle specified.
-        # v6.4 (option B): resolve the bundle name (v6.4 canonical OR deprecated
-        # v6.1 alias) to canonical topics and select findings whose classified
-        # topic is in that set. Falls back to the v6.1 regex patterns only when
-        # the v6.4 components are unavailable.
+        # Resolve the bundle name (canonical name or deprecated alias) to
+        # canonical topics and select findings whose classified topic is in
+        # that set. Falls back to the legacy regex patterns only when the
+        # remediation components are unavailable.
         if ($RemediationBundle) {
           if ($script:HAS_REMEDIATION_BUNDLES -and $script:HAS_CANONICAL_REMEDIATIONS) {
             $bundleTopics = @(Get-ResolvedBundleTopics -Name $RemediationBundle)
@@ -1171,7 +1174,7 @@ function Invoke-Remediation {
         Write-Host "`n[!] AUTO-REMEDIATION MODE" -ForegroundColor Red
         Write-Host "    This will automatically apply $($remediableResults.Count) remediation(s)." -ForegroundColor Yellow
 
-        # v6.1: Pre-confirmation impact analysis
+        # Pre-confirmation impact analysis
         if (Get-Command Get-RemediationImpact -ErrorAction SilentlyContinue) {
             $impacts = $remediableResults | ForEach-Object { Get-RemediationImpact -Remediation $_.Remediation }
             $rebootCount = @($impacts | Where-Object { $_.RequiresReboot }).Count
@@ -1191,7 +1194,7 @@ function Invoke-Remediation {
             }
         }
 
-        # v6.4: impact-tier escalation. Declared library impact profiles are
+        # Impact-tier escalation. Declared library impact profiles are
         # more precise than command-string heuristics for classified findings.
         # Tiers ADD requirements on top of the 'YES' gate below; they never
         # relax it.
@@ -1201,7 +1204,7 @@ function Invoke-Remediation {
                 Get-RemediationTopic -Message $_.Message -Category $_.Category
             } | Where-Object { $_ } | Select-Object -Unique)
             if ($resolvedTopics.Count -gt 0) {
-                $tierPlan = Build-RemediationPlan -Topics $resolvedTopics
+                $tierPlan = New-RemediationPlan -Topics $resolvedTopics
                 $tierMaxImpact = $tierPlan.MaxImpact
                 $tierPrereqs = @($tierPlan.Prerequisites)
                 $tier = Get-ConfirmationTier -Impact $tierMaxImpact
@@ -1244,8 +1247,8 @@ function Invoke-Remediation {
     # Execute remediations
     $successCount = 0; $failCount = 0; $skipCount = 0
     $skipAll = $false
-    $rollbackEntries = @()  # v6.1: collect rollback commands as remediations succeed
-    # v6.4: state-capture records (richer than command-derived rollback; used in
+    $rollbackEntries = @()  # Collect rollback commands as remediations succeed
+    # State-capture records (richer than command-derived rollback; used in
     # preference to $rollbackEntries when the rollback generator is available)
     $stateCaptureRecords = [System.Collections.Generic.List[object]]::new()
     $verifiedCount = 0; $unverifiedCount = 0; $unverifiableCount = 0
@@ -1261,7 +1264,7 @@ function Invoke-Remediation {
         Write-Host "    Issue:    $($item.Message)" -ForegroundColor White
         Write-Host "    Fix:      $($item.Remediation)" -ForegroundColor Gray
 
-        # v6.1: Per-item impact display in interactive mode
+        # Per-item impact display in interactive mode
         if (-not $AutoRemediate -and (Get-Command Get-RemediationImpact -ErrorAction SilentlyContinue)) {
             $itemImpact = Get-RemediationImpact -Remediation $item.Remediation
             if ($itemImpact.Category -ne 'None' -and $itemImpact.Category -ne 'Reversible') {
@@ -1282,11 +1285,11 @@ function Invoke-Remediation {
         }
 
         if ($shouldApply) {
-            # v6.4: capture actual pre-change STATE before applying (capture-before-apply).
+            # Capture actual pre-change STATE before applying (capture-before-apply).
             # This supersedes command-string-derived rollback for findings that
-            # resolve to a canonical topic; the v6.1 derivation below remains the
+            # Resolve to a canonical topic; the legacy derivation below remains the
             # fallback for everything else, so behavior is unchanged when the
-            # v6.4 components are absent.
+            # Components are absent.
             $itemTopic = $null
             if ($script:HAS_CANONICAL_REMEDIATIONS) {
                 $itemTopic = Get-RemediationTopic -Message $item.Message -Category $item.Category
@@ -1305,7 +1308,7 @@ function Invoke-Remediation {
                 }
             }
 
-            # v6.1: command-derived rollback (fallback / unclassified findings)
+            # Command-derived rollback (fallback / unclassified findings)
             $rollbackCommand = $null
             if ($RollbackPath -and (Get-Command ConvertTo-RegistryRollback -ErrorAction SilentlyContinue)) {
                 $rollbackCommand = ConvertTo-RegistryRollback -ForwardCommand $item.Remediation
@@ -1320,7 +1323,7 @@ function Invoke-Remediation {
                 $null = & $remedScript
                 $successCount++
 
-                # v6.4: read-back verification. Previously a remediation was
+                # Read-back verification. Previously a remediation was
                 # reported "applied successfully" purely because the command did
                 # not throw; for classified topics the setting is now read back
                 # and the outcome reported honestly.
@@ -1339,7 +1342,7 @@ function Invoke-Remediation {
                     Write-Host "    [+] Remediation applied (not independently verifiable)" -ForegroundColor Green
                 }
 
-                # v6.1: Record rollback only after successful application
+                # Record rollback only after successful application
                 if ($rollbackCommand) {
                     $rollbackEntries += [PSCustomObject]@{
                         Module      = $item.Module
@@ -1359,9 +1362,9 @@ function Invoke-Remediation {
         }
     }
 
-    # v6.4: prefer the state-capture rollback script (restores actual captured
+    # Prefer the state-capture rollback script (restores actual captured
     # state, incl. secedit/auditpol/service/feature/account state) over the
-    # v6.1 command-derived script. The v6.1 path below still runs for findings
+    # Command-derived script. The legacy path below still runs for findings
     # that produced no state captures.
     if ($RollbackPath -and $stateCaptureRecords.Count -gt 0 -and $script:HAS_ROLLBACK_GENERATOR) {
         try {
@@ -1421,7 +1424,7 @@ function Invoke-Remediation {
 
 
 # ============================================================================
-# HTML Report Generation (Enhanced Dashboard - v6.0)
+# HTML Report Generation (Enhanced Dashboard)
 # ============================================================================
 function ConvertTo-HTMLReport {
     param(
@@ -1522,7 +1525,7 @@ function ConvertTo-HTMLReport {
     $complianceHtml = ""
     if ($ComplianceScores.Count -gt 0 -and $ComplianceScores.ContainsKey('overall')) {
 
-    # v6.3.0 (Report Parity Round 2): Module Summary (At-a-Glance) rollup
+    # Module Summary (At-a-Glance) rollup
     # tiles, ported from the Linux composite (rollup-grid / rollup-tile).
     $rollupTiles = [System.Collections.Generic.List[string]]::new()
     foreach ($mk in ($ComplianceScores.Keys | Where-Object { $_ -ne 'overall' } | Sort-Object)) {
@@ -1829,7 +1832,7 @@ $moduleTablesHtml
 
 $remPriorityHtml
 
-<div class='report-footer'>Generated by Windows Security Audit Project | $($ExecutionInfo.ScanDate) | <a href='https://github.com/Sandler73/Windows-Security-Audit-Script'>GitHub</a></div>
+<div class='report-footer'>Generated by Windows Security Audit Project | $($ExecutionInfo.ScanDate) | <a href='https://github.com/Sandler73/Windows-Security-Audit-Project'>GitHub</a></div>
 
 <div class='export-modal-overlay' id='exportModal'>
 <div class='export-modal'>
@@ -2162,12 +2165,12 @@ function Export-Results {
     $baseName = "Windows-Security-Audit-$($ExecutionInfo.ComputerName)-$(Get-Date -Format 'yyyy-MM-dd_HHmmss')"
 
     # Determine output directory.
-    # v6.6.0: all reports are written under a unified reports\<hostname>\ tree so
+    # All reports are written under a unified reports\<hostname>\ tree so
     # that an operator can copy one directory per audited host and keep results
     # cleanly delineated when several hosts' reports are aggregated together:
-    #     reports\<hostname>\                 composite report, composite JSON,
-    #                                          attack-surface report
-    #     reports\<hostname>\by-framework\    per-framework split reports
+    # reports\<hostname>\                 composite report, composite JSON,
+    # attack-surface report
+    # reports\<hostname>\by-framework\    per-framework split reports
     # An explicit -OutputPath still wins, and the hostname folder is created
     # beneath it so the same separation holds wherever the operator points it.
     $hostFolder = ($ExecutionInfo.ComputerName -replace '[^\w\-\.]', '_')
@@ -2213,7 +2216,7 @@ function Export-Results {
         Write-Host "[*] Combined HTML report skipped (-SplitOnly)" -ForegroundColor Gray
     }
 
-    # v6.3.0 (GAP-2): per-framework tailored split reports
+    # Per-framework tailored split reports
     if ($SplitReports -or $SplitOnly) {
         if ($script:HAS_REPORT_TEMPLATES) {
             $byFrameworkDir = Join-Path $outputDir "by-framework"
@@ -2238,13 +2241,13 @@ function Export-Results {
         }
     }
 
-    # v6.4.0 item 5: attack-surface assessment report
+    # Attack-surface assessment report
     if ($AttackSurfaceReport) {
         if ($script:HAS_ATTACK_SURFACE) {
             try {
                 $asHostFacts = $null
                 if ($SharedData -and $SharedData.ContainsKey('HostFacts')) { $asHostFacts = $SharedData.HostFacts }
-                $surface = Build-AttackSurface -AllResults $Results -HostFacts $asHostFacts
+                $surface = New-AttackSurface -AllResults $Results -HostFacts $asHostFacts
                 $asStamp = Get-Date -Format 'yyyy-MM-dd_HHmmss'
                 $asPath = Join-Path $outputDir "Attack-Surface-Report-$hostFolder-$asStamp.html"
                 $null = Export-AttackSurfaceReport -Surface $surface -OutputPath $asPath -ExecutionInfo $ExecutionInfo
@@ -2305,7 +2308,7 @@ function Start-SecurityAudit {
         Generates HTML, CSV, JSON, and XML reports.
     #>
 
-    # ---- v6.1 Help Detection (must run before any initialization) ----
+    # --- Help Detection (must run before any initialization) ----
     # Covers all invocation forms: -Help, -H, -?, -ShowHelp (bound aliases) plus
     # 'help', '-help', '--help', '--h' (caught via $RemainingArgs catch-all).
     # PowerShell's built-in -? is intercepted by the engine itself when our param
@@ -2324,12 +2327,12 @@ function Start-SecurityAudit {
         return
     }
 
-    # ---- Initialization ----
+    # --- Initialization ----
     $auditStartTime = Get-Date
     $script:StatisticsLog = @{ ModuleStats = @{}; ModuleTimings = @{}; TotalStartTime = $auditStartTime }
 
     # Initialize logging (uses shared library if available, built-in fallback otherwise)
-    # v6.1.2: Pass -ScriptRoot so the shared lib auto-creates logs/ next to the
+    # Pass -ScriptRoot so the shared lib auto-creates logs/ next to the
     # script when -LogFile is omitted; pass -Quiet to suppress console emission
     # when the user requested -Quiet mode.
     $logParams = @{
@@ -2359,7 +2362,7 @@ function Start-SecurityAudit {
     # Show banner
     Show-Banner
 
-    # ---- Prerequisites ----
+    # --- Prerequisites ----
     Write-Host "`n[*] Checking prerequisites..." -ForegroundColor Cyan
     Write-AuditLog -Message "Checking prerequisites" -Level 'DEBUG'
     $prereqResult = Test-Prerequisites
@@ -2377,7 +2380,7 @@ function Start-SecurityAudit {
         Write-AuditLog -Message "Prereq OK: $msg" -Level 'DEBUG'
     }
 
-    # ---- Module Discovery ----
+    # --- Module Discovery ----
     Write-Host "`n[*] Discovering available modules..." -ForegroundColor Cyan
     Write-AuditLog -Message "Module discovery starting" -Level 'DEBUG'
     $availableModules = Get-AvailableModules
@@ -2396,26 +2399,26 @@ function Start-SecurityAudit {
     }
 
     # Determine which modules to run
-    # v6.3.0 (GAP-1): profile resolution. Explicit -Modules wins; -Profile
+    # Profile resolution. Explicit -Modules wins; -Profile
     # expands to its module set; otherwise HostFacts may SUGGEST (log only).
     $explicitModules = ($Modules -and $Modules.Count -gt 0 -and $Modules[0] -ne "All")
-    if ($Profile -and $script:HAS_PROFILES) {
+    if ($AuditProfile -and $script:HAS_PROFILES) {
         if ($explicitModules) {
-            Write-Host "[*] -Modules specified explicitly; ignoring -Profile '$Profile' (explicit selection wins)" -ForegroundColor Yellow
-            Write-AuditLog -Message "Profile '$Profile' overridden by explicit -Modules" -Level 'INFO'
+            Write-Host "[*] -Modules specified explicitly; ignoring -Profile '$AuditProfile' (explicit selection wins)" -ForegroundColor Yellow
+            Write-AuditLog -Message "Profile '$AuditProfile' overridden by explicit -Modules" -Level 'INFO'
         } else {
-            $profileDef = Get-AuditProfile -Name $Profile
+            $profileDef = Get-AuditProfile -Name $AuditProfile
             if ($profileDef) {
                 $Modules = @($profileDef.Modules)
                 $explicitModules = $true
-                Write-Host "[+] Profile '$Profile': $($profileDef.Modules -join ', ')" -ForegroundColor Green
-                Write-AuditLog -Message "Profile '$Profile' selected: $($profileDef.Modules -join ',')" -Level 'INFO'
+                Write-Host "[+] Profile '$AuditProfile': $($profileDef.Modules -join ', ')" -ForegroundColor Green
+                Write-AuditLog -Message "Profile '$AuditProfile' selected: $($profileDef.Modules -join ',')" -Level 'INFO'
             } else {
-                Write-Host "[!] Unknown profile '$Profile'. Use -ListProfiles to see options. Running full module set." -ForegroundColor Yellow
-                Write-AuditLog -Message "Unknown profile '$Profile'; falling back to All" -Level 'WARNING'
+                Write-Host "[!] Unknown profile '$AuditProfile'. Use -ListProfiles to see options. Running full module set." -ForegroundColor Yellow
+                Write-AuditLog -Message "Unknown profile '$AuditProfile'; falling back to All" -Level 'WARNING'
             }
         }
-    } elseif ($Profile -and -not $script:HAS_PROFILES) {
+    } elseif ($AuditProfile -and -not $script:HAS_PROFILES) {
         Write-Host "[!] -Profile requested but shared_components\profiles.ps1 is unavailable; running full module set" -ForegroundColor Yellow
     } elseif (-not $explicitModules -and $script:HAS_PROFILES -and $sharedData -and $sharedData.HostFacts) {
         $suggested = Get-SuggestedProfile -HostFacts $sharedData.HostFacts
@@ -2459,7 +2462,7 @@ function Start-SecurityAudit {
     Write-Host "[+] Modules to execute: $($modulesToRun -join ', ')" -ForegroundColor Green
     Write-AuditLog -Message "Final module list: $($modulesToRun -join ', ')" -Level 'INFO'
 
-    # ---- SharedData Cache Initialization ----
+    # --- SharedData Cache Initialization ----
     $sharedData = @{
         ComputerName = $env:COMPUTERNAME
         OSVersion    = ''
@@ -2486,7 +2489,7 @@ function Start-SecurityAudit {
 
             $sharedData.Cache = $cache
 
-            # v6.3.0 (GAP-4): compute derived host facts once, post-warmup.
+            # Compute derived host facts once, post-warmup.
             if ($script:HAS_HOST_FACTS) {
                 try {
                     $hostFacts = New-HostFactsRegistry -Cache $cache -OSInfo $osInfo
@@ -2554,10 +2557,10 @@ function Start-SecurityAudit {
         }
     }
 
-    # ---- Module Execution ----
+    # --- Module Execution ----
     $allResults = @()
     $moduleExecutionStart = Get-Date
-    # v6.2.0 (WSA-D3): modules whose results are already collected. Prevents
+    # Modules whose results are already collected. Prevents
     # double execution when the parallel framework fails after partial collection.
     $collectedModules = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
@@ -2588,7 +2591,7 @@ function Start-SecurityAudit {
                         try { . $CommonLibPath } catch { <# Expected: item may not exist #> }
                     }
 
-                    # v6.2.0 (WSA-D2): initialize per-runspace logging against the
+                    # Initialize per-runspace logging against the
                     # orchestrator's log file. Cross-runspace file writes are
                     # serialized by the named mutex inside Write-AuditLog.
                     if ($LogConfig -and $LogConfig.LogFile -and (Get-Command Initialize-AuditLogging -ErrorAction SilentlyContinue)) {
@@ -2599,7 +2602,7 @@ function Start-SecurityAudit {
                         } catch { <# Logging is best-effort inside runspaces #> }
                     }
 
-                    # Execute the module. v6.2.0 (WSA-D4): elapsed time measured
+                    # Execute the module.: elapsed time measured
                     # inside the job so collection-order wait time is excluded.
                     $jobStart = Get-Date
                     try {
@@ -2631,7 +2634,7 @@ function Start-SecurityAudit {
             foreach ($job in $jobs) {
                 try {
                     $jobResult = $job.PowerShell.EndInvoke($job.Handle)
-                    # v6.2.0 (WSA-D4): prefer in-job elapsed time; falls back to
+                    # Prefer in-job elapsed time; falls back to
                     # collection-side measurement if the job returned no timing.
                     $jobElapsed = ((Get-Date) - $job.StartTime).TotalSeconds
                     if ($jobResult -and $jobResult.Count -gt 0 -and $jobResult[0].ElapsedSeconds) {
@@ -2671,7 +2674,7 @@ function Start-SecurityAudit {
     }
 
     if (-not $Parallel -or $modulesToRun.Count -eq 1) {
-        # v6.2.0 (WSA-D3): skip modules already collected by a partially
+        # Skip modules already collected by a partially
         # successful parallel pass.
         if ($collectedModules.Count -gt 0) {
             $modulesToRun = @($modulesToRun | Where-Object { -not $collectedModules.Contains($_) })
@@ -2697,7 +2700,7 @@ function Start-SecurityAudit {
     $moduleExecutionElapsed = ((Get-Date) - $moduleExecutionStart).TotalSeconds
     $script:StatisticsLog.ModuleTimings['_TotalModuleExecution'] = $moduleExecutionElapsed
 
-    # ---- Results Summary ----
+    # --- Results Summary ----
     if ($allResults.Count -eq 0) {
         Write-Host "`n[!] WARNING: No audit results collected. Check module configurations." -ForegroundColor Yellow
         return
@@ -2738,7 +2741,7 @@ function Start-SecurityAudit {
         ErrorCount    = $overallStats.Error
     }
 
-    # ---- Display Audit Summary ----
+    # --- Display Audit Summary ----
     Write-Host "`n========================================================================================================" -ForegroundColor White
     Write-Host "                              WINDOWS SECURITY AUDIT SUMMARY" -ForegroundColor White
     Write-Host "========================================================================================================" -ForegroundColor White
@@ -2774,7 +2777,7 @@ function Start-SecurityAudit {
         Write-Host "    $($modName.PadRight(20)) $bar $($mc.WeightedPct)`%  `($($ms.Total) checks, $($ms.Pass) pass, $($ms.Fail) fail`)" -ForegroundColor $mcColor
     }
 
-    # ---- Performance Profile ----
+    # --- Performance Profile ----
     if ($ShowProfile) {
         Write-Host "`n  --------------------------------------------------" -ForegroundColor Gray
         Write-Host "  Performance Profile:" -ForegroundColor White
@@ -2798,7 +2801,7 @@ function Start-SecurityAudit {
 
     Write-Host "`n========================================================================================================`n" -ForegroundColor White
 
-    # ---- Severity Distribution ----
+    # --- Severity Distribution ----
     $sevCounts = @{ Critical = 0; High = 0; Medium = 0; Low = 0; Informational = 0 }
     foreach ($r in $allResults) {
         $sev = if ($r.PSObject.Properties['Severity'] -and $r.Severity) { $r.Severity } else { 'Medium' }
@@ -2821,12 +2824,12 @@ function Start-SecurityAudit {
     }
     Write-Host ""
 
-    # ---- v6.5.0: composed post-execution pipeline ----
+    # ---: composed post-execution pipeline ----
     # The enrichment phases (risk priority, correlations, compensating controls,
     # baseline drift) previously ran as four separate gated blocks. They are now
     # composed into one pass that also records per-phase timing and produces a
     # machine-readable run summary. The pipeline calls exactly the same
-    # functions with the same gating, so behaviour is unchanged; the v6.1 path
+    # Functions with the same gating, so behaviour is unchanged; the legacy path
     # below is retained verbatim as the fallback when the component is absent.
     $script:CrossFrameworkCorrelations = @()
     $script:CompensatingControls = @()
@@ -2856,7 +2859,7 @@ function Start-SecurityAudit {
         Write-AuditLog -Message "Pipeline completed in $($script:PipelineOutcome.ElapsedSeconds)s across $(@($script:PipelineOutcome.PhaseTimings).Count) phases" -Level 'INFO'
     }
     else {
-        # ---- v6.1 fallback path (component unavailable) ----
+        # --- Fallback path (component unavailable) ----
         if ($ShowRiskPriority) {
             $exposureCtx = @{
                 IsDomainController   = if (Get-Command Test-DomainControllerHost -ErrorAction SilentlyContinue) { Test-DomainControllerHost } else { $false }
@@ -2899,12 +2902,12 @@ function Start-SecurityAudit {
         }
     }
 
-    # ---- Remediation ----
+    # --- Remediation ----
     if ($RemediateIssues -or $RemediateIssues_Fail -or $RemediateIssues_Warning -or $RemediateIssues_Info -or $RemediationFile -or $RemediationBundle) {
         Invoke-Remediation -Results $allResults
     }
 
-    # ---- v6.1: Group Policy Export ----
+    # --- Group Policy Export ----
     if ($ExportGPO -and (Get-Command Export-RegistryPolicyFile -ErrorAction SilentlyContinue)) {
         $remediationStrings = @($allResults | Where-Object {
             $_.Status -in @('Fail','Warning') -and -not [string]::IsNullOrWhiteSpace($_.Remediation)
@@ -2924,7 +2927,7 @@ function Start-SecurityAudit {
         }
     }
 
-    # ---- Export Results ----
+    # --- Export Results ----
     Write-AuditLog -Message "Export starting: format=$OutputFormat, results=$($allResults.Count)" -Level 'DEBUG'
     $exportStartTime = Get-Date
     $exportedFiles = Export-Results -Results $allResults -ExecutionInfo $executionInfo -ComplianceScores $complianceScores
@@ -2934,12 +2937,12 @@ function Start-SecurityAudit {
         Write-AuditLog -Message "Exported: $ef" -Level 'DEBUG'
     }
 
-    # ---- Final Logging ----
+    # --- Final Logging ----
     if ($script:HAS_COMMON_LIB) {
         try {
             Write-AuditLog -Message "Audit complete: $($overallStats.Total) checks, $($overallStats.Pass) pass, $($overallStats.Fail) fail, compliance=$($oc.WeightedPct)`%" -Level 'INFO'
             Write-AuditLog -Message "Duration: $([Math]::Round($totalElapsed, 2))s, Files exported: $($exportedFiles.Count)" -Level 'INFO'
-            # v6.1.2: Per-module timing summary at DEBUG for performance analysis
+            # Per-module timing summary at DEBUG for performance analysis
             if ($script:StatisticsLog.ModuleTimings -and $script:StatisticsLog.ModuleTimings.Count -gt 0) {
                 $timingPairs = @()
                 foreach ($mod in ($script:StatisticsLog.ModuleTimings.Keys | Sort-Object)) {
