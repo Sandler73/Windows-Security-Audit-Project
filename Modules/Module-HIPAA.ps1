@@ -48,17 +48,17 @@ param(
 $moduleName = "HIPAA"
 
 # ============================================================================
-# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# Memoized host-state accessors.
 # One live query per module run instead of one per check site. The helpers
 # return the SAME object the direct call would return (raw call, no error
 # swallowing beyond -ErrorAction SilentlyContinue already present at the
 # migrated sites), so call-site semantics are preserved exactly. Sites using
-# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# ErrorAction Stop inside try/catch are intentionally NOT migrated.
 # Standalone-safe: no shared-library dependency.
 # ============================================================================
 $script:HFMemo = @{}
 
-# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# Consult the run-wide HostFacts registry before
 # querying. HostFacts already collects these objects once per RUN; without this
 # lookup each module re-queried them once per MODULE. Raw objects are reused
 # rather than derived scalar facts, so every property a call site reads is still
@@ -101,9 +101,9 @@ function Get-ModFirewallProfiles {
 
 $moduleVersion = "6.6.0"
 $results = [System.Collections.Generic.List[object]]::new()
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 function Add-Result {
     param(
         [Parameter(Mandatory=$true)]
@@ -132,9 +132,9 @@ function Add-Result {
     })
 }
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Cache-aware registry helper
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 $useCache = ($null -ne $SharedData.Cache)
 function Get-RegValue {
     param([string]$Path, [string]$Name, $Default = $null)
@@ -1626,7 +1626,7 @@ Write-Host "[HIPAA] Checking HITECH Act & ePHI Protection..." -ForegroundColor Y
 
 
 # ===========================================================================
-# v6.1: HHS Recognized Security Practices (RSP) alignment
+# HHS Recognized Security Practices (RSP) alignment
 # ===========================================================================
 Write-Host "[HIPAA] Checking HHS Recognized Security Practices alignment..." -ForegroundColor Yellow
 
@@ -1682,7 +1682,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: NIST 800-66 Rev 2 explicit mapping
+# NIST 800-66 Rev 2 explicit mapping
 # ===========================================================================
 Write-Host "[HIPAA] Checking NIST SP 800-66 Rev 2 control mappings..." -ForegroundColor Yellow
 
@@ -1760,7 +1760,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: HITECH Act technical safeguards
+# HITECH Act technical safeguards
 # ===========================================================================
 Write-Host "[HIPAA] Checking HITECH Act technical safeguards..." -ForegroundColor Yellow
 
@@ -1802,7 +1802,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: 405(d) Health Industry Cybersecurity Practices (HICP)
+# 405(d) Health Industry Cybersecurity Practices (HICP)
 # ===========================================================================
 Write-Host "[HIPAA] Checking 405(d) HICP technical practice alignment..." -ForegroundColor Yellow
 
@@ -1862,7 +1862,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: Sec.164.312(a)(2)(iv) Encryption and Decryption (Addressable)
+# Sec.164.312(a)(2)(iv) Encryption and Decryption (Addressable)
 # ===========================================================================
 Write-Host "[HIPAA] Checking Sec.164.312(a)(2)(iv) Encryption controls..." -ForegroundColor Yellow
 
@@ -1905,7 +1905,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: Sec.164.312(e)(2)(ii) Encryption (Transmission Security)
+# Sec.164.312(e)(2)(ii) Encryption (Transmission Security)
 # ===========================================================================
 Write-Host "[HIPAA] Checking Sec.164.312(e)(2)(ii) Transmission Security..." -ForegroundColor Yellow
 
@@ -1962,7 +1962,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: Breach Notification Rule Sec.164.402 technical indicators
+# Breach Notification Rule Sec.164.402 technical indicators
 # ===========================================================================
 Write-Host "[HIPAA] Checking Breach Notification Rule technical indicators..." -ForegroundColor Yellow
 
@@ -2005,7 +2005,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: 21st Century Cures Act and ONC Health IT Certification
+# 21st Century Cures Act and ONC Health IT Certification
 # ===========================================================================
 Write-Host "[HIPAA] Checking 21st Century Cures Act and ONC technical controls..." -ForegroundColor Yellow
 
@@ -2062,8 +2062,8 @@ catch {
 }
 
 # ===========================================================================
-# v6.3.0 currency (PR-9): HIPAA Security Rule NPRM forward-looking
-# indicators. OPERATOR DECISION (2026-07-20): keep these as labeled Info.
+# Currency: HIPAA Security Rule NPRM forward-looking
+# indicators, reported as labelled Info entries.
 # DISCIPLINE: the January 2025 NPRM is PROPOSED, not law -- OMB's unified
 # agenda moves final action to July 2027, and the current Security Rule
 # remains the sole authoritative basis. Every check in this section is
