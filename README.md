@@ -7,7 +7,7 @@
 # Windows Security Audit Project
 
 <div align="center">
-  
+
 <!-- ============================================================================ -->
 <!-- DYNAMIC BADGES - reflect live GitHub Actions workflow status and repo state -->
 <!-- ============================================================================ -->
@@ -18,7 +18,7 @@
 [![Full Matrix](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/full-matrix.yml/badge.svg?branch=main)](https://github.com/Sandler73/Windows-Security-Audit-Project/actions/workflows/full-matrix.yml)
 
 [![Latest Release](https://img.shields.io/github/v/release/Sandler73/Windows-Security-Audit-Project?logo=github&label=release)](https://github.com/Sandler73/Windows-Security-Audit-Project/releases/latest)
-[![License: MIT](https://img.shields.io/badge/license-MIT-yellow?logo=opensourceinitiative&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-yellow?logo=opensourceinitiative&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/docs/project/LICENSE.md)
 [![Last Commit](https://img.shields.io/github/last-commit/Sandler73/Windows-Security-Audit-Project?logo=git&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/commits/main)
 [![Open Issues](https://img.shields.io/github/issues/Sandler73/Windows-Security-Audit-Project?logo=github)](https://github.com/Sandler73/Windows-Security-Audit-Project/issues)
 [![Stars](https://img.shields.io/github/stars/Sandler73/Windows-Security-Audit-Project?logo=github&style=flat)](https://github.com/Sandler73/Windows-Security-Audit-Project/stargazers)
@@ -39,7 +39,7 @@
 [![Lines of Code: 42,630](https://img.shields.io/badge/lines%20of%20code-42%2C630-blue)](https://github.com/Sandler73/Windows-Security-Audit-Project)
 [![Dependencies: 0](https://img.shields.io/badge/dependencies-0%20external-brightgreen)](https://github.com/Sandler73/Windows-Security-Audit-Project)
 [![Wiki: 17 Pages](https://img.shields.io/badge/wiki-17%20pages-blue?logo=readthedocs&logoColor=white)](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki)
-[![Checks](https://img.shields.io/badge/checks-3%2C994-brightgreen)](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Module-Documentation)
+[![Checks](https://img.shields.io/badge/checks-4%2C053-brightgreen)](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Module-Documentation)
 [![Frameworks](https://img.shields.io/badge/frameworks-16-orange)](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Framework-Reference)
 
 [![Windows 11](https://img.shields.io/badge/Windows%2011-21H2%20%7C%2022H2%20%7C%2023H2%20%7C%2024H2-0078D6?logo=windows11&logoColor=white)](https://www.microsoft.com/windows/windows-11)
@@ -68,7 +68,7 @@
 | **Windows Server 2019** | 1809 | ✅ Tested | 5.1, 7.x | Long-term server support |
 | **Windows Server 2016** | 1607 | ✅ Tested | 5.1, 7.x | Minimum server target |
 | Server Core variants | All above | ✅ Compatible | 5.1, 7.x | All checks work headless |
-| Windows < 21H2 / Server < 2016 | — | ❌ Not supported | — | See [deferred work](tasks/deferred-work.md) |
+| Windows < 21H2 / Server < 2016 | -- | ❌ Not supported | -- | See [deferred work](tasks/deferred-work.md) |
 
 **Requirements:** Administrator privileges · 100 MB free disk space · No internet access required
 
@@ -76,23 +76,23 @@
 
 ## 📋 Overview
 
-The **Windows Security Audit Project** is an advanced PowerShell-based security compliance auditing tool that evaluates Windows systems against multiple industry-standard security frameworks. The current release performs **3,994 automated security checks** across **16 compliance modules**, generating comprehensive reports in HTML, JSON, CSV, and XML with actionable remediation guidance.
+The **Windows Security Audit Project** is an advanced PowerShell-based security compliance auditing tool that evaluates Windows systems against multiple industry-standard security frameworks. The current release defines **4,053 security checks** across **16 compliance modules** (the number executed on a given host is host-dependent -- many checks are conditional on installed roles, features, and privilege), generating reports in HTML, JSON, CSV, and XML with actionable remediation guidance.
 
-Every check includes a severity rating (Critical/High/Medium/Low/Informational) and cross-references to equivalent controls across other frameworks, enabling multi-framework compliance scoring from a single audit run. The tool is fully self-contained — zero external dependencies, pure PowerShell stdlib — and supports parallel execution, baseline drift comparison, rollback script generation, Group Policy export, and predefined remediation bundles.
+Every check includes a severity rating (Critical/High/Medium/Low/Informational) and cross-references to equivalent controls across other frameworks, enabling multi-framework compliance scoring from a single audit run. The tool is fully self-contained -- zero external dependencies, pure PowerShell stdlib -- and supports parallel execution, baseline drift comparison, rollback script generation, Group Policy export, and predefined remediation bundles.
 
 Whether you're conducting compliance audits, hardening systems, maintaining security baselines, or feeding SIEM/SOAR pipelines, this tool provides the depth and automation you need.
 
 ## 🎯 Key Features
 
-### 🔍 **Comprehensive Security Assessment**
-- ✅ **3,994 Security Checks** across 16 compliance frameworks
-- ✅ **Multi-Framework Coverage** — ACSC Essential Eight, CIS Controls v8, CISA Best Practices/KEV, CMMC 2.0, Core Windows Baseline, ENISA/NIS2, GDPR, HIPAA, ISO 27001:2022, Microsoft Security Baseline, Microsoft Defender for Endpoint, NIST SP 800-53 R5/CSF 2.0/800-171/800-207, NSA Cybersecurity, PCI DSS v4.0.1, SOC 2 Type II, DISA STIG
-- ✅ **Modular Architecture** — run all frameworks or select specific modules
-- ✅ **Severity Classification** — every check rated Critical/High/Medium/Low/Informational
-- ✅ **Cross-Framework Correlation** — every check carries `CrossReferences` mapping to equivalent controls in other frameworks
-- ✅ **Standalone Module Execution** — any module can run independently without the orchestrator
-- ✅ **Result Validation** — automated 9-field result-object normalization
-- ✅ **No External Dependencies** — pure PowerShell stdlib; zero pip/npm/nuget/external network calls
+### 🔍 **Security Assessment**
+- ✅ **4,053 Security Checks** across 16 compliance frameworks (host-dependent at runtime)
+- ✅ **Multi-Framework Coverage** -- ACSC Essential Eight, CIS Controls v8, CISA Best Practices/KEV, CMMC 2.0, Core Windows Baseline, ENISA/NIS2, GDPR, HIPAA, ISO 27001:2022, Microsoft Security Baseline, Microsoft Defender for Endpoint, NIST SP 800-53 R5/CSF 2.0/800-171/800-207, NSA Cybersecurity, PCI DSS v4.0.1, SOC 2 Type II, DISA STIG
+- ✅ **Modular Architecture** -- run all frameworks or select specific modules
+- ✅ **Severity Classification** -- every check rated Critical/High/Medium/Low/Informational
+- ✅ **Cross-Framework Correlation** -- every check carries `CrossReferences` mapping to equivalent controls in other frameworks
+- ✅ **Standalone Module Execution** -- any module can run independently without the orchestrator
+- ✅ **Result Validation** -- automated 9-field result-object normalization
+- ✅ **No External Dependencies** -- pure PowerShell stdlib; zero pip/npm/nuget/external network calls
 
 ### 📊 **Advanced Reporting**
 - ✅ **Interactive HTML Reports** with:
@@ -104,15 +104,15 @@ Whether you're conducting compliance audits, hardening systems, maintaining secu
   - 📊 Executive dashboard with statistics
 - ✅ **SIEM-Compatible XML** output for security monitoring platforms
 - ✅ **Multiple Output Formats** - HTML, JSON, CSV, XML, Console, plus 6 browser-based exports
-- ✅ **9-Field Result Objects** — Module, Category, Status, Severity, Message, Details, Remediation, CrossReferences, Timestamp
-- ✅ **Structured Data** — API and automation-friendly formats
+- ✅ **9-Field Result Objects** -- Module, Category, Status, Severity, Message, Details, Remediation, CrossReferences, Timestamp
+- ✅ **Structured Data** -- API and automation-friendly formats
 
 ### 🔧 **Intelligent Remediation**
 - ✅ **Interactive Remediation** - Review and apply fixes individually
 - ✅ **Automated Remediation** - Batch fix with safety confirmations
 - ✅ **Selective Remediation** - Target specific status types (Fail, Warning, Info)
 - ✅ **Targeted Remediation** - Fix only selected issues from JSON export
-- ✅ **Remediation Logging** - Comprehensive audit trail of all changes
+- ✅ **Remediation Logging** - audit trail of all changes
 - ✅ **Safety Mechanisms** - Double-confirmation and countdown timers
 - ✅ **Rollback Support** - Detailed logs for reverting changes
 
@@ -124,18 +124,18 @@ Whether you're conducting compliance audits, hardening systems, maintaining secu
 - ✅ **Error Handling** - Graceful degradation on check failures
 
 ### 🆕 **What's New in 6.1.x**
-- ✅ **Risk Priority Scoring** — 1-100 score combining severity, exploitability, exposure, asset criticality (`-ShowRiskPriority`)
-- ✅ **Cross-Framework Correlations** — group findings that test the same underlying control across modules (`-ShowCorrelations`)
-- ✅ **Compensating Control Detection** — flag failed checks where a passing related control mitigates risk (`-ShowCompensatingControls`)
-- ✅ **Baseline Drift Comparison** — diff against previous audit JSON for new failures, resolved findings, regressions (`-Baseline`)
-- ✅ **Rollback Script Generation** — auto-generate inverse-script from applied remediations (`-RollbackPath`)
-- ✅ **Group Policy Export** — generate `.pol` file from registry-modifying remediations (`-ExportGPO`)
-- ✅ **Remediation Bundles** — `DisableLegacyProtocols`, `HardenAuthentication`, `EnableAuditLogging`, `LockDownRDP`, `EssentialEightLevel1` (`-RemediationBundle`)
-- ✅ **Comprehensive Help** — robust 10-section in-script help via `-Help`/`-H`/`-?`/`help`/`-help`/`--help`/`--h`
-- ✅ **Auto-Logging** — log file auto-generated at `<ScriptRoot>\logs\audit-yyyyMMdd-HHmmss.log` when `-LogFile` omitted; color-coded console output by default
-- ✅ **+795 New Checks** — every module expanded; total now 3,994 across 16 modules
+- ✅ **Risk Priority Scoring** -- 1-100 score combining severity, exploitability, exposure, asset criticality (`-ShowRiskPriority`)
+- ✅ **Cross-Framework Correlations** -- group findings that test the same underlying control across modules (`-ShowCorrelations`)
+- ✅ **Compensating Control Detection** -- flag failed checks where a passing related control mitigates risk (`-ShowCompensatingControls`)
+- ✅ **Baseline Drift Comparison** -- diff against previous audit JSON for new failures, resolved findings, regressions (`-Baseline`)
+- ✅ **Rollback Script Generation** -- auto-generate inverse-script from applied remediations (`-RollbackPath`)
+- ✅ **Group Policy Export** -- generate `.pol` file from registry-modifying remediations (`-ExportGPO`)
+- ✅ **Remediation Bundles** -- `DisableLegacyProtocols`, `HardenAuthentication`, `EnableAuditLogging`, `LockDownRDP`, `EssentialEightLevel1` (`-RemediationBundle`)
+- ✅ **Help** -- in-script help via `-Help`, `-H`, `-help`, `-h`, `-ShowHelp` or `-?` (prefixed forms only)
+- ✅ **Auto-Logging** -- log file auto-generated at `<ScriptRoot>\logs\audit-yyyyMMdd-HHmmss.log` when `-LogFile` omitted; color-coded console output by default
+- ✅ **+795 New Checks** -- every module expanded; total now 4,053 across 16 modules
 
-See [CHANGELOG.md](CHANGELOG.md) for the complete release history.
+See [docs/project/CHANGELOG.md](docs/project/CHANGELOG.md) for the complete release history.
 
 
 ## 🏢 Supported Frameworks
@@ -159,7 +159,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete release history.
 | **soc2** | SOC 2 Trust Service Criteria + AICPA TSP Section 100 PoF | 162 | Common Criteria + Processing Integrity + Privacy criteria, Type II evidence collection |
 | **stig** | DISA STIGs + SRG cross-mapping + Microsoft Defender STIG | 225 | V-finding format, STIG Viewer compatibility, BlackLotus mitigation, CAT I/II/III distribution + POA&M flagging |
 
-**Total Coverage**: 3,994 security checks with severity classification and cross-framework correlation. Coverage spans access control, authentication, auditing/logging, network security, data protection at-rest and in-transit, malware defense, system hardening, EDR, Zero Trust architecture, privacy compliance, payment card security, healthcare data protection, supply chain risk management, and cloud-extension controls.
+**Total Coverage**: 4,053 security checks with severity classification and cross-framework correlation. Coverage spans access control, authentication, auditing/logging, network security, data protection at-rest and in-transit, malware defense, system hardening, EDR, Zero Trust architecture, privacy compliance, payment card security, healthcare data protection, supply chain risk management, and cloud-extension controls.
 
 ## 🚀 Quick Start
 
@@ -226,7 +226,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the complete release history.
 
 ## 🔧 Remediation Capabilities
 
-Version 5.3 introduces comprehensive remediation features with multiple workflows to suit different needs and risk tolerances.
+Version 5.3 introduces remediation features with multiple workflows to suit different needs and risk tolerances.
 
 ### Remediation Modes
 
@@ -267,7 +267,7 @@ Batch remediation with safety confirmations:
 - Requires typing "YES" to confirm
 - Secondary confirmation with 10-second timeout
 - Requires typing "CONFIRM" to proceed
-- Comprehensive remediation logging
+- remediation logging
 
 #### 4. **Targeted Remediation** (Precision)
 Fix only specific issues selected from HTML report:
@@ -373,7 +373,7 @@ Would you like to restart now? (Y/N):
   <metadata>
     <export_date>2025-01-01T12:00:00Z</export_date>
     <computer_name>HOSTNAME</computer_name>
-    <total_checks>3994</total_checks>
+    <total_checks>4053</total_checks>
     <pass_count>456</pass_count>
     <fail_count>42</fail_count>
   </metadata>
@@ -404,7 +404,7 @@ Would you like to restart now? (Y/N):
     "OSVersion": "Windows 11 Pro",
     "ScanDate": "2025-01-01 12:00:00",
     "Duration": "00:02:34",
-    "TotalChecks": 3994,
+    "TotalChecks": 4053,
     "PassCount": 456,
     "FailCount": 42
   },
@@ -415,7 +415,7 @@ Would you like to restart now? (Y/N):
       "Status": "Fail",
       "Severity": "High",
       "Message": "V-220968: SMBv1 protocol is ENABLED",
-      "Details": "CAT II: Disable SMBv1 immediately — lateral movement vector",
+      "Details": "CAT II: Disable SMBv1 immediately -- lateral movement vector",
       "Remediation": "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart",
       "CrossReferences": { "STIG": "V-220968", "NIST": "SC-8", "CIS": "18.3.3" },
       "Timestamp": "2025-03-03 12:00:00"
@@ -435,8 +435,8 @@ Excel-compatible format for:
 ### 5. Console Output (Real-Time)
 ```
 ========================================================================
-                    Windows Security Audit Project v6.1.2
-                Comprehensive Multi-Framework Security Assessment
+                    Windows Security Audit Project v6.6.0
+                Multi-Framework Security Assessment
 ========================================================================
 
 [*] Modules to execute: Core, CIS, MS, MS-DefenderATP, NIST, STIG, NSA, CISA
@@ -450,7 +450,7 @@ Excel-compatible format for:
 ========================================================================
                             AUDIT SUMMARY
 ========================================================================
-Total Checks:    3994
+Total Checks:    4053
 Passed:          1542 (83.1%)
 Failed:          156 (8.4%)
 Warnings:        118 (6.4%)
@@ -459,14 +459,14 @@ Errors:          0 (0.0%)
 Duration:        00:02:34
 ========================================================================
 
-[+] HTML report saved to: Security-Audit-Report-20250101-120000.html
+[+] HTML report saved to: Windows-Security-Audit-<HOSTNAME>-2026-07-24_172021.html
 [*] Opening report in browser...
 [+] Audit completed successfully!
 ```
 
 ## 📖 Documentation
 
-Comprehensive documentation is available in the [Project Wiki](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki):
+documentation is available in the [Project Wiki](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki):
 
 ### Getting Started
 - **[Quick Start Guide](https://github.com/Sandler73/Windows-Security-Audit-Project/wiki/Quick-Start-Guide)** - Get up and running in 5 minutes
@@ -484,16 +484,53 @@ Comprehensive documentation is available in the [Project Wiki](https://github.co
 
 ## 🛠️ Command-Line Parameters
 ```powershell
-.\Windows-Security-Audit.ps1 
-    [-Modules <String[]>]              # Frameworks to run (default: All — includes MS-DefenderATP)
-    [-OutputFormat <String>]           # Output format: HTML, CSV, JSON, XML, Console
+.\Windows-Security-Audit.ps1
+
+  # Scope selection
+    [-Modules <String[]>]              # Frameworks to run (default: All)
+    [-Profile <String>]                # Role profile: Workstation, MemberServer, DomainController,
+                                       #   ServerCore, Minimal, Full (explicit -Modules wins)
+    [-ListModules]                     # List available modules and exit
+    [-ListProfiles]                    # List available audit profiles and exit
+    [-AssetCriticality <1-10>]         # Business criticality of this host; feeds
+                                       #   risk-priority scoring (default: role-derived)
+    [-ComplianceThreshold <0-100>]     # Weighted compliance %% at/above which posture
+                                       #   reports PASS (default: 70)
+
+  # Output and reporting
+    [-OutputFormat <String>]           # HTML, CSV, JSON, XML, Console, All
     [-OutputPath <String>]             # Custom output path
+    [-SplitReports]                    # Also emit one tailored report per framework
+                                       #   (reports\by-framework\)
+    [-SplitOnly]                       # Per-framework reports only; skip the combined report
+    [-AttackSurfaceReport]             # Also emit the attack-surface assessment report
+    [-ShowRiskPriority]                # Include risk-priority scoring
+    [-ShowCorrelations]                # Include cross-framework correlations
+    [-ShowCompensatingControls]        # Include compensating-control analysis
+    [-ShowProfile]                     # Show performance profiling
+
+  # Remediation (see Remediation Capabilities)
     [-RemediateIssues]                 # Interactive remediation (all statuses)
     [-RemediateIssues_Fail]            # Remediate FAIL status only
     [-RemediateIssues_Warning]         # Remediate WARNING status only
     [-RemediateIssues_Info]            # Remediate INFO status only
     [-AutoRemediate]                   # Automated remediation with confirmations
     [-RemediationFile <String>]        # JSON file with selected issues to remediate
+    [-RemediationBundle <String>]      # Apply a named bundle (see -ListBundles)
+    [-ListBundles]                     # List remediation bundles with impact/tier and exit
+    [-RollbackPath <String>]           # Write a rollback script capturing pre-change state
+    [-ExportGPO <String>]              # Export findings as a Group Policy registry file
+
+  # Execution and diagnostics
+    [-Parallel]                        # Run modules in parallel runspaces
+    [-Workers <Int>]                   # Parallel worker count (default 4, max 16)
+    [-NoCache]                         # Disable the shared data cache
+    [-Baseline <String>]               # Compare against a previous JSON baseline
+    [-LogFile <String>]                # Log file path (auto-generated when omitted)
+    [-LogLevel <String>]               # DEBUG, INFO, WARNING, ERROR
+    [-JsonLog]                         # Emit structured JSON logs
+    [-Quiet]                           # Suppress console logging
+    [-ShowHelp]                        # Full help screen
 ```
 
 ### Parameter Examples
@@ -528,6 +565,22 @@ Comprehensive documentation is available in the [Project Wiki](https://github.co
 .\Windows-Security-Audit.ps1 -OutputPath "C:\SecurityAudits\Report.html"
 ```
 
+**Profiles, Split Reports, and Attack Surface:**
+```powershell
+# List the available role profiles, then run one
+.\Windows-Security-Audit.ps1 -ListProfiles
+.\Windows-Security-Audit.ps1 -Profile DomainController
+
+# Emit per-framework reports alongside the combined report
+.\Windows-Security-Audit.ps1 -SplitReports
+
+# Per-framework reports only (skips the combined HTML report)
+.\Windows-Security-Audit.ps1 -SplitOnly
+
+# Add the attack-surface assessment report
+.\Windows-Security-Audit.ps1 -AttackSurfaceReport
+```
+
 **Remediation Workflows:**
 ```powershell
 # Interactive remediation (review each)
@@ -548,7 +601,7 @@ Comprehensive documentation is available in the [Project Wiki](https://github.co
 ### 1. Compliance Auditing
 **Scenario**: Annual SOC 2, FISMA, or CMMC compliance audit
 ```powershell
-# Generate comprehensive compliance report
+# Generate compliance report
 .\Windows-Security-Audit.ps1 -Modules NIST,STIG,CIS -OutputFormat HTML
 
 # Export findings to CSV for compliance tracking
@@ -586,7 +639,7 @@ Comprehensive documentation is available in the [Project Wiki](https://github.co
 # Quick security validation (core checks)
 .\Windows-Security-Audit.ps1 -Modules Core -OutputFormat JSON
 
-# Comprehensive validation (all frameworks)
+# validation (all frameworks)
 .\Windows-Security-Audit.ps1 -OutputFormat HTML
 ```
 
@@ -612,38 +665,56 @@ Comprehensive documentation is available in the [Project Wiki](https://github.co
 ## 🗂️ Project Structure
 ```
 Windows-Security-Audit/
-├── Windows-Security-Audit.ps1    # Main orchestrator (v5.3)
+├── Windows-Security-Audit.ps1            # Main orchestrator (v6.4.0)
 │   ├── Result validation & normalization
 │   ├── Module execution engine
 │   ├── Multi-format report generation
 │   └── Intelligent remediation system
 │
 ├── modules/                              # Compliance framework modules
-│   ├── module-acsc.ps1                  # ACSC Essential Eight (123 checks)
-│   ├── module-cis.ps1                   # CIS Benchmarks (223 checks)
-│   ├── module-cisa.ps1                  # CISA Best Practices (231 checks)
-│   ├── module-cmmc.ps1                  # CMMC Level 2 (103 checks)
-│   ├── module-core.ps1                  # Core Security Baseline (177 checks)
-│   ├── module-enisa.ps1                 # ENISA Guidelines (198 checks)
-│   ├── module-gdpr.ps1                  # GDPR Technical Controls (133 checks)
-│   ├── module-hipaa.ps1                 # HIPAA Security Rule (184 checks)
-│   ├── module-iso27001.ps1              # ISO 27001:2022 (244 checks)
-│   ├── module-ms.ps1                    # Microsoft Baselines (314 checks)
-│   ├── module-ms-defenderatp.ps1        # Defender ATP (86 checks)
-│   ├── module-nist.ps1                  # NIST SP 800-53/CSF (474 checks)
-│   ├── module-nsa.ps1                   # NSA Guidance (173 checks)
-│   ├── module-pcidss.ps1                # PCI DSS v4.0 (227 checks)
-│   ├── module-soc2.ps1                  # SOC 2 Type II (124 checks)
-│   └── module-stig.ps1                  # DISA STIGs (185 checks)
+│   ├── module-acsc.ps1                  # ACSC Essential Eight (169 checks)
+│   ├── module-cis.ps1                   # CIS Benchmarks (271 checks)
+│   ├── module-cisa.ps1                  # CISA Best Practices (291 checks)
+│   ├── module-cmmc.ps1                  # CMMC Level 2 (150 checks)
+│   ├── module-core.ps1                  # Core Security Baseline (242 checks)
+│   ├── module-enisa.ps1                 # ENISA Guidelines (251 checks)
+│   ├── module-gdpr.ps1                  # GDPR Technical Controls (182 checks)
+│   ├── module-hipaa.ps1                 # HIPAA Security Rule (241 checks)
+│   ├── module-iso27001.ps1              # ISO 27001:2022 (285 checks)
+│   ├── module-ms.ps1                    # Microsoft Baselines (385 checks)
+│   ├── module-ms-defenderatp.ps1        # Defender ATP (154 checks)
+│   ├── module-nist.ps1                  # NIST SP 800-53/CSF (526 checks)
+│   ├── module-nsa.ps1                   # NSA Guidance (224 checks)
+│   ├── module-pcidss.ps1                # PCI DSS v4.0 (287 checks)
+│   ├── module-soc2.ps1                  # SOC 2 Type II (161 checks)
+│   └── module-stig.ps1                  # DISA STIGs (234 checks)
 │
-├── Reports/                              # Generated reports (auto-created)
-│   ├── Security-Audit-Report-*.html
-│   ├── Security-Audit-Report-*.json
-│   ├── Security-Audit-Report-*.csv
-│   └── Security-Audit-Report-*.xml
+├── shared_components/                    # Shared libraries loaded by the orchestrator
+│   ├── audit-common.ps1                 # Core helpers: logging, caching, registry, services, policies
+│   ├── host-facts.ps1                   # HostFacts registry: 40 derived host facts, computed once
+│   ├── shared-assessments.ps1           # One-shot host-wide collections shared across modules
+│   ├── profiles.ps1                     # Role-based audit profiles (-Profile / -ListProfiles)
+│   ├── report-templates.ps1             # Per-framework tailored split-report renderers
+│   ├── canonical-remediations.ps1       # Canonical fix form per hardening topic + classifier
+│   ├── remediation-library.ps1          # Per-topic apply / verify / impact / rollback specification
+│   ├── remediation-bundles.ps1          # Named bundles + impact-tiered confirmation
+│   ├── rollback-generator.ps1           # State capture + standalone rollback script generation
+│   └── attack-surface.ps1               # Attack-surface exposure assessment and report
 │
-├── Logs/                                 # Remediation logs (auto-created)
-│   └── Remediation-Log-*.json
+├── tests/                                # Pester test suites (13 files)
+│
+├── docs/                                 # Documentation
+│   ├── project/                         # CHANGELOG, README, USAGE_GUIDE, SECURITY, decisions/
+│   └── wiki/                            # User and developer wiki pages
+│
+├── tasks/                                # Working state: plan, lessons, component manifest
+│
+├── reports/                              # Generated reports (auto-created)
+│   ├── Windows-Security-Audit-<HOSTNAME>-<date>.html|json|csv|xml
+│   ├── by-framework/                    # Per-framework reports (-SplitReports)
+│   └── attack-surface-*.html            # Attack-surface report (-AttackSurfaceReport)
+│
+├── logs/                                 # Audit and remediation logs (auto-created)
 │
 ├── README.md                             # This file
 ├── CONTRIBUTING.md                       # Contribution guidelines
@@ -785,7 +856,7 @@ See [Module Documentation](https://github.com/Sandler73/Windows-Security-Audit-P
 
 ### Disclaimer
 
-This tool is provided for **security assessment and compliance auditing purposes**. Results should be reviewed by qualified security professionals and validated in the context of your environment. The tool identifies potential security issues but does not guarantee comprehensive security coverage. Always test in non-production environments before applying remediations to production systems.
+This tool is provided for **security assessment and compliance auditing purposes**. Results should be reviewed by qualified security professionals and validated in the context of your environment. The tool identifies potential security issues but does not guarantee security coverage. Always test in non-production environments before applying remediations to production systems.
 
 ## 🤝 Contributing
 
@@ -884,8 +955,8 @@ This project builds upon the work and guidance of various security organizations
 
 | Metric | Value |
 |--------|-------|
-| **Current Version** | 6.1.2 |
-| **Total Security Checks** | 3,994 |
+| **Current Version** | 6.6.0 |
+| **Total Security Checks** | 4,053 |
 | **Frameworks Covered** | 16 |
 | **Code Base** | ~38,000 lines of PowerShell (modules: ~36,000 + orchestrator: ~2,400 + shared lib: ~1,800) |
 | **Modules** | 16 specialized compliance modules |
@@ -898,7 +969,47 @@ This project builds upon the work and guidance of various security organizations
 
 ## 📄 Version History
 
-### Version 6.1.2 (Current) - April 2026 (Patch)
+### Version 6.6.0 (Current) - July 2026 (Report Structure and Documentation Sync)
+
+- **Unified output layout**: `reports\<hostname>\` holds the composite report, composite JSON, and attack-surface report, with per-framework reports in `by-framework\` beneath it
+- **Hostname and date in every report filename**, so a report stays identifiable once copied
+- **Attack-surface report rebuilt**: host cards, table of contents, and a visual executive summary (radial gauge, rating scale, finding mix, per-domain bar chart)
+- **Split reports refined**: composite-style host cards, result cards beside the donut, an Overall Rating card with colour banding, right-sized Status and Severity columns, and fully resizable tables
+- **Documentation synchronised** against the codebase and verified by audit: version metadata, per-module check counts, component inventory, and test listings all regenerated from source
+
+
+### Version 6.5.0 - July 2026 (Pipeline and Scoring Controls)
+
+- **Composed post-execution pipeline** (`shared_components/audit-pipeline.ps1`): enrichment phases run as one pass with per-phase timing, run metadata, and a machine-readable summary; composes the existing functions rather than replacing them
+- **`-AssetCriticality` (1-10)**: business criticality of the host now feeds risk-priority scoring; previously hardcoded
+- **`-ComplianceThreshold` (0-100)**: the PASS/FAIL threshold is now operator-settable; previously fixed at 70 despite its verdict appearing in every report
+- **HostFacts phase 2**: module accessors consult the run-wide fact registry before querying, removing up to 48 redundant host queries on a full run
+
+
+### Version 6.4.0 - July 2026 (Linux Parity Wave 2)
+
+- **Shared assessments** (`shared_components/shared-assessments.ps1`): expensive host-wide collections (local users, local administrators, installed hotfixes, listening TCP ports) computed once per run and shared with every module, using capped uniform records and error-record discipline
+- **Canonical remediations** (`shared_components/canonical-remediations.ps1`): 28-topic table giving one authoritative fix form per hardening topic, sourced from the audited module tree; normalization never invents a fix for an unclassified finding
+- **Remediation library and bundles** (`shared_components/remediation-library.ps1`, `remediation-bundles.ps1`): per-topic apply command, read-only verification, impact profile, rollback-capture specification and prerequisites; 10 named bundles with impact-tiered confirmation
+- **Rollback generator** (`shared_components/rollback-generator.ps1`): read-only pre-change state capture across 12 capture types, and generation of a standalone reverse-order restore script with its own typed confirmation
+- **Attack-surface assessment** (`shared_components/attack-surface.ps1`): 10 Windows exposure domains synthesized from audit findings with deterministic domain resolution and five-tier ratings (`-AttackSurfaceReport`)
+- **Remediation flow upgraded**: real pre-change state capture before apply, post-apply read-back verification (previously success meant only that the command did not throw), and impact-tiered confirmation layered on the existing gate
+- **`-RemediationBundle` is now topic-based**; the five v6.1 bundle names continue to work as deprecated aliases
+
+### Version 6.3.0 - July 2026 (Linux Parity Wave 1)
+
+- HostFacts registry (shared_components/host-facts.ps1): 40 derived host facts computed once per run and shared with all modules
+- Framework currency PRs 1-16: every module re-verified against its authority's current release (CMMC 48 CFR binding rule, PCI DSS v4.0.1 formerly-future-dated requirements, NIST 800-53 Release 5.2.0, Windows 11 25H2 / Server 2025 v2602 baselines, Windows 11 STIG V2R8, CIS Controls v8.1, HIPAA NPRM labeled forward-looking indicators, CRA Art. 14 / DORA timelines, CISA BOD 22-01 accuracy correction)
+- Tailored per-framework split reports (shared_components/report-templates.ps1): spec-driven renderer with native grouping and scoring per framework, full interactive spine (status donut dashboard filter, include/exclude search, per-column filters, resizable/sortable/hideable columns, selection-based export modal in five formats, collapsible sections, light/dark toggle), Host and Scope cards, Result Distribution, Overall Compliance (weighted/simple/severity-adjusted), Top Priority Findings, and renderer build-provenance stamping; -SplitReports / -SplitOnly with format-aware CSV/JSON/XML companions
+- Composite report: Module Summary (At-a-Glance) rollup tiles, Result Distribution naming alignment
+- Role-based audit profiles (shared_components/profiles.ps1): Workstation, MemberServer, DomainController, ServerCore, Minimal, Full; -Profile / -ListProfiles with HostFacts-driven suggestion
+- HostFacts migration phase 1: memoized host-state accessors across all 16 modules (54 duplicated query sites consolidated; identical semantics preserved)
+
+### Version 6.2.0 - July 2026 (Audit Remediation + Foundation)
+
+Full-codebase principal-level audit remediation: unified Add-Result contract, silent-check-loss elimination, List-based accumulation, parallel logging via named mutex, parallel fallback/timing fixes, structural doc relocation, regenerated component manifest. See CHANGELOG.
+
+### Version 6.1.2 - April 2026 (Patch)
 - 🐛 **FIXED**: 24 `Get-BitLockerStatus -Cache` parameter-not-found errors across 13 modules
 - 🐛 **FIXED**: 3 `Get-OSInfo -Cache` parameter-not-found errors
 - 🐛 **FIXED**: 27 `[int]"None"` Int32 conversion errors in CIS/NIST/STIG (replaced with `ConvertTo-SafeInt`)
@@ -909,9 +1020,9 @@ This project builds upon the work and guidance of various security organizations
 - ✨ **ADDED**: `-Quiet` and `-ScriptRoot` parameters on `Initialize-AuditLogging`
 
 ### Version 6.1.1 - April 2026 (Patch)
-- 🐛 **FIXED**: `Get-CachedAuditPolicy` automation regression — function was Mandatory and required user input, breaking unattended runs (now optional + dual return mode: text or parsed objects)
+- 🐛 **FIXED**: `Get-CachedAuditPolicy` automation regression -- function was Mandatory and required user input, breaking unattended runs (now optional + dual return mode: text or parsed objects)
 - ✨ **ADDED**: Multiple help-invocation forms (`-Help`, `-H`, `-?`, `-ShowHelp`, `help`, `-help`, `--help`, `--h`, `/?`, `/help`, `/h`)
-- ✨ **ADDED**: Comprehensive 10-section `Show-DetailedHelp` function (banner, synopsis, description, frameworks, parameters by group, examples, bundles, quick reference, requirements, more info)
+- ✨ **ADDED**: 10-section `Show-DetailedHelp` function (banner, synopsis, description, frameworks, parameters by group, examples, bundles, quick reference, requirements, more info)
 - 📝 **UPDATED**: Comment-based help (`Get-Help`) now documents `-ShowHelp` parameter, all alias forms, and includes a help-invocation example
 
 ### Version 6.1.0 - April 2026 (Major Feature Release)
@@ -923,9 +1034,9 @@ This project builds upon the work and guidance of various security organizations
 - ✨ **NEW**: Group Policy `.pol` file export via `-ExportGPO <path>`
 - ✨ **NEW**: Remediation bundles (`DisableLegacyProtocols`, `HardenAuthentication`, `EnableAuditLogging`, `LockDownRDP`, `EssentialEightLevel1`) via `-RemediationBundle`
 - ✨ **NEW**: Pre-confirmation impact analysis for auto-remediation (reboot/logoff/service/network/destructive summary)
-- 🔧 **EXPANDED**: 3,994 total checks (up from 3,199; +795 across all 16 modules)
+- 🔧 **EXPANDED**: 4,053 total checks (up from 3,199; +795 across all 16 modules)
 - 🔧 **CONSOLIDATED**: NIST module categories (230 → 20) with control-family groupings; precise control IDs preserved in CrossReferences
-- 🔧 **EXPANDED**: Foundation library — 10 new cross-cutting functions (`ConvertTo-RegistryRollback`, `ConvertTo-ServiceRollback`, `Get-RemediationImpact`, `Get-RiskPriorityScore`, `Find-CompensatingControls`, `Find-CrossFrameworkCorrelations`, `Compare-ToBaseline`, `Export-RegistryPolicyFile`, `Test-InternetFacingHost`, `Test-DomainControllerHost`)
+- 🔧 **EXPANDED**: Foundation library -- 10 new cross-cutting functions (`ConvertTo-RegistryRollback`, `ConvertTo-ServiceRollback`, `Get-RemediationImpact`, `Get-RiskPriorityScore`, `Find-CompensatingControls`, `Find-CrossFrameworkCorrelations`, `Compare-ToBaseline`, `Export-RegistryPolicyFile`, `Test-InternetFacingHost`, `Test-DomainControllerHost`)
 
 ### Version 6.0.5 - March 2026
 - ✨ **NEW**: 8 new compliance modules (ACSC, CMMC, ENISA, GDPR, HIPAA, ISO27001, PCI-DSS, SOC2)
@@ -954,7 +1065,7 @@ This project builds upon the work and guidance of various security organizations
 - Complete rewrite with modular architecture
 - 550+ security checks across 7 frameworks
 - Multiple output formats (HTML, JSON, CSV)
-- Comprehensive documentation
+- documentation
 
 See [CHANGELOG.md](https://github.com/Sandler73/Windows-Security-Audit-Project/blob/main/CHANGELOG.md) for complete version history.
 
@@ -962,6 +1073,13 @@ See [CHANGELOG.md](https://github.com/Sandler73/Windows-Security-Audit-Project/b
 
 <div align="center">
 
+**⭐ If this project helps you secure Windows systems, please consider giving it a star! ⭐**
+
+**[⬆ Back to Top](#windows-security-audit-script)**
+
+Made with ❤️ for the cybersecurity community
+
+</div>
 **⭐ If this project helps you secure Windows systems, please consider giving it a star! ⭐**
 
 **[⬆ Back to Top](#windows-security-audit-script)**
