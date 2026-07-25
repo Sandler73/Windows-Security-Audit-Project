@@ -54,17 +54,17 @@ param(
 $moduleName = "PCI-DSS"
 
 # ============================================================================
-# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# Memoized host-state accessors.
 # One live query per module run instead of one per check site. The helpers
 # return the SAME object the direct call would return (raw call, no error
 # swallowing beyond -ErrorAction SilentlyContinue already present at the
 # migrated sites), so call-site semantics are preserved exactly. Sites using
-# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# ErrorAction Stop inside try/catch are intentionally NOT migrated.
 # Standalone-safe: no shared-library dependency.
 # ============================================================================
 $script:HFMemo = @{}
 
-# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# Consult the run-wide HostFacts registry before
 # querying. HostFacts already collects these objects once per RUN; without this
 # lookup each module re-queried them once per MODULE. Raw objects are reused
 # rather than derived scalar facts, so every property a call site reads is still
@@ -107,9 +107,9 @@ function Get-ModFirewallProfiles {
 
 $moduleVersion = "6.6.0"
 $results = [System.Collections.Generic.List[object]]::new()
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 function Add-Result {
     param(
         [Parameter(Mandatory=$true)]
@@ -138,9 +138,9 @@ function Add-Result {
     })
 }
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Cache-aware registry helper
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 $useCache = ($null -ne $SharedData.Cache)
 function Get-RegValue {
     param([string]$Path, [string]$Name, $Default = $null)
@@ -1211,7 +1211,7 @@ Write-Host "[PCI-DSS] Checking Req 5 -- Protect Against Malware..." -ForegroundC
 # ===========================================================================
 Write-Host "[PCI-DSS] Checking Req 6 -- Develop and Maintain Secure Systems..." -ForegroundColor Yellow
 
-    # 6.3.1: Vulnerability management -- auto updates
+    # Vulnerability management -- auto updates
     try {
         $val = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update" -Name "AUOptions" -Default $null
         if ($null -ne $val -and $val -ge 4) {
@@ -1234,7 +1234,7 @@ Write-Host "[PCI-DSS] Checking Req 6 -- Develop and Maintain Secure Systems..." 
             -Severity "High" `
             -CrossReferences @{ 'PCI-DSS'='6.3.1'; NIST='SI-2'; ISO27001='A.8.8'; CISA='Patch Management' }
     }
-    # 6.3.2: Vulnerability management -- Windows Update service
+    # Vulnerability management -- Windows Update service
     try {
         $svc = Get-Service -Name "wuauserv" -ErrorAction SilentlyContinue
         if ($null -ne $svc -and $svc.Status -eq "Running") {
@@ -1258,7 +1258,7 @@ Write-Host "[PCI-DSS] Checking Req 6 -- Develop and Maintain Secure Systems..." 
             -Severity "High" `
             -CrossReferences @{ 'PCI-DSS'='6.3.2'; NIST='SI-2'; CISA='Patch Management' }
     }
-    # 6.3.3: Change control -- DEP enabled
+    # Change control -- DEP enabled
     try {
         $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" -Name "MoveImages" -Default $null
         if ($null -ne $val -and $val -ne 0) {
@@ -1281,7 +1281,7 @@ Write-Host "[PCI-DSS] Checking Req 6 -- Develop and Maintain Secure Systems..." 
             -Severity "High" `
             -CrossReferences @{ 'PCI-DSS'='6.3.3'; NIST='SI-16'; CIS='18.3.2' }
     }
-    # 6.3.4: Change control -- ASLR enforcement
+    # Change control -- ASLR enforcement
     try {
         $val = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" -Name "MitigationOptions" -Default $null
         if ($null -ne $val) {
@@ -1993,7 +1993,7 @@ Write-Host "[PCI-DSS] Checking Req 12 -- Support Information Security with Polic
 
 
 # ===========================================================================
-# v6.1: PCI DSS v4.0/v4.0.1 Customized Approach support
+# PCI DSS v4.0/v4.0.1 Customized Approach support
 # ===========================================================================
 Write-Host "[PCI-DSS] Checking PCI DSS v4.0.1 Customized Approach indicators..." -ForegroundColor Yellow
 
@@ -2051,7 +2051,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: SAQ type indicator
+# SAQ type indicator
 # ===========================================================================
 Write-Host "[PCI-DSS] Checking SAQ environment indicators..." -ForegroundColor Yellow
 
@@ -2096,7 +2096,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: Cardholder data discovery readiness
+# Cardholder data discovery readiness
 # ===========================================================================
 Write-Host "[PCI-DSS] Checking cardholder data discovery readiness..." -ForegroundColor Yellow
 
@@ -2155,7 +2155,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: Network segmentation validation indicators
+# Network segmentation validation indicators
 # ===========================================================================
 Write-Host "[PCI-DSS] Checking network segmentation validation indicators..." -ForegroundColor Yellow
 
@@ -2220,7 +2220,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: Sensitive Authentication Data (SAD) post-authorization storage
+# Sensitive Authentication Data (SAD) post-authorization storage
 # ===========================================================================
 Write-Host "[PCI-DSS] Checking SAD storage prohibition indicators..." -ForegroundColor Yellow
 
@@ -2262,7 +2262,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: Requirement 9 Physical Security technical evidence
+# Requirement 9 Physical Security technical evidence
 # ===========================================================================
 Write-Host "[PCI-DSS] Checking Req 9 physical security technical evidence..." -ForegroundColor Yellow
 
@@ -2319,7 +2319,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: PCI PIN Security and 3DS Core Standard alignment
+# PCI PIN Security and 3DS Core Standard alignment
 # ===========================================================================
 Write-Host "[PCI-DSS] Checking PIN Security and 3DS technical alignment..." -ForegroundColor Yellow
 
@@ -2377,7 +2377,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: PCI Software Security Framework (SSF) alignment
+# PCI Software Security Framework (SSF) alignment
 # ===========================================================================
 Write-Host "[PCI-DSS] Checking Software Security Framework technical indicators..." -ForegroundColor Yellow
 
@@ -2435,7 +2435,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.3.0 currency (PR-2): formerly future-dated v4.0.1 requirements,
+# Currency: formerly future-dated v4.0.1 requirements,
 # mandatory since 2025-03-31. Facts researched 2026-07-20. Checks report
 # detectable host state where possible and honestly mark org-level obligations
 # as informational context rather than inventing host signals.
