@@ -1,11 +1,11 @@
 # Module-MS.ps1
 # Microsoft Security Baseline Compliance Module
-# Version: 6.1.2 - Comprehensive Edition
+# Version: 6.6.0 - Edition
 # Based on Microsoft Security Compliance Toolkit and Security Baselines
 
 <#
 .SYNOPSIS
-    Comprehensive Microsoft Security Baseline compliance checks.
+    Microsoft Security Baseline compliance checks.
 
 .DESCRIPTION
     This module performs exhaustive checks aligned with Microsoft Security Baselines including:
@@ -91,7 +91,7 @@
     - RemediateIssues: Remediation flag
 
 .NOTES
-    Version: 6.1.2 - Comprehensive Edition
+    Version: 6.6.0 - Edition
     Based on: 
     - Microsoft Security Compliance Toolkit (SCT)
     - Microsoft Security Baselines (Windows 10/11, Server 2016/2019/2022)
@@ -116,14 +116,71 @@ param(
 )
 
 $moduleName = "MS"
-$results = @()
-$moduleVersion = "6.1.2"
+
+# ============================================================================
+# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# One live query per module run instead of one per check site. The helpers
+# return the SAME object the direct call would return (raw call, no error
+# swallowing beyond -ErrorAction SilentlyContinue already present at the
+# migrated sites), so call-site semantics are preserved exactly. Sites using
+# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# Standalone-safe: no shared-library dependency.
+# ============================================================================
+$script:HFMemo = @{}
+
+# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# querying. HostFacts already collects these objects once per RUN; without this
+# lookup each module re-queried them once per MODULE. Raw objects are reused
+# rather than derived scalar facts, so every property a call site reads is still
+# available and no call site needed changing. Falls back to a live query when
+# HostFacts is absent (standalone module execution), preserving prior behaviour.
+function Get-ModHostFact {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    if ($SharedData -and $SharedData.ContainsKey('HostFacts') -and $SharedData.HostFacts) {
+        $hf = $SharedData.HostFacts
+        try {
+            if ($hf.ContainsKey($Name) -and $null -ne $hf[$Name]) { return $hf[$Name] }
+        } catch { return $null }
+    }
+    return $null
+}
+function Get-ModOSInfo {
+    if (-not $script:HFMemo.ContainsKey('OS')) {
+        $fromFacts = Get-ModHostFact -Name 'RawOSCim'
+        $script:HFMemo['OS'] = if ($fromFacts) { $fromFacts }
+                               else { Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['OS']
+}
+function Get-ModDefenderStatus {
+    if (-not $script:HFMemo.ContainsKey('MP')) {
+        $fromFacts = Get-ModHostFact -Name 'RawDefenderStatus'
+        $script:HFMemo['MP'] = if ($fromFacts) { $fromFacts }
+                               else { Get-MpComputerStatus -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['MP']
+}
+function Get-ModFirewallProfiles {
+    if (-not $script:HFMemo.ContainsKey('FW')) {
+        $fromFacts = Get-ModHostFact -Name 'RawFirewallProfiles'
+        $script:HFMemo['FW'] = if ($fromFacts) { @($fromFacts) }
+                               else { @(Get-NetFirewallProfile -ErrorAction SilentlyContinue) }
+    }
+    return $script:HFMemo['FW']
+}
+
+$results = [System.Collections.Generic.List[object]]::new()
+$moduleVersion = "6.6.0"
 
 # Helper function to add results with consistent formatting
 function Add-Result {
     param(
+        [Parameter(Mandatory=$true)]
         [string]$Category,
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("Pass","Fail","Warning","Info","Error")]
         [string]$Status,
+        [Parameter(Mandatory=$true)]
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
@@ -131,7 +188,7 @@ function Add-Result {
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
-    $script:results += [PSCustomObject]@{
+    $script:results.Add([PSCustomObject]@{
         Module          = $moduleName
         Category        = $Category
         Status          = $Status
@@ -141,7 +198,7 @@ function Add-Result {
         Remediation     = $Remediation
         CrossReferences = $CrossReferences
         Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    }
+    })
 }
 
 
@@ -346,7 +403,7 @@ try {
     if ($mpStatus.FullScanAge -le 30) {
         Add-Result -Category "MS - Defender AV" -Status "Pass" `
             -Message "Full scan performed within the last 30 days" `
-            -Details "MS Baseline: Comprehensive scan completed recently `($($mpStatus.FullScanAge) days ago)" `
+            -Details "MS Baseline: scan completed recently `($($mpStatus.FullScanAge) days ago)" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='SI-3'; CIS='8.1'; STIG='V-220916' }
     } else {
@@ -541,7 +598,7 @@ try {
         if ($configuredRecommended -ge 10) {
             Add-Result -Category "MS - ASR" -Status "Pass" `
                 -Message "Most recommended ASR rules are configured ($configuredRecommended of $($recommendedRules.Count))" `
-                -Details "MS Baseline: Comprehensive ASR rule coverage provides strong attack mitigation" `
+                -Details "MS Baseline: ASR rule coverage provides strong attack mitigation" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='CM-7'; NSA='Attack Surface Reduction' }
         } elseif ($configuredRecommended -ge 5) {
@@ -777,6 +834,9 @@ try {
     
 } catch {
     # Edge may not be installed or configured via policy
+    Add-Result -Category "MS - SmartScreen" -Status "Info" `
+        -Message "Edge SmartScreen policy not configured (Edge may not be installed or policy-managed)" `
+        -Details "Absence of Edge policy configuration is informational, not a failure"
 }
 
 # ============================================================================
@@ -1597,6 +1657,9 @@ try {
     }
 } catch {
     # Module logging is less critical
+    Add-Result -Category "MS - PowerShell Security" -Status "Info" `
+        -Message "PowerShell module logging policy not configured" `
+        -Details "Module logging is supplementary to script block logging; recorded for visibility"
 }
 
 # Check Constrained Language Mode
@@ -2303,6 +2366,9 @@ try {
     }
 } catch {
     # WSH settings may not be configured
+    Add-Result -Category "MS - Legacy Features" -Status "Info" `
+        -Message "Windows Script Host policy not configured" `
+        -Details "WSH restriction policy absent; default WSH behavior applies"
 }
 
 # Check AutoRun/AutoPlay settings
@@ -2369,7 +2435,7 @@ try {
     } else {
         Add-Result -Category "MS - Audit Policy" -Status "Warning" `
             -Message "Advanced Audit Policy may not be fully configured" `
-            -Details "MS Baseline: Enable comprehensive audit logging for security monitoring" `
+            -Details "MS Baseline: Enable audit logging for security monitoring" `
             -Remediation "Configure via Group Policy: Computer Configuration `> Windows Settings `> Security Settings `> Advanced Audit Policy Configuration" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AU-2'; CIS='17.1'; STIG='V-220748' }
@@ -2518,6 +2584,9 @@ try {
     }
 } catch {
     # PowerShell logs may not be available on older systems
+    Add-Result -Category "MS - Event Logs" -Status "Info" `
+        -Message "PowerShell operational log unavailable on this system" `
+        -Details "Log channel may be absent on older systems; recorded for visibility"
 }
 
 # ============================================================================
@@ -3137,12 +3206,12 @@ Write-Host "`n[MS] Sections 1-32 checks complete" -ForegroundColor Cyan
 
 
 # ============================================================================
-# v6.1: Windows 11 24H2 / Server 2025 baseline alignment
+# v6.1: Windows 11 24H2 / Server 2025 baseline alignment (see also v6.3.0 25H2/v2602 section)
 # ============================================================================
 Write-Host "[MS] Checking Windows 11 24H2 / Server 2025 baseline alignment..." -ForegroundColor Yellow
 
 try {
-    $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue
+    $os = Get-ModOSInfo
     if ($os) {
         $build = [int]$os.BuildNumber
         $product = $os.ProductType
@@ -3570,6 +3639,168 @@ catch {
         -Message "Update channel query failed: $($_.Exception.Message)"
 }
 
+# ===========================================================================
+# v6.3.0 currency (PR-4): Windows 11 25H2 baseline (Sep 2025) and
+# Windows Server 2025 baseline v2602 (Feb 2026) deltas.
+# Verified sources: Microsoft Security Baselines blog (25H2, v2602), Microsoft
+# Support NTLMv1 change notice, CIS 25H2 audit content. Where a policy's
+# registry value name is not verifiable from primary sources, the check
+# detects the associated artifact (file/service/role/policy key) and reports
+# the named Group Policy setting for operator verification instead of reading
+# an unverified registry value.
+# ===========================================================================
+Write-Host "[MS] Checking Win11 25H2 / Server 2025 v2602 baseline deltas..." -ForegroundColor Yellow
+
+try {
+    $osProd = 1
+    try {
+        $osCim = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+        if ($osCim) { $osProd = $osCim.ProductType }
+    } catch { <# default workstation framing #> }
+    $isDC = ($osProd -eq 2)
+    $isSrv = ($osProd -ne 1)
+
+    # --- 25H2: Require IPPS for IPP printers (Administrative Templates\Printers)
+    $printersPolicyKey = "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers"
+    $printersPolicyPresent = $false
+    try { $printersPolicyPresent = [bool](Test-Path $printersPolicyKey -ErrorAction Stop) } catch { $printersPolicyPresent = $false }
+    Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Info" `
+        -Severity "Medium" `
+        -Message "25H2 baseline: 'Require IPPS for IPP printers' should be Enabled (printer policy store $(if ($printersPolicyPresent) { 'present' } else { 'not configured' }))" `
+        -Details "The Windows 11 25H2 baseline adds two IPP printing policies enforcing TLS (IPPS) for IPP printers; printers that do not support TLS are blocked from installation. Verify 'Require IPPS for IPP printers' (Administrative Templates > Printers, Printing.admx from 25H2 templates or newer) is Enabled via gpresult; note self-signed/locally-issued printer certificates may be impacted." `
+        -CrossReferences @{ MS='Baseline 25H2'; CIS='18.7.14' }
+
+    # --- 24H2+/Server 2025: NTLMv1-derived SSO audit/enforce (BlockNtlmv1SSO)
+    $ntlmv1Sso = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0" -Name "BlockNtlmv1SSO" -Default $null
+    if ($ntlmv1Sso -eq 1) {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Pass" `
+            -Severity "High" `
+            -Message "NTLMv1-derived SSO is blocked (BlockNtlmv1SSO = 1, Enforce)" `
+            -Details "Windows 11 24H2+/Server 2025 gate NTLMv1-derived credential blocking on BlockNtlmv1SSO (0 = Audit with Event ID 4024, 1 = Enforce with Event ID 4025). Microsoft moves unmanaged devices to Enforce by default in October 2026; this host is already enforcing." `
+            -CrossReferences @{ MS='NTLMv1 deprecation'; NIST='IA-5(1)'; CIS='2.3.11' }
+    } elseif ($ntlmv1Sso -eq 0) {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "NTLMv1-derived SSO in Audit mode (BlockNtlmv1SSO = 0); enforcement becomes the default October 2026" `
+            -Details "Audit mode logs Event ID 4024 for NTLMv1-derived SSO use. Inventory dependencies via the NTLM Operational log, remediate, then set Enforce (1) ahead of the October 2026 default flip." `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0' -Name BlockNtlmv1SSO -Value 1" `
+            -CrossReferences @{ MS='NTLMv1 deprecation'; CIS='2.3.11' }
+    } else {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Info" `
+            -Severity "Medium" `
+            -Message "BlockNtlmv1SSO not configured (OS default applies: Audit on 24H2+/Server 2025; Enforce default arrives October 2026)" `
+            -Details "On Windows 11 24H2+/Server 2025 the OS audits NTLMv1-derived SSO by default (Event ID 4024). Windows 11 25H2 additionally ships enhanced NTLM auditing enabled out of the box. Plan the move to Enforce before Microsoft's October 2026 default change." `
+            -CrossReferences @{ MS='NTLMv1 deprecation' }
+    }
+
+    # --- v2602 (servers): expanded incoming NTLM auditing
+    if ($isSrv) {
+        $auditIncoming = Get-RegValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0" -Name "AuditReceivingNTLMTraffic" -Default $null
+        if ($auditIncoming -ge 1) {
+            Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Pass" `
+                -Severity "Medium" `
+                -Message "v2602 baseline: incoming NTLM traffic auditing enabled (AuditReceivingNTLMTraffic = $auditIncoming)" `
+                -Details "The Server 2025 v2602 baseline enables auditing of all incoming NTLM traffic on Member Servers and Domain Controllers ('Network security: Restrict NTLM: Audit Incoming NTLM Traffic') to build the dependency inventory ahead of NTLM restriction." `
+                -CrossReferences @{ MS='Baseline v2602'; NIST='AU-2'; CIS='2.3.11' }
+        } else {
+            Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Warning" `
+                -Severity "Medium" `
+                -Message "v2602 baseline: incoming NTLM auditing not enabled ('Audit Incoming NTLM Traffic' unset)" `
+                -Details "The Feb 2026 Server 2025 baseline (v2602) expands NTLM auditing on MS and DCs specifically to surface legacy NTLM dependencies before Microsoft's phased NTLM restrictions land. Without it, this server has no visibility into inbound NTLM use." `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0' -Name AuditReceivingNTLMTraffic -Value 2" `
+                -CrossReferences @{ MS='Baseline v2602'; NIST='AU-2'; CIS='2.3.11' }
+        }
+    }
+
+    # --- v2602 (servers): sudo for Windows lockdown
+    $sysRoot = if ($env:SystemRoot) { $env:SystemRoot } else { 'C:\Windows' }
+    $sudoExe = "$sysRoot\System32\sudo.exe"
+    $sudoPresent = $false
+    try { $sudoPresent = [bool](Test-Path $sudoExe -ErrorAction Stop) } catch { $sudoPresent = $false }
+    if ($isSrv) {
+        if ($sudoPresent) {
+            Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Warning" `
+                -Severity "High" `
+                -Message "v2602 baseline: sudo.exe present on a server; baseline requires 'Configure the behavior of the sudo command' set to Disabled" `
+                -Details "The Server 2025 v2602 baseline disables Sudo for Windows on Member Servers and Domain Controllers because certain sudo modes provide a privilege-escalation/UAC-bypass vector. Verify the policy (System > Configure the behavior of the sudo command) enforces the Disabled mode via gpresult." `
+                -Remediation "Enforce the 'Configure the behavior of the sudo command' policy with maximum allowed mode Disabled (v2602 baseline GPO)" `
+                -CrossReferences @{ MS='Baseline v2602'; NIST='AC-6'; MITRE='T1548' }
+        } else {
+            Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Pass" `
+                -Severity "Medium" `
+                -Message "v2602 baseline: sudo.exe not present on this server (sudo attack surface absent)" `
+                -Details "Sudo for Windows binary not found; the v2602 concern (UAC-bypass via permissive sudo modes on MS/DCs) does not apply while the component is absent." `
+                -CrossReferences @{ MS='Baseline v2602'; NIST='AC-6' }
+        }
+    }
+
+    # --- v2602 (DCs): ROCA-vulnerable WHfB key validation
+    if ($isDC) {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Info" `
+            -Severity "High" `
+            -Message "v2602 baseline (DC): enable 'Configure Validation of ROCA-vulnerable WHfB keys during authentication' in Block mode" `
+            -Details "Domain controller detected. The v2602 baseline blocks Windows Hello for Business keys generated by ROCA-vulnerable (Infineon TPM) implementations at authentication time (System > Security Account Manager policy, Enabled: Block; no reboot required). Before enabling Block, clean up orphaned/vulnerable keys with the WHfBTools PowerShell module to avoid breaking sign-ins. Verify the policy state via gpresult." `
+            -CrossReferences @{ MS='Baseline v2602'; CVE='CVE-2017-15361'; NIST='IA-5(2)' }
+    }
+
+    # --- 25H2 + v2602: IE11 launch via COM automation disabled
+    Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Info" `
+        -Severity "Medium" `
+        -Message "25H2/v2602 baseline: 'Disable Internet Explorer 11 Launch Via COM Automation' should be Enabled" `
+        -Details "Both the Windows 11 25H2 and Server 2025 v2602 baselines prevent scripts and applications from programmatically launching the legacy IE11 engine through COM automation, closing a legacy execution vector. Verify the policy state via gpresult; legacy apps invoking IE COM automation will be affected." `
+        -CrossReferences @{ MS='Baseline 25H2/v2602'; NIST='CM-7' }
+
+    # --- v2602: Mark-of-the-Web preservation (existing verified path)
+    $mzPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Attachments"
+    $saveZone = Get-RegValue -Path $mzPath -Name "SaveZoneInformation" -Default $null
+    if ($saveZone -eq 2) {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Fail" `
+            -Severity "High" `
+            -Message "v2602 baseline: Mark-of-the-Web preservation is disabled (SaveZoneInformation = 2)" `
+            -Details "The v2602 baseline ensures MotW zone tags are applied to files from untrusted sources so SmartScreen/Office protections engage. SaveZoneInformation = 2 (do not preserve) strips those tags." `
+            -Remediation "Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Attachments' -Name 'SaveZoneInformation'" `
+            -CrossReferences @{ MS='Baseline v2602'; MITRE='T1553.005'; NIST='SI-3' }
+    } else {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "v2602 baseline: Mark-of-the-Web preservation intact (SaveZoneInformation $(if ($null -eq $saveZone) { 'not overridden (default preserve)' } else { "= $saveZone" }))" `
+            -Details "Zone information is preserved on downloaded files, keeping MotW-based protections (SmartScreen, Office Protected View) effective per the v2602 baseline direction." `
+            -CrossReferences @{ MS='Baseline v2602'; NIST='SI-3' }
+    }
+
+    # --- 25H2: ASR PSExec/WMI rule now baseline-recommended (Audit)
+    $asrIds = $null; $asrActions = $null
+    try {
+        if (Get-Command 'Get-MpPreference' -ErrorAction SilentlyContinue) {
+            $mpPrefBl = Get-MpPreference -ErrorAction Stop
+            $asrIds = @($mpPrefBl.AttackSurfaceReductionRules_Ids)
+            $asrActions = @($mpPrefBl.AttackSurfaceReductionRules_Actions)
+        }
+    } catch { <# Defender cmdlets unavailable #> }
+    $psexecGuid = 'D1E49AAC-8F56-4280-B9BA-993A6D77406C'
+    $ruleIdx = -1
+    if ($asrIds) { for ($i = 0; $i -lt $asrIds.Count; $i++) { if ("$($asrIds[$i])" -ieq $psexecGuid) { $ruleIdx = $i; break } } }
+    if ($ruleIdx -ge 0 -and $asrActions -and $asrActions.Count -gt $ruleIdx -and $asrActions[$ruleIdx] -ge 1) {
+        $modeLbl = if ($asrActions[$ruleIdx] -eq 1) { 'Block' } elseif ($asrActions[$ruleIdx] -eq 2) { 'Audit' } else { "action $($asrActions[$ruleIdx])" }
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "25H2 baseline: ASR rule 'Block process creations from PSExec/WMI' configured ($modeLbl)" `
+            -Details "The 25H2 baseline newly recommends the PSExec/WMI process-creation ASR rule ($psexecGuid) in Audit mode to surface lateral-movement tooling without breaking management workflows; Block is the hardened end-state where compatible." `
+            -CrossReferences @{ MS='Baseline 25H2'; ASR='D1E49AAC'; MITRE='T1047' }
+    } else {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "25H2 baseline: ASR rule 'Block process creations from PSExec/WMI' not configured (baseline recommends at least Audit)" `
+            -Details "The 25H2 baseline adds ASR rule $psexecGuid in Audit mode. Unconfigured means no telemetry on PSExec/WMI-originated process creation, a primary lateral-movement channel." `
+            -Remediation "Add-MpPreference -AttackSurfaceReductionRules_Ids $psexecGuid -AttackSurfaceReductionRules_Actions AuditMode" `
+            -CrossReferences @{ MS='Baseline 25H2'; ASR='D1E49AAC'; MITRE='T1047' }
+    }
+} catch {
+    Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Error" `
+        -Message "25H2/v2602 baseline delta checks could not be completed: $($_.Exception.Message)" `
+        -Details "Windows 11 25H2 / Server 2025 v2602 baseline assessment failed to execute"
+}
+
 # ============================================================================
 # Summary Statistics
 # ============================================================================
@@ -3633,7 +3864,7 @@ if ($MyInvocation.InvocationName -ne '.') {
         IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
         ScriptPath = $PSScriptRoot; Cache = $null
     }
-    try { $osi = Get-CimInstance Win32_OperatingSystem -EA SilentlyContinue; $standaloneData.OSVersion = "$($osi.Caption) (Build $($osi.BuildNumber))" } catch { $standaloneData.OSVersion = "Windows" }
+    try { $osi = Get-ModOSInfo; $standaloneData.OSVersion = "$($osi.Caption) (Build $($osi.BuildNumber))" } catch { $standaloneData.OSVersion = "Windows" }
     try { $standaloneData.IPAddresses = @((Get-NetIPAddress -AddressFamily IPv4 -EA SilentlyContinue | Where-Object { $_.IPAddress -ne '127.0.0.1' }).IPAddress) } catch { $standaloneData.IPAddresses = @("N/A") }
 
     $commonLibPath = Join-Path (Split-Path $PSScriptRoot -Parent) "shared_components\audit-common.ps1"
