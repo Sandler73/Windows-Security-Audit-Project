@@ -1,8 +1,8 @@
 # module-soc2.ps1
 # SOC 2 Trust Service Criteria Compliance Module for Windows Security Audit
-# Version: 6.1.2
+# Version: 6.6.0
 #
-# Evaluates Windows configuration against AICPA SOC 2 Type II Trust Service Criteria (2017)
+# Evaluates Windows configuration against AICPA SOC 2 Type II Trust Service Criteria (2017, With Revised Points of Focus - 2022)
 # with Severity ratings and cross-framework references.
 
 <#
@@ -10,7 +10,7 @@
     SOC 2 Trust Service Criteria compliance checks for Windows systems.
 
 .DESCRIPTION
-    This module assesses alignment with AICPA SOC 2 Type II Trust Service Criteria (2017) including:
+    This module assesses alignment with AICPA SOC 2 Type II Trust Service Criteria (2017, With Revised Points of Focus - 2022) including:
     - CC5: Control Activities (access controls, segregation, change management)
     - CC6: Logical and Physical Access (authentication, authorization, encryption, network)
     - CC7: System Operations (incident detection, response, backup, recovery, monitoring)
@@ -29,8 +29,8 @@
 .NOTES
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
-    References: AICPA TSP Section 100 (2017), SOC 2 Type II Reporting Framework
-    Version: 6.1.2
+    References: AICPA TSP Section 100 -- 2017 Trust Services Criteria (With Revised Points of Focus - 2022), SOC 2 Type II Reporting Framework
+    Version: 6.6.0
 
 .EXAMPLE
     $results = & .\modules\module-soc2.ps1 -SharedData $sharedData
@@ -42,16 +42,72 @@ param(
 )
 
 $moduleName = "SOC2"
-$moduleVersion = "6.1.2"
-$results = @()
 
+# ============================================================================
+# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# One live query per module run instead of one per check site. The helpers
+# return the SAME object the direct call would return (raw call, no error
+# swallowing beyond -ErrorAction SilentlyContinue already present at the
+# migrated sites), so call-site semantics are preserved exactly. Sites using
+# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# Standalone-safe: no shared-library dependency.
+# ============================================================================
+$script:HFMemo = @{}
+
+# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# querying. HostFacts already collects these objects once per RUN; without this
+# lookup each module re-queried them once per MODULE. Raw objects are reused
+# rather than derived scalar facts, so every property a call site reads is still
+# available and no call site needed changing. Falls back to a live query when
+# HostFacts is absent (standalone module execution), preserving prior behaviour.
+function Get-ModHostFact {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    if ($SharedData -and $SharedData.ContainsKey('HostFacts') -and $SharedData.HostFacts) {
+        $hf = $SharedData.HostFacts
+        try {
+            if ($hf.ContainsKey($Name) -and $null -ne $hf[$Name]) { return $hf[$Name] }
+        } catch { return $null }
+    }
+    return $null
+}
+function Get-ModOSInfo {
+    if (-not $script:HFMemo.ContainsKey('OS')) {
+        $fromFacts = Get-ModHostFact -Name 'RawOSCim'
+        $script:HFMemo['OS'] = if ($fromFacts) { $fromFacts }
+                               else { Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['OS']
+}
+function Get-ModDefenderStatus {
+    if (-not $script:HFMemo.ContainsKey('MP')) {
+        $fromFacts = Get-ModHostFact -Name 'RawDefenderStatus'
+        $script:HFMemo['MP'] = if ($fromFacts) { $fromFacts }
+                               else { Get-MpComputerStatus -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['MP']
+}
+function Get-ModFirewallProfiles {
+    if (-not $script:HFMemo.ContainsKey('FW')) {
+        $fromFacts = Get-ModHostFact -Name 'RawFirewallProfiles'
+        $script:HFMemo['FW'] = if ($fromFacts) { @($fromFacts) }
+                               else { @(Get-NetFirewallProfile -ErrorAction SilentlyContinue) }
+    }
+    return $script:HFMemo['FW']
+}
+
+$moduleVersion = "6.6.0"
+$results = [System.Collections.Generic.List[object]]::new()
 # ---------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
 # ---------------------------------------------------------------------------
 function Add-Result {
     param(
+        [Parameter(Mandatory=$true)]
         [string]$Category,
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("Pass","Fail","Warning","Info","Error")]
         [string]$Status,
+        [Parameter(Mandatory=$true)]
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
@@ -59,7 +115,7 @@ function Add-Result {
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
-    $script:results += [PSCustomObject]@{
+    $script:results.Add([PSCustomObject]@{
         Module          = $moduleName
         Category        = $Category
         Status          = $Status
@@ -69,7 +125,7 @@ function Add-Result {
         Remediation     = $Remediation
         CrossReferences = $CrossReferences
         Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    }
+    })
 }
 
 # ---------------------------------------------------------------------------
@@ -441,7 +497,7 @@ Write-Host "[SOC2] Checking CC6 -- Logical and Physical Access Controls..." -For
     }
     # CC6.3: Network security -- firewall all profiles
     try {
-        $fwProfiles = Get-NetFirewallProfile -ErrorAction SilentlyContinue
+        $fwProfiles = Get-ModFirewallProfiles
         $allOn = $true
         foreach ($fw in $fwProfiles) { if ($fw.Enabled -ne $true) { $allOn = $false } }
         if ($allOn -and $null -ne $fwProfiles) {
@@ -1433,7 +1489,7 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
 
     $standaloneData = @{
         ComputerName = $env:COMPUTERNAME
-        OSVersion    = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
+        OSVersion    = (Get-ModOSInfo).Caption
         IPAddresses  = @((Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -ne "127.0.0.1" }).IPAddress)
         IsAdmin      = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
         ScanDate     = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
@@ -1470,7 +1526,7 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
     $useCache = ($null -ne $SharedData.Cache)
 
     Write-Host "[SOC2] Executing checks with standalone environment...`n" -ForegroundColor Cyan
-    $script:results = @()
+    $script:results = [System.Collections.Generic.List[object]]::new()
 
     Write-Host "`n$("=" * 80)" -ForegroundColor White
     Write-Host "  DETAILED STANDALONE RESULTS" -ForegroundColor Cyan
