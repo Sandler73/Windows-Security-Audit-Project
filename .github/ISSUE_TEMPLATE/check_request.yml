@@ -102,7 +102,7 @@ body:
       label: Technical verification approach
       description: |
         How would the script verify this on a live Windows system? Be specific. Registry path,
-        WMI class, cmdlet, command — whatever you'd use to confirm pass/fail manually.
+        WMI class, cmdlet, command -- whatever you'd use to confirm pass/fail manually.
       placeholder: |
         ```powershell
         $guest = Get-LocalUser -Name 'Guest' -ErrorAction SilentlyContinue
@@ -152,7 +152,7 @@ body:
     attributes:
       label: Cross-framework mappings
       description: |
-        Same control under other framework identifiers — populates the `CrossReferences`
+        Same control under other framework identifiers -- populates the `CrossReferences`
         field on every result.
       placeholder: |
         STIG: V-220929 (CAT I)
@@ -168,7 +168,7 @@ body:
     attributes:
       label: Edge cases to consider
       description: |
-        Cases where the check may need to behave differently — feature unavailable on
+        Cases where the check may need to behave differently -- feature unavailable on
         certain Windows editions, AD vs. workgroup variants, server vs. client, etc.
     validations:
       required: false
