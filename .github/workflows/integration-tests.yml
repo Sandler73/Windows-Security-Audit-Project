@@ -53,7 +53,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-2025, windows-2022, windows-2019]
+        os: [windows-2025, windows-latest]
 
     steps:
       - name: Checkout
