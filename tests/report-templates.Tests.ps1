@@ -142,8 +142,8 @@ Describe 'Spine styling and interaction contract (all frameworks)' {
     }
 }
 
-Describe 'Regulatory & Framework Context sub-section (operator feedback 2026-07)' {
-    It 'nests framework panels under the collapsible Framework-Specific Compliance Analysis sub-section' {
+Describe 'Regulatory and Framework Context sub-section' {
+    It 'nests framework panels under the collapsible framework-context sub-section' {
         $r = @(New-TestResult 'CMMC' 'CMMC - SPRS Scoring' 'Info' 'SPRS Score: 95 / 110 (High)' 'Informational')
         $html = New-FrameworkReportHtml -ModuleName 'CMMC' -Results $r -ExecutionInfo $ExecInfo
         $html | Should -Match ($script:FrameworkSectionTitle)
