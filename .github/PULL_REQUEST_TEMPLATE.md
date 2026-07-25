@@ -82,8 +82,8 @@ Why this approach over alternatives?
 - [ ] Tests (`tests/*.Tests.ps1`)
 - [ ] CI/CD workflows (`.github/workflows/*.yml`)
 - [ ] Issue / PR templates (`.github/ISSUE_TEMPLATE/`)
-- [ ] Documentation — project (`docs/project/`)
-- [ ] Documentation — wiki (`docs/wiki/`)
+- [ ] Documentation -- project (`docs/project/`)
+- [ ] Documentation -- wiki (`docs/wiki/`)
 - [ ] Tasks (`tasks/`)
 - [ ] `.gitignore`
 
@@ -91,7 +91,7 @@ Why this approach over alternatives?
 
 <!--
 For PRs that add or remove checks, document the count change.
-This helps maintainers verify the v6.1.2 baseline of 3,994 checks
+This helps maintainers verify the v6.1.2 baseline of 4,053 checks
 remains accurate, or that the bump in count is intentional.
 
 Run after your changes:
@@ -104,7 +104,7 @@ Skip this section if your PR doesn't change check counts.
 |--------|-------:|------:|------:|
 |        |        |       |       |
 
-**Total project check count after this PR:** <!-- e.g., 3,994 → 3,997 (+3) -->
+**Total project check count after this PR:** <!-- e.g., 4,053 → 4,056 (+3) -->
 
 ## 🧪 Testing Performed
 
@@ -155,7 +155,7 @@ Skip this section if your PR doesn't change check counts.
 - [ ] Try/catch error handling around external system calls (registry, WMI, services, network)
 - [ ] Specific exceptions caught where possible (not bare `catch {}`)
 - [ ] All new external inputs validated
-- [ ] No introduction of external runtime dependencies (zero pip/npm/nuget — PowerShell stdlib only)
+- [ ] No introduction of external runtime dependencies (zero pip/npm/nuget -- PowerShell stdlib only)
 - [ ] No outbound network calls during audit execution
 - [ ] No credential handling
 - [ ] All new functions documented with parameter help
