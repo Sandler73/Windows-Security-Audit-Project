@@ -10,8 +10,8 @@ body:
       value: |
         ## ⚠️ This is the highest-priority bug class
 
-        A false negative — a check reporting **Pass** when the system is actually
-        non-compliant — is the most serious type of audit framework defect. Operators rely
+        A false negative -- a check reporting **Pass** when the system is actually
+        non-compliant -- is the most serious type of audit framework defect. Operators rely
         on Pass results to mean their systems are configured correctly. A false negative
         causes operators to ship insecure systems thinking they are secure.
 
@@ -34,7 +34,7 @@ body:
           required: true
         - label: I am running the latest stable release
           required: true
-        - label: This is a check producing wrong Pass — not a disagreement with the framework's prescription
+        - label: This is a check producing wrong Pass -- not a disagreement with the framework's prescription
           required: true
 
   - type: dropdown
