@@ -449,10 +449,10 @@ jobs:
             'Get-AuditProfile'            = 'profiles'
             'Get-SharedAssessment'        = 'shared-assessments'
             'Get-RemediationTopic'        = 'canonical-remediations'
-            'Build-RemediationPlan'       = 'remediation-library'
+            'New-RemediationPlan'       = 'remediation-library'
             'Get-BundlePlan'              = 'remediation-bundles'
             'New-RollbackScript'          = 'rollback-generator'
-            'Build-AttackSurface'         = 'attack-surface'
+            'New-AttackSurface'         = 'attack-surface'
             'Export-AttackSurfaceReport'  = 'attack-surface'
             'Export-FrameworkReports'     = 'report-templates'
             'Invoke-AuditPipeline'        = 'audit-pipeline'
@@ -657,7 +657,7 @@ jobs:
           # WITHOUT applying anything: this asserts the capture-before-apply
           # machinery works on a live host, which is the guarantee the
           # remediation flow depends on.
-          $plan = Build-RemediationPlan -Topics @('GuestAccount','LsaProtection')
+          $plan = New-RemediationPlan -Topics @('GuestAccount','LsaProtection')
           $records = Invoke-PlanCapture -Plan $plan
           if (-not $records) { throw 'no capture records produced' }
           Write-Host "  [OK]   captured $($records.Count) pre-change record(s)"
