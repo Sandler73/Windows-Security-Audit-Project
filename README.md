@@ -70,7 +70,7 @@
 
 | OS | Versions | Status | PowerShell | Notes |
 |----|----------|--------|------------|-------|
-| **Windows 11** | 21H2, 22H2, 23H2, 24H2 | ✅ Tested | 5.1, 7.x | Primary client target |
+| **Windows 11** | 21H2, 22H2, 23H2, 24H2, 25H2 | ✅ Tested | 5.1, 7.x | Primary client target |
 | **Windows 10** | 21H2, 22H2, IoT LTSC 2021 | ✅ Tested | 5.1, 7.x | Legacy client support |
 | **Windows Server 2025** | 24H2 | ✅ Tested | 5.1, 7.x | Latest server release |
 | **Windows Server 2022** | 21H2 | ✅ Tested | 5.1, 7.x | Primary server target |
