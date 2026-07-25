@@ -120,13 +120,19 @@ jobs:
             -OutputFormat JSON `
             -OutputPath .\test-output\core\out `
             -Quiet
-          $jsonFiles = @(Get-ChildItem -Path .\test-output\core `
+          $jsonFiles = @(Get-ChildItem -Path .\test-output\core -Recurse `
                           -Filter 'Windows-Security-Audit-*.json')
           if ($jsonFiles.Count -eq 0) {
             Write-Host "Directory contents:"
             Get-ChildItem .\test-output\core -Recurse | Format-Table -AutoSize
-            throw "No JSON output generated in .\test-output\core\"
+            throw "No JSON output generated under .\test-output\core\"
           }
+          # Reports are written to <OutputPath>\<hostname>\ by design, so the
+          # file must sit inside a directory named for the audited host.
+          if ($jsonFiles[0].Directory.Name -ne $env:COMPUTERNAME) {
+            throw "Expected output under a '$env:COMPUTERNAME' directory, found '$($jsonFiles[0].Directory.Name)'"
+          }
+          Write-Host "  [OK]   output landed in $($jsonFiles[0].Directory.FullName)"
           $jsonPath = $jsonFiles[0].FullName
           Write-Host "Generated: $jsonPath"
           $data = Get-Content $jsonPath -Raw | ConvertFrom-Json
@@ -145,7 +151,7 @@ jobs:
             -OutputFormat JSON `
             -OutputPath .\test-output\multi-seq\out `
             -Quiet
-          $jsonFiles = @(Get-ChildItem -Path .\test-output\multi-seq `
+          $jsonFiles = @(Get-ChildItem -Path .\test-output\multi-seq -Recurse `
                           -Filter 'Windows-Security-Audit-*.json')
           if ($jsonFiles.Count -eq 0) {
             throw "No JSON output generated in .\test-output\multi-seq\"
@@ -167,7 +173,7 @@ jobs:
             -OutputPath .\test-output\multi-par\out `
             -Parallel -Workers 2 `
             -Quiet
-          $parJsonFiles = @(Get-ChildItem -Path .\test-output\multi-par `
+          $parJsonFiles = @(Get-ChildItem -Path .\test-output\multi-par -Recurse `
                               -Filter 'Windows-Security-Audit-*.json')
           if ($parJsonFiles.Count -eq 0) {
             throw "No JSON output generated in .\test-output\multi-par\"
@@ -177,7 +183,7 @@ jobs:
           Write-Host "Parallel 3-module audit: $count results"
 
           # Compare to sequential within 5%
-          $seqJsonFiles = @(Get-ChildItem -Path .\test-output\multi-seq `
+          $seqJsonFiles = @(Get-ChildItem -Path .\test-output\multi-seq -Recurse `
                               -Filter 'Windows-Security-Audit-*.json')
           $seqData = Get-Content $seqJsonFiles[0].FullName -Raw | ConvertFrom-Json
           $seqCount = @($seqData.Results).Count
@@ -199,7 +205,7 @@ jobs:
             -OutputPath .\test-output\all-format\out `
             -Quiet
           @('html','json','csv','xml') | ForEach-Object {
-            $files = @(Get-ChildItem -Path .\test-output\all-format `
+            $files = @(Get-ChildItem -Path .\test-output\all-format -Recurse `
                           -Filter "Windows-Security-Audit-*.$_")
             if ($files.Count -eq 0) {
               Write-Host "Directory contents:"
@@ -222,7 +228,7 @@ jobs:
             -Quiet
           $duration = (Get-Date) - $start
 
-          $jsonFiles = @(Get-ChildItem -Path .\test-output\full `
+          $jsonFiles = @(Get-ChildItem -Path .\test-output\full -Recurse `
                           -Filter 'Windows-Security-Audit-*.json')
           if ($jsonFiles.Count -eq 0) {
             throw "No JSON output generated in .\test-output\full\"
@@ -516,11 +522,16 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          foreach ($sw in '-ListModules', '-ListProfiles', '-ListBundles') {
-            $out = & .\Windows-Security-Audit.ps1 $sw 2>&1 | Out-String
-            if ($LASTEXITCODE -notin @(0, $null)) { throw "$sw exited $LASTEXITCODE" }
-            if ([string]::IsNullOrWhiteSpace($out)) { throw "$sw produced no output" }
-            Write-Host "  [OK]   $sw ($($out.Length) chars)"
+          # A switch name held in a variable is passed POSITIONALLY, so it binds
+          # to -Modules (the first positional parameter) and is rejected by its
+          # ValidateSet. Splat a hashtable so the switch binds by name.
+          foreach ($sw in 'ListModules', 'ListProfiles', 'ListBundles') {
+            $splat = @{ $sw = $true }
+            # Write-Host writes to the Information stream (6), so 2>&1 does not
+            # capture catalogue output. Redirect all streams.
+            $out = & .\Windows-Security-Audit.ps1 @splat *>&1 | Out-String
+            if ([string]::IsNullOrWhiteSpace($out)) { throw "-$sw produced no output" }
+            Write-Host "  [OK]   -$sw ($($out.Length) chars)"
           }
 
       - name: Documented help forms are accepted
@@ -529,13 +540,14 @@ jobs:
           # Only the prefixed forms work: -Modules is the first positional
           # parameter and carries a ValidateSet, so a bare token binds to it
           # and is rejected during parameter binding.
-          foreach ($form in '-Help', '-H', '-help', '-h', '-ShowHelp') {
+          foreach ($form in 'Help', 'H', 'help', 'h', 'ShowHelp') {
             try {
-              $out = & .\Windows-Security-Audit.ps1 $form 2>&1 | Out-String
+              $splat = @{ $form = $true }
+              $out = & .\Windows-Security-Audit.ps1 @splat *>&1 | Out-String
               if ($out -notmatch 'Windows Security Audit') { throw "no help content" }
-              Write-Host "  [OK]   $form"
+              Write-Host "  [OK]   -$form"
             } catch {
-              Write-Host "::error::documented help form $form failed: $($_.Exception.Message)"
+              Write-Host "::error::documented help form -$form failed: $($_.Exception.Message)"
               throw
             }
           }
@@ -554,6 +566,7 @@ jobs:
             try {
               & .\Windows-Security-Audit.ps1 @($case.A) -ListModules 2>&1 | Out-Null
               Write-Host "::error::$($case.N) was ACCEPTED but should be rejected"
+              $script:notRejected = $true
             } catch {
               Write-Host "  [OK]   $($case.N) rejected"
               $rejected++
