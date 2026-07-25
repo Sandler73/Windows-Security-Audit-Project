@@ -1,16 +1,20 @@
 # module-pcidss.ps1
-# PCI DSS v4.0 Compliance Module for Windows Security Audit
-# Version: 6.1.2
+# PCI DSS v4.0.1 Compliance Module for Windows Security Audit
+# Version: 6.6.0
 #
-# Evaluates Windows configuration against Payment Card Industry Data Security Standard v4.0
+# Evaluates Windows configuration against Payment Card Industry Data Security Standard v4.0.1
 # with Severity ratings and cross-framework references.
 
 <#
 .SYNOPSIS
-    PCI DSS v4.0 compliance checks for Windows systems.
+    PCI DSS v4.0.1 compliance checks for Windows systems.
 
 .DESCRIPTION
-    This module assesses alignment with Payment Card Industry Data Security Standard v4.0 including:
+    This module assesses alignment with Payment Card Industry Data Security
+    Standard v4.0.1, the sole active version (v4.0 was retired 2024-12-31).
+    All 51 formerly future-dated requirements have been mandatory since
+    2025-03-31; this module treats them as required, not best practice.
+    Coverage includes:
     - Req 1: Network Security Controls (firewall, segmentation, traffic rules)
     - Req 2: Secure Configuration (vendor defaults, system hardening, services)
     - Req 3: Protect Stored Account Data (encryption at rest, key management)
@@ -33,8 +37,10 @@
 .NOTES
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
-    References: PCI DSS v4.0 (March 2022), PCI SSC Quick Reference Guide
-    Version: 6.1.2
+    References: PCI DSS v4.0.1 (June 2024; sole active version -- v4.0 retired
+                2024-12-31; formerly future-dated requirements mandatory since
+                2025-03-31), PCI SSC Quick Reference Guide
+    Version: 6.6.0
 
 .EXAMPLE
     $results = & .\modules\module-pcidss.ps1 -SharedData $sharedData
@@ -46,16 +52,72 @@ param(
 )
 
 $moduleName = "PCI-DSS"
-$moduleVersion = "6.1.2"
-$results = @()
 
+# ============================================================================
+# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# One live query per module run instead of one per check site. The helpers
+# return the SAME object the direct call would return (raw call, no error
+# swallowing beyond -ErrorAction SilentlyContinue already present at the
+# migrated sites), so call-site semantics are preserved exactly. Sites using
+# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# Standalone-safe: no shared-library dependency.
+# ============================================================================
+$script:HFMemo = @{}
+
+# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# querying. HostFacts already collects these objects once per RUN; without this
+# lookup each module re-queried them once per MODULE. Raw objects are reused
+# rather than derived scalar facts, so every property a call site reads is still
+# available and no call site needed changing. Falls back to a live query when
+# HostFacts is absent (standalone module execution), preserving prior behaviour.
+function Get-ModHostFact {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    if ($SharedData -and $SharedData.ContainsKey('HostFacts') -and $SharedData.HostFacts) {
+        $hf = $SharedData.HostFacts
+        try {
+            if ($hf.ContainsKey($Name) -and $null -ne $hf[$Name]) { return $hf[$Name] }
+        } catch { return $null }
+    }
+    return $null
+}
+function Get-ModOSInfo {
+    if (-not $script:HFMemo.ContainsKey('OS')) {
+        $fromFacts = Get-ModHostFact -Name 'RawOSCim'
+        $script:HFMemo['OS'] = if ($fromFacts) { $fromFacts }
+                               else { Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['OS']
+}
+function Get-ModDefenderStatus {
+    if (-not $script:HFMemo.ContainsKey('MP')) {
+        $fromFacts = Get-ModHostFact -Name 'RawDefenderStatus'
+        $script:HFMemo['MP'] = if ($fromFacts) { $fromFacts }
+                               else { Get-MpComputerStatus -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['MP']
+}
+function Get-ModFirewallProfiles {
+    if (-not $script:HFMemo.ContainsKey('FW')) {
+        $fromFacts = Get-ModHostFact -Name 'RawFirewallProfiles'
+        $script:HFMemo['FW'] = if ($fromFacts) { @($fromFacts) }
+                               else { @(Get-NetFirewallProfile -ErrorAction SilentlyContinue) }
+    }
+    return $script:HFMemo['FW']
+}
+
+$moduleVersion = "6.6.0"
+$results = [System.Collections.Generic.List[object]]::new()
 # ---------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
 # ---------------------------------------------------------------------------
 function Add-Result {
     param(
+        [Parameter(Mandatory=$true)]
         [string]$Category,
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("Pass","Fail","Warning","Info","Error")]
         [string]$Status,
+        [Parameter(Mandatory=$true)]
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
@@ -63,7 +125,7 @@ function Add-Result {
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
-    $script:results += [PSCustomObject]@{
+    $script:results.Add([PSCustomObject]@{
         Module          = $moduleName
         Category        = $Category
         Status          = $Status
@@ -73,7 +135,7 @@ function Add-Result {
         Remediation     = $Remediation
         CrossReferences = $CrossReferences
         Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    }
+    })
 }
 
 # ---------------------------------------------------------------------------
@@ -92,7 +154,7 @@ function Get-RegValue {
     return $Default
 }
 
-Write-Host "`n[$moduleName] Starting PCI DSS v4.0 compliance checks (v$moduleVersion)..." -ForegroundColor Cyan
+Write-Host "`n[$moduleName] Starting PCI DSS v4.0.1 compliance checks (v$moduleVersion)..." -ForegroundColor Cyan
 
 # ===========================================================================
 # Req 1 -- Network Security Controls
@@ -101,7 +163,7 @@ Write-Host "[PCI-DSS] Checking Req 1 -- Network Security Controls..." -Foregroun
 
     # 1.2.1a: Firewall enabled -- Domain profile
     try {
-        $fwDomain = Get-NetFirewallProfile -Profile Domain -ErrorAction SilentlyContinue
+        $fwDomain = (Get-ModFirewallProfiles | Where-Object { $_.Name -eq 'Domain' })
         if ($null -ne $fwDomain -and $fwDomain.Enabled -eq $true) {
             Add-Result -Category "PCI-DSS - Req 1 Network Security" -Status "Pass" `
                 -Message "1.2.1a: Windows Firewall enabled on Domain profile" `
@@ -124,7 +186,7 @@ Write-Host "[PCI-DSS] Checking Req 1 -- Network Security Controls..." -Foregroun
     }
     # 1.2.1b: Firewall enabled -- Private profile
     try {
-        $fwPrivate = Get-NetFirewallProfile -Profile Private -ErrorAction SilentlyContinue
+        $fwPrivate = (Get-ModFirewallProfiles | Where-Object { $_.Name -eq 'Private' })
         if ($null -ne $fwPrivate -and $fwPrivate.Enabled -eq $true) {
             Add-Result -Category "PCI-DSS - Req 1 Network Security" -Status "Pass" `
                 -Message "1.2.1b: Windows Firewall enabled on Private profile" `
@@ -147,7 +209,7 @@ Write-Host "[PCI-DSS] Checking Req 1 -- Network Security Controls..." -Foregroun
     }
     # 1.2.1c: Firewall enabled -- Public profile
     try {
-        $fwPublic = Get-NetFirewallProfile -Profile Public -ErrorAction SilentlyContinue
+        $fwPublic = (Get-ModFirewallProfiles | Where-Object { $_.Name -eq 'Public' })
         if ($null -ne $fwPublic -and $fwPublic.Enabled -eq $true) {
             Add-Result -Category "PCI-DSS - Req 1 Network Security" -Status "Pass" `
                 -Message "1.2.1c: Windows Firewall enabled on Public profile" `
@@ -170,7 +232,7 @@ Write-Host "[PCI-DSS] Checking Req 1 -- Network Security Controls..." -Foregroun
     }
     # 1.2.1d: Default inbound action -- Domain (Block)
     try {
-        $fwDomain = Get-NetFirewallProfile -Profile Domain -ErrorAction SilentlyContinue
+        $fwDomain = (Get-ModFirewallProfiles | Where-Object { $_.Name -eq 'Domain' })
         if ($null -ne $fwDomain -and $fwDomain.DefaultInboundAction -eq "Block") {
             Add-Result -Category "PCI-DSS - Req 1 Network Security" -Status "Pass" `
                 -Message "1.2.1d: Domain profile default inbound action is Block" `
@@ -193,7 +255,7 @@ Write-Host "[PCI-DSS] Checking Req 1 -- Network Security Controls..." -Foregroun
     }
     # 1.2.1e: Default inbound action -- Public (Block)
     try {
-        $fwPublic = Get-NetFirewallProfile -Profile Public -ErrorAction SilentlyContinue
+        $fwPublic = (Get-ModFirewallProfiles | Where-Object { $_.Name -eq 'Public' })
         if ($null -ne $fwPublic -and $fwPublic.DefaultInboundAction -eq "Block") {
             Add-Result -Category "PCI-DSS - Req 1 Network Security" -Status "Pass" `
                 -Message "1.2.1e: Public profile default inbound action is Block" `
@@ -866,13 +928,13 @@ Write-Host "[PCI-DSS] Checking Req 4 -- Strong Cryptography in Transit..." -Fore
         if ($null -ne $val -and $val -eq 0) {
             Add-Result -Category "PCI-DSS - Req 4 Crypto Transit" -Status "Pass" `
                 -Message "4.2.2d: TLS 1.1 disabled (server) -- properly configured" `
-                -Details "Req 4.2.2: TLS 1.1 is deprecated; PCI DSS v4.0 requires TLS 1.2 minimum" `
+                -Details "Req 4.2.2: TLS 1.1 is deprecated; PCI DSS v4.0.1 requires TLS 1.2 minimum" `
                 -Severity "High" `
                 -CrossReferences @{ 'PCI-DSS'='4.2.2'; NIST='SC-13'; ISO27001='A.8.24' }
         } else {
             Add-Result -Category "PCI-DSS - Req 4 Crypto Transit" -Status "Fail" `
                 -Message "4.2.2d: TLS 1.1 disabled (server) -- not configured (Value=$val)" `
-                -Details "Req 4.2.2: TLS 1.1 is deprecated; PCI DSS v4.0 requires TLS 1.2 minimum" `
+                -Details "Req 4.2.2: TLS 1.1 is deprecated; PCI DSS v4.0.1 requires TLS 1.2 minimum" `
                 -Remediation "New-Item -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server' -Force; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.1\Server' -Name Enabled -Value 0" `
                 -Severity "High" `
                 -CrossReferences @{ 'PCI-DSS'='4.2.2'; NIST='SC-13'; ISO27001='A.8.24' }
@@ -1355,13 +1417,13 @@ Write-Host "[PCI-DSS] Checking Req 8 -- Identify Users and Authenticate Access..
         if ($minLen -ge 12) {
             Add-Result -Category "PCI-DSS - Req 8 Authentication" -Status "Pass" `
                 -Message "8.3.1: Minimum password length is $minLen characters" `
-                -Details "Req 8.3.6: PCI DSS v4.0 requires minimum 12 characters (14 recommended)" `
+                -Details "Req 8.3.6: PCI DSS v4.0.1 requires minimum 12 characters (14 recommended); mandatory since 2025-03-31" `
                 -Severity "High" `
                 -CrossReferences @{ 'PCI-DSS'='8.3.6'; NIST='IA-5'; CIS='1.1.4'; ISO27001='A.5.17' }
         } else {
             Add-Result -Category "PCI-DSS - Req 8 Authentication" -Status "Fail" `
                 -Message "8.3.1: Minimum password length is $minLen (requires `>= 12)" `
-                -Details "Req 8.3.6: PCI DSS v4.0 mandates minimum 12-character passwords" `
+                -Details "Req 8.3.6: PCI DSS v4.0.1 mandates minimum 12-character passwords (mandatory since 2025-03-31)" `
                 -Remediation "net accounts /minpwlen:14" `
                 -Severity "High" `
                 -CrossReferences @{ 'PCI-DSS'='8.3.6'; NIST='IA-5'; CIS='1.1.4'; ISO27001='A.5.17' }
@@ -1933,7 +1995,7 @@ Write-Host "[PCI-DSS] Checking Req 12 -- Support Information Security with Polic
 # ===========================================================================
 # v6.1: PCI DSS v4.0/v4.0.1 Customized Approach support
 # ===========================================================================
-Write-Host "[PCI-DSS] Checking PCI DSS v4.0/v4.0.1 Customized Approach indicators..." -ForegroundColor Yellow
+Write-Host "[PCI-DSS] Checking PCI DSS v4.0.1 Customized Approach indicators..." -ForegroundColor Yellow
 
 try {
     $bitLocker = Get-BitLockerStatus -Cache $SharedData.Cache
@@ -2373,6 +2435,102 @@ catch {
 }
 
 # ===========================================================================
+# v6.3.0 currency (PR-2): formerly future-dated v4.0.1 requirements,
+# mandatory since 2025-03-31. Facts researched 2026-07-20. Checks report
+# detectable host state where possible and honestly mark org-level obligations
+# as informational context rather than inventing host signals.
+# ===========================================================================
+Write-Host "[PCI-DSS] Checking mandatory v4.0.1 requirements (formerly future-dated)..." -ForegroundColor Yellow
+
+try {
+    # Req 8.4.2: MFA for ALL access into the CDE (mandatory since 2025-03-31).
+    # Host-detectable proxy: Windows Hello for Business policy. Third-party MFA
+    # agents are not reliably host-detectable and are not assessed here.
+    $whfb = Get-RegValue -Path "HKLM:\SOFTWARE\Policies\Microsoft\PassportForWork" -Name "Enabled"
+    if ($whfb -eq 1) {
+        Add-Result -Category "PCI-DSS - Mandatory v4.0.1 Reqs" -Status "Pass" `
+            -Severity "High" `
+            -Message "8.4.2: Windows Hello for Business policy enabled (phishing-resistant MFA capability present)" `
+            -Details "Req 8.4.2 requires MFA for all access into the CDE, mandatory since 2025-03-31. WHfB provides a strong factor on this host; confirm MFA coverage for every CDE access path (console, remote, application) with your assessor." `
+            -CrossReferences @{ 'PCI-DSS'='8.4.2'; NIST='IA-2(1)'; CIS='6.5' }
+    } else {
+        Add-Result -Category "PCI-DSS - Mandatory v4.0.1 Reqs" -Status "Warning" `
+            -Severity "High" `
+            -Message "8.4.2: No Windows Hello for Business policy detected; verify MFA for ALL CDE access (mandatory since 2025-03-31)" `
+            -Details "Req 8.4.2 expanded MFA from remote/admin access to all access into the CDE and is no longer future-dated. If MFA is delivered by a third-party agent or at a boundary system, document it; this host shows no native MFA policy." `
+            -Remediation "Deploy MFA covering all CDE access paths (e.g., enable Windows Hello for Business via policy, or document the compensating MFA architecture)" `
+            -CrossReferences @{ 'PCI-DSS'='8.4.2'; NIST='IA-2(1)'; CIS='6.5' }
+    }
+
+    # Req 11.3.1.2: authenticated internal vulnerability scanning (mandatory
+    # since 2025-03-31). Readiness proxy: remote management channels a scanner
+    # uses for credentialed scans.
+    $winrmSvc = Get-Service -Name 'WinRM' -ErrorAction SilentlyContinue
+    $remRegSvc = Get-Service -Name 'RemoteRegistry' -ErrorAction SilentlyContinue
+    $winrmOn = ($winrmSvc -and $winrmSvc.Status -eq 'Running')
+    $remRegManual = ($remRegSvc -and $remRegSvc.StartType -ne 'Disabled')
+    if ($winrmOn -or $remRegManual) {
+        Add-Result -Category "PCI-DSS - Mandatory v4.0.1 Reqs" -Status "Info" `
+            -Severity "Medium" `
+            -Message "11.3.1.2: Credentialed-scan channels available (WinRM running: $winrmOn; RemoteRegistry startable: $remRegManual)" `
+            -Details "Req 11.3.1.2 requires authenticated internal vulnerability scans, mandatory since 2025-03-31. This host exposes management channels a credentialed scanner can use; provision dedicated least-privilege scan credentials." `
+            -CrossReferences @{ 'PCI-DSS'='11.3.1.2'; NIST='RA-5(5)' }
+    } else {
+        Add-Result -Category "PCI-DSS - Mandatory v4.0.1 Reqs" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "11.3.1.2: No credentialed-scan channel detected (WinRM stopped, RemoteRegistry disabled); authenticated internal scans are mandatory" `
+            -Details "Req 11.3.1.2 requires authenticated scanning since 2025-03-31. Either enable a managed scan channel for scan windows or use an agent-based scanner, and document the method. Note: keeping these services disabled is otherwise good hardening; the obligation is authenticated scanning by SOME documented mechanism." `
+            -CrossReferences @{ 'PCI-DSS'='11.3.1.2'; NIST='RA-5(5)' }
+    }
+
+    # Req 6.4.3 / 11.6.1: payment page script inventory/authorization and
+    # tamper/change detection (mandatory since 2025-03-31). Applicable where
+    # this host serves payment pages.
+    $iisSvc = Get-Service -Name 'W3SVC' -ErrorAction SilentlyContinue
+    if ($iisSvc -and $iisSvc.Status -eq 'Running') {
+        Add-Result -Category "PCI-DSS - Mandatory v4.0.1 Reqs" -Status "Warning" `
+            -Severity "High" `
+            -Message "6.4.3/11.6.1: IIS is serving on this host; payment page script authorization/inventory/integrity and tamper detection are mandatory if payment pages are hosted or embedded here" `
+            -Details "Since 2025-03-31, Req 6.4.3 requires every payment-page script to be authorized, justified, and integrity-assured, and Req 11.6.1 requires a change/tamper detection mechanism on payment pages evaluated at least weekly. If this IIS instance serves or redirects payment pages, implement CSP/SRI plus a tamper-detection mechanism and keep the script inventory current." `
+            -Remediation "Inventory and authorize all payment-page scripts (6.4.3); deploy a payment-page change/tamper detection mechanism evaluated at least every 7 days (11.6.1)" `
+            -CrossReferences @{ 'PCI-DSS'='6.4.3'; 'PCI-DSS2'='11.6.1'; CIS='16.6' }
+    } else {
+        Add-Result -Category "PCI-DSS - Mandatory v4.0.1 Reqs" -Status "Info" `
+            -Severity "Informational" `
+            -Message "6.4.3/11.6.1: No running web server on this host; payment-page script controls apply to the systems serving payment pages" `
+            -Details "Reqs 6.4.3 and 11.6.1 (mandatory since 2025-03-31) attach to payment pages; confirm the e-commerce infrastructure in scope implements script authorization/inventory/integrity and weekly tamper detection." `
+            -CrossReferences @{ 'PCI-DSS'='6.4.3'; 'PCI-DSS2'='11.6.1' }
+    }
+
+    # Req 10.7.2/10.7.3: detect and respond to failures of critical security
+    # control systems (now applies to all entities, mandatory since 2025-03-31).
+    # Detectable proxy: the host's own critical control services.
+    $eventLogSvc = Get-Service -Name 'EventLog' -ErrorAction SilentlyContinue
+    $defenderSvc = Get-Service -Name 'WinDefend' -ErrorAction SilentlyContinue
+    $controlsDown = @()
+    if (-not ($eventLogSvc -and $eventLogSvc.Status -eq 'Running')) { $controlsDown += 'EventLog' }
+    if (-not ($defenderSvc -and $defenderSvc.Status -eq 'Running')) { $controlsDown += 'WinDefend' }
+    if ($controlsDown.Count -eq 0) {
+        Add-Result -Category "PCI-DSS - Mandatory v4.0.1 Reqs" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "10.7.2: Critical security control services (EventLog, Defender) are running on this host" `
+            -Details "Req 10.7.2/10.7.3 (all entities, mandatory since 2025-03-31) require prompt detection of and response to failures of critical security control systems. Local controls are up; ensure monitoring alerts on their failure and a documented response process exists." `
+            -CrossReferences @{ 'PCI-DSS'='10.7.2'; NIST='SI-4'; CIS='8.11' }
+    } else {
+        Add-Result -Category "PCI-DSS - Mandatory v4.0.1 Reqs" -Status "Fail" `
+            -Severity "Critical" `
+            -Message "10.7.2: Critical security control service(s) not running: $($controlsDown -join ', ')" `
+            -Details "Req 10.7.2/10.7.3 require detection of and response to security-control failures; a stopped logging or anti-malware service is exactly such a failure and is itself a reportable condition since 2025-03-31." `
+            -Remediation "Start-Service -Name '$($controlsDown -join "','")'" `
+            -CrossReferences @{ 'PCI-DSS'='10.7.2'; NIST='SI-4'; CIS='8.11' }
+    }
+} catch {
+    Add-Result -Category "PCI-DSS - Mandatory v4.0.1 Reqs" -Status "Error" `
+        -Message "Mandatory v4.0.1 requirement checks could not be completed: $($_.Exception.Message)" `
+        -Details "Formerly future-dated requirement assessment failed to execute"
+}
+
+# ===========================================================================
 # Module Summary
 # ===========================================================================
 $passCount    = @($results | Where-Object { $_.Status -eq "Pass" }).Count
@@ -2384,7 +2542,7 @@ $totalChecks  = $results.Count
 $passPct      = if ($totalChecks -gt 0) { [Math]::Round(($passCount / $totalChecks) * 100, 1) } else { 0 }
 
 Write-Host "`n$("=" * 80)" -ForegroundColor White
-Write-Host "  [PCI-DSS] PCI DSS v4.0 Module Complete (v$moduleVersion)" -ForegroundColor Cyan
+Write-Host "  [PCI-DSS] PCI DSS v4.0.1 Module Complete (v$moduleVersion)" -ForegroundColor Cyan
 Write-Host "$("=" * 80)" -ForegroundColor White
 Write-Host "  Total Checks: $totalChecks  |  Pass: $passCount ($passPct`%)  |  Fail: $failCount  |  Warn: $warnCount  |  Info: $infoCount  |  Error: $errorCount" -ForegroundColor White
 
@@ -2422,7 +2580,7 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
 
     $standaloneData = @{
         ComputerName = $env:COMPUTERNAME
-        OSVersion    = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
+        OSVersion    = (Get-ModOSInfo).Caption
         IPAddresses  = @((Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -ne "127.0.0.1" }).IPAddress)
         IsAdmin      = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
         ScanDate     = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
@@ -2459,7 +2617,7 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
     $useCache = ($null -ne $SharedData.Cache)
 
     Write-Host "[PCI-DSS] Executing checks with standalone environment...`n" -ForegroundColor Cyan
-    $script:results = @()
+    $script:results = [System.Collections.Generic.List[object]]::new()
 
     Write-Host "`n$("=" * 80)" -ForegroundColor White
     Write-Host "  DETAILED STANDALONE RESULTS" -ForegroundColor Cyan
