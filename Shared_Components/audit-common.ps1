@@ -71,12 +71,12 @@ $script:CurrentLogLevel = 20  # INFO default
 $script:LogFilePath = $null
 $script:LogJsonFormat = $false
 $script:LogLock = [System.Object]::new()
-# v6.2.0 (WSA-D2): named mutex handle for cross-runspace log-file serialization.
+# Named mutex handle for cross-runspace log-file serialization.
 # A script-scope Monitor lock object is per-runspace and cannot serialize file
 # writes across parallel runspaces; a named system mutex can. Created lazily by
 # Initialize-AuditLogging from a hash of the log file path.
 $script:LogMutex = $null
-$script:LogConsoleEnabled = $true   # v6.1.2: Console emission (toggle via Initialize-AuditLogging -Quiet)
+$script:LogConsoleEnabled = $true   # Console emission (toggle via Initialize-AuditLogging -Quiet)
 $script:LogStartTime = $null
 
 <#
@@ -108,13 +108,13 @@ function Initialize-AuditLogging {
     $script:LogConsoleEnabled = -not $Quiet.IsPresent
     $script:LogStartTime = Get-Date
 
-    # v6.1.2: Auto-generate log file path when none supplied (matches orchestrator
+    # Auto-generate log file path when none supplied (matches orchestrator
     # built-in fallback behavior so logs are always captured by default).
     if ($LogFile) {
         $script:LogFilePath = $LogFile
     }
 
-    # v6.2.0 (WSA-D2): create/open a named mutex derived from the log file path
+    # Create/open a named mutex derived from the log file path
     # so every runspace writing to the same file serializes on the same OS-level
     # primitive. Falls back to the Monitor lock if mutex creation fails.
     if ($LogFile) {
@@ -199,7 +199,7 @@ function Write-AuditLog {
 
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss.fff"
 
-    # v6.1.2: Console emission. Color by level. Suppressed via -Quiet on
+    # Console emission. Color by level. Suppressed via -Quiet on
     # Initialize-AuditLogging or when console output is intentionally disabled.
     if ($script:LogConsoleEnabled) {
         $color = switch ($Level) {
@@ -228,7 +228,7 @@ function Write-AuditLog {
             $logEntry = "[$timestamp] [$Level] [$Module] $Message"
         }
 
-        # v6.2.0 (WSA-D2): serialize on the named mutex so writes from parallel
+        # Serialize on the named mutex so writes from parallel
         # runspaces interleave safely; Monitor lock remains the single-runspace
         # fallback when no mutex is available. An abandoned mutex (holder
         # terminated mid-write) is still an acquired mutex; proceed and release.
@@ -483,7 +483,7 @@ function Invoke-CacheWarmUp {
 
     Write-AuditLog "Warming up shared data cache..." -Level INFO -Module CACHE
 
-    # --- Services ---
+    # -- Services ---
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         $Cache.Services = @(Get-Service -ErrorAction SilentlyContinue)
@@ -495,7 +495,7 @@ function Invoke-CacheWarmUp {
     }
     $timing['services'] = $sw.Elapsed.TotalSeconds
 
-    # --- Audit Policy ---
+    # -- Audit Policy ---
     $sw.Restart()
     try {
         $Cache.AuditPolicy = auditpol /get /category:* 2>$null
@@ -506,7 +506,7 @@ function Invoke-CacheWarmUp {
     }
     $timing['audit_policy'] = $sw.Elapsed.TotalSeconds
 
-    # --- Security Policy (secedit export) ---
+    # -- Security Policy (secedit export) ---
     $sw.Restart()
     try {
         $tempFile = [System.IO.Path]::GetTempFileName()
@@ -522,7 +522,7 @@ function Invoke-CacheWarmUp {
     }
     $timing['security_policy'] = $sw.Elapsed.TotalSeconds
 
-    # --- Password Policy (net accounts) ---
+    # -- Password Policy (net accounts) ---
     $sw.Restart()
     try {
         $Cache.PasswordPolicy = net accounts 2>$null
@@ -533,7 +533,7 @@ function Invoke-CacheWarmUp {
     }
     $timing['password_policy'] = $sw.Elapsed.TotalSeconds
 
-    # --- Local Users ---
+    # -- Local Users ---
     $sw.Restart()
     try {
         $Cache.LocalUsers = @(Get-LocalUser -ErrorAction SilentlyContinue)
@@ -550,7 +550,7 @@ function Invoke-CacheWarmUp {
     }
     $timing['local_users'] = $sw.Elapsed.TotalSeconds
 
-    # --- Local Groups ---
+    # -- Local Groups ---
     $sw.Restart()
     try {
         $Cache.LocalGroups = @(Get-LocalGroup -ErrorAction SilentlyContinue)
@@ -560,7 +560,7 @@ function Invoke-CacheWarmUp {
     }
     $timing['local_groups'] = $sw.Elapsed.TotalSeconds
 
-    # --- Hotfixes ---
+    # -- Hotfixes ---
     $sw.Restart()
     try {
         $Cache.HotFixes = @(Get-HotFix -ErrorAction SilentlyContinue)
@@ -571,7 +571,7 @@ function Invoke-CacheWarmUp {
     }
     $timing['hotfixes'] = $sw.Elapsed.TotalSeconds
 
-    # --- Network Configuration ---
+    # -- Network Configuration ---
     $sw.Restart()
     try {
         $Cache.NetworkConfig = @{
@@ -586,7 +586,7 @@ function Invoke-CacheWarmUp {
     }
     $timing['network'] = $sw.Elapsed.TotalSeconds
 
-    # --- Installed Features (Server only) ---
+    # -- Installed Features (Server only) ---
     $sw.Restart()
     if ($Cache.OSInfo.IsServer) {
         try {
@@ -607,7 +607,7 @@ function Invoke-CacheWarmUp {
     }
     $timing['features'] = $sw.Elapsed.TotalSeconds
 
-    # --- Common Registry Keys (pre-read frequently accessed paths) ---
+    # -- Common Registry Keys (pre-read frequently accessed paths) ---
     $sw.Restart()
     $commonRegistryPaths = @(
         'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion',
@@ -1347,7 +1347,7 @@ function Get-AuditCommonInfo {
 }
 
 # ============================================================================
-# v6.1 Foundation Enhancements
+# Foundation Enhancements
 # Cross-cutting capability functions added in version 6.1.
 # All functions below are additive; no existing functions are modified.
 # ============================================================================
