@@ -46,17 +46,17 @@ param(
 $moduleName = "ACSC"
 
 # ============================================================================
-# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# Memoized host-state accessors.
 # One live query per module run instead of one per check site. The helpers
 # return the SAME object the direct call would return (raw call, no error
 # swallowing beyond -ErrorAction SilentlyContinue already present at the
 # migrated sites), so call-site semantics are preserved exactly. Sites using
-# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# ErrorAction Stop inside try/catch are intentionally NOT migrated.
 # Standalone-safe: no shared-library dependency.
 # ============================================================================
 $script:HFMemo = @{}
 
-# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# Consult the run-wide HostFacts registry before
 # querying. HostFacts already collects these objects once per RUN; without this
 # lookup each module re-queried them once per MODULE. Raw objects are reused
 # rather than derived scalar facts, so every property a call site reads is still
@@ -99,9 +99,9 @@ function Get-ModFirewallProfiles {
 
 $moduleVersion = "6.6.0"
 $results = [System.Collections.Generic.List[object]]::new()
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 function Add-Result {
     param(
         [Parameter(Mandatory=$true)]
@@ -130,9 +130,9 @@ function Add-Result {
     })
 }
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Cache-aware registry helper
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 $useCache = ($null -ne $SharedData.Cache)
 function Get-RegValue {
     param([string]$Path, [string]$Name, $Default = $null)
@@ -288,7 +288,7 @@ Write-Host "[ACSC] Checking E2 -- Patch Applications..." -ForegroundColor Yellow
             -Message "E2.1: Office version check failed: $_" `
             -Severity "High" -CrossReferences @{ ACSC='E2'; NIST='SI-2' }
     }
-    # E2.2: .NET Framework version
+    # E2.2:.NET Framework version
     try {
         $dotnetRel = Get-RegValue -Path "HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" -Name "Release" -Default 0
         $dotnetVer = switch ([int]$dotnetRel) {
@@ -948,7 +948,7 @@ Write-Host "[ACSC] Checking E8 -- Regular Backups..." -ForegroundColor Yellow
 
 
 # ===========================================================================
-# v6.1: Essential Eight Maturity Level assessment
+# Essential Eight Maturity Level assessment
 # ===========================================================================
 Write-Host "[ACSC] Computing Essential Eight Maturity Levels..." -ForegroundColor Yellow
 
@@ -996,7 +996,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: ACSC Information Security Manual (ISM) controls
+# ACSC Information Security Manual (ISM) controls
 # ===========================================================================
 Write-Host "[ACSC] Checking ISM control implementation indicators..." -ForegroundColor Yellow
 
@@ -1105,7 +1105,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: Protective Security Policy Framework (PSPF) alignment
+# Protective Security Policy Framework (PSPF) alignment
 # ===========================================================================
 Write-Host "[ACSC] Checking PSPF technical alignment..." -ForegroundColor Yellow
 
@@ -1162,7 +1162,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: ASD Cryptographic Protocols (ACSI 33)
+# ASD Cryptographic Protocols (ACSI 33)
 # ===========================================================================
 Write-Host "[ACSC] Checking ASD-approved cryptographic protocols..." -ForegroundColor Yellow
 
@@ -1219,7 +1219,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: ACSC Strategies to Mitigate (broader than Essential Eight)
+# ACSC Strategies to Mitigate (broader than Essential Eight)
 # ===========================================================================
 Write-Host "[ACSC] Checking broader Strategies to Mitigate Cyber Security Incidents..." -ForegroundColor Yellow
 
@@ -1298,7 +1298,7 @@ catch {
 }
 
 # ===========================================================================
-# v6.1: Australian Privacy Principles (APP) technical safeguards
+# Australian Privacy Principles (APP) technical safeguards
 # ===========================================================================
 Write-Host "[ACSC] Checking Australian Privacy Principles technical safeguards..." -ForegroundColor Yellow
 
