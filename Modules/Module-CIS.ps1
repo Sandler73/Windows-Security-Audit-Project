@@ -1,6 +1,6 @@
 # Module-CIS.ps1
 # CIS (Center for Internet Security) Benchmarks Compliance Module for Windows Security Audit
-# Version: 6.1.2
+# Version: 6.6.0
 #
 # Evaluates Windows configuration against CIS Microsoft Windows Benchmarks v3.0+
 # across 15 security domains with Severity ratings and cross-framework references.
@@ -35,8 +35,12 @@
 .NOTES
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
-    References: CIS Microsoft Windows 10/11 Enterprise Benchmark v3.0.0
-    Version: 6.1.2
+    References: CIS Microsoft Windows 10/11 Enterprise Benchmarks (current
+                releases incl. Windows 11 v5.x with 25H2 content);
+                CIS Controls v8.1 (Jun 2024: adds the Governance (GV) security
+                function, a Documentation asset class, and realigned NIST CSF
+                2.0 mappings)
+    Version: 6.6.0
 
 .EXAMPLE
     $results = & .\modules\module-cis.ps1 -SharedData $sharedData
@@ -48,14 +52,70 @@ param(
 )
 
 $moduleName = "CIS"
-$moduleVersion = "6.1.2"
-$results = @()
 
+# ============================================================================
+# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# One live query per module run instead of one per check site. The helpers
+# return the SAME object the direct call would return (raw call, no error
+# swallowing beyond -ErrorAction SilentlyContinue already present at the
+# migrated sites), so call-site semantics are preserved exactly. Sites using
+# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# Standalone-safe: no shared-library dependency.
+# ============================================================================
+$script:HFMemo = @{}
+
+# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# querying. HostFacts already collects these objects once per RUN; without this
+# lookup each module re-queried them once per MODULE. Raw objects are reused
+# rather than derived scalar facts, so every property a call site reads is still
+# available and no call site needed changing. Falls back to a live query when
+# HostFacts is absent (standalone module execution), preserving prior behaviour.
+function Get-ModHostFact {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    if ($SharedData -and $SharedData.ContainsKey('HostFacts') -and $SharedData.HostFacts) {
+        $hf = $SharedData.HostFacts
+        try {
+            if ($hf.ContainsKey($Name) -and $null -ne $hf[$Name]) { return $hf[$Name] }
+        } catch { return $null }
+    }
+    return $null
+}
+function Get-ModOSInfo {
+    if (-not $script:HFMemo.ContainsKey('OS')) {
+        $fromFacts = Get-ModHostFact -Name 'RawOSCim'
+        $script:HFMemo['OS'] = if ($fromFacts) { $fromFacts }
+                               else { Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['OS']
+}
+function Get-ModDefenderStatus {
+    if (-not $script:HFMemo.ContainsKey('MP')) {
+        $fromFacts = Get-ModHostFact -Name 'RawDefenderStatus'
+        $script:HFMemo['MP'] = if ($fromFacts) { $fromFacts }
+                               else { Get-MpComputerStatus -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['MP']
+}
+function Get-ModFirewallProfiles {
+    if (-not $script:HFMemo.ContainsKey('FW')) {
+        $fromFacts = Get-ModHostFact -Name 'RawFirewallProfiles'
+        $script:HFMemo['FW'] = if ($fromFacts) { @($fromFacts) }
+                               else { @(Get-NetFirewallProfile -ErrorAction SilentlyContinue) }
+    }
+    return $script:HFMemo['FW']
+}
+
+$moduleVersion = "6.6.0"
+$results = [System.Collections.Generic.List[object]]::new()
 # Helper function to add results
 function Add-Result {
     param(
+        [Parameter(Mandatory=$true)]
         [string]$Category,
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("Pass","Fail","Warning","Info","Error")]
         [string]$Status,
+        [Parameter(Mandatory=$true)]
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
@@ -63,7 +123,7 @@ function Add-Result {
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
-    $script:results += [PSCustomObject]@{
+    $script:results.Add([PSCustomObject]@{
         Module          = $moduleName
         Category        = $Category
         Status          = $Status
@@ -73,7 +133,7 @@ function Add-Result {
         Remediation     = $Remediation
         CrossReferences = $CrossReferences
         Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    }
+    })
 }
 
 # ---------------------------------------------------------------------------
@@ -235,6 +295,9 @@ try {
     }
 } catch {
     # Complexity check via secpol
+    Add-Result -Category "CIS - Account Policy" -Status "Error" `
+        -Message "Password complexity check could not be completed: $($_.Exception.Message)" `
+        -Details "Unable to evaluate password complexity via security policy export"
 }
 
 # Check for reversible encryption
@@ -257,6 +320,9 @@ try {
     }
 } catch {
     # Check failed
+    Add-Result -Category "CIS - Account Policy" -Status "Error" `
+        -Message "Reversible encryption check could not be completed: $($_.Exception.Message)" `
+        -Details "Unable to read reversible-encryption policy state"
 }
 
 # ============================================================================
@@ -370,7 +436,7 @@ try {
                     if ($resultText -match "Success and Failure") {
                         Add-Result -Category "CIS - Audit Policy" -Status "Pass" `
                             -Message "$($check.Subcategory): Success and Failure auditing enabled" `
-                            -Details "CIS Benchmark: Comprehensive auditing configured" `
+                            -Details "CIS Benchmark: auditing configured" `
                             -Severity "Medium" `
                             -CrossReferences @{ NIST='AU-2'; STIG='V-220748' }
                     } elseif ($resultText -match "Success" -and $resultText -notmatch "Failure") {
@@ -474,6 +540,9 @@ try {
     }
 } catch {
     # Check failed
+    Add-Result -Category "CIS - User Rights" -Status "Error" `
+        -Message "Deny-interactive-logon check could not be completed: $($_.Exception.Message)" `
+        -Details "Unable to read DenyInteractiveLogon policy value"
 }
 
 # Check network logon rights
@@ -489,6 +558,9 @@ try {
     }
 } catch {
     # Check failed
+    Add-Result -Category "CIS - User Rights" -Status "Error" `
+        -Message "Deny-network-logon check could not be completed: $($_.Exception.Message)" `
+        -Details "Unable to read DenyNetworkLogon policy value"
 }
 
 # Check for Guest account network access
@@ -908,13 +980,13 @@ foreach ($profileName in $CISprofiles) {
         if ($CISprofile.LogAllowed -eq "True") {
             Add-Result -Category "CIS - Firewall" -Status "Pass" `
                 -Message "$profileName Profile: Logging allowed connections" `
-                -Details "CIS Benchmark: Comprehensive logging enabled" `
+                -Details "CIS Benchmark: logging enabled" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='SC-7'; STIG='V-220814' }
         } else {
             Add-Result -Category "CIS - Firewall" -Status "Info" `
                 -Message "$profileName Profile: Not logging allowed connections" `
-                -Details "CIS Benchmark: Consider enabling for comprehensive monitoring" `
+                -Details "CIS Benchmark: Consider enabling for monitoring" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='SC-7'; STIG='V-220814' }
         }
@@ -1260,6 +1332,9 @@ try {
     }
 } catch {
     # Check failed
+    Add-Result -Category "CIS - Windows Components" -Status "Error" `
+        -Message "Windows component policy check could not be completed: $($_.Exception.Message)" `
+        -Details "Unable to read component policy state"
 }
 
 # Check Windows Error Reporting
@@ -1281,6 +1356,9 @@ try {
     }
 } catch {
     # Check failed
+    Add-Result -Category "CIS - Windows Components" -Status "Error" `
+        -Message "Windows component policy check could not be completed: $($_.Exception.Message)" `
+        -Details "Unable to read component policy state"
 }
 
 # Check Remote Assistance
@@ -1619,6 +1697,9 @@ try {
     }
 } catch {
     # Check failed
+    Add-Result -Category "CIS - Additional Security" -Status "Error" `
+        -Message "Additional security check could not be completed: $($_.Exception.Message)" `
+        -Details "Unable to read additional security policy state"
 }
 
 # Check for IPv6 configuration
@@ -1655,7 +1736,7 @@ try {
 
 # Check Windows Defender status
 try {
-    $defenderStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
+    $defenderStatus = Get-ModDefenderStatus
     
     if ($defenderStatus) {
         if ($defenderStatus.RealTimeProtectionEnabled) {
@@ -2533,6 +2614,64 @@ catch {
         -Message "Asset inventory assessment failed: $($_.Exception.Message)"
 }
 
+# ===========================================================================
+# v6.3.0 currency (PR-6): CIS Controls v8.1 (June 2024) alignment.
+# v8.1 introduces the Governance (GV) security function, adds a Documentation
+# asset class, clarifies safeguard descriptions, and realigns mappings to
+# NIST CSF 2.0 (whose GOVERN function it mirrors). Host-detectable governance
+# signals are assessed; organization-level governance obligations are reported
+# as informational context, not fabricated host checks.
+# ===========================================================================
+Write-Host "[CIS] Checking CIS Controls v8.1 Governance alignment..." -ForegroundColor Yellow
+
+try {
+    # --- Governance-by-policy signal: centrally-managed configuration presence.
+    # A populated HKLM policy hive indicates configuration is governed via
+    # GPO/MDM rather than local drift, the host-observable core of GV intent.
+    $policyRoots = @(
+        "HKLM:\SOFTWARE\Policies\Microsoft",
+        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies"
+    )
+    $policyAreaCount = 0
+    foreach ($root in $policyRoots) {
+        try {
+            $kids = @(Get-ChildItem -Path $root -ErrorAction Stop)
+            $policyAreaCount += $kids.Count
+        } catch { <# hive absent or unreadable; counts as ungoverned #> }
+    }
+    if ($policyAreaCount -ge 10) {
+        Add-Result -Category "CIS - v8.1 Governance" -Status "Pass" `
+            -Severity "Medium" `
+            -Message "v8.1 GV: configuration is centrally governed ($policyAreaCount policy areas enforced under HKLM policy hives)" `
+            -Details "CIS Controls v8.1 elevates Governance (GV) as a security function aligned to NIST CSF 2.0 GOVERN. A well-populated machine policy hive shows security configuration is asserted by enterprise policy (GPO/MDM) rather than local defaults, the host-observable expression of governed configuration (supports Controls 4.1/4.2 secure configuration process)." `
+            -CrossReferences @{ CIS='4.1'; CSF='GV.PO'; NIST='CM-1' }
+    } elseif ($policyAreaCount -ge 1) {
+        Add-Result -Category "CIS - v8.1 Governance" -Status "Warning" `
+            -Severity "Medium" `
+            -Message "v8.1 GV: limited central governance detected (only $policyAreaCount policy areas under HKLM policy hives)" `
+            -Details "Sparse machine policy enforcement suggests most security configuration relies on local defaults or manual settings rather than a governed configuration process (CIS Controls 4.1/4.2, v8.1 Governance function). Establish enterprise policy (GPO/MDM baselines) as the configuration authority." `
+            -CrossReferences @{ CIS='4.1'; CSF='GV.PO'; NIST='CM-1' }
+    } else {
+        Add-Result -Category "CIS - v8.1 Governance" -Status "Fail" `
+            -Severity "Medium" `
+            -Message "v8.1 GV: no centrally-enforced policy detected (HKLM policy hives empty or unreadable)" `
+            -Details "No machine policy areas were found. Under CIS Controls v8.1's Governance function and secure-configuration Controls (4.1/4.2), security settings must be asserted and maintained through a governed process; this host shows no policy-driven configuration." `
+            -Remediation "Deploy an enterprise configuration baseline (Microsoft Security Baseline GPOs or MDM security baseline) so security configuration is centrally governed" `
+            -CrossReferences @{ CIS='4.1'; CSF='GV.PO'; NIST='CM-1' }
+    }
+
+    # --- v8.1 Documentation asset class + CSF 2.0 realignment (informational)
+    Add-Result -Category "CIS - v8.1 Governance" -Status "Info" `
+        -Severity "Informational" `
+        -Message "v8.1 adds a Documentation asset class and realigns safeguard mappings to NIST CSF 2.0" `
+        -Details "CIS Controls v8.1 (Jun 2024) treats plans, policies, and process documentation as enumerated assets subject to inventory and protection, and refreshes all framework mappings against NIST CSF 2.0 (including its GOVERN function). Ensure security documentation (this audit's reports and baselines included) is inventoried, access-controlled, and kept current; verify any internal CSF mappings are the 2.0 alignment, not CSF 1.1." `
+        -CrossReferences @{ CIS='v8.1'; CSF='GV.OC'; ISO27001='A.5.1' }
+} catch {
+    Add-Result -Category "CIS - v8.1 Governance" -Status "Error" `
+        -Message "v8.1 Governance alignment checks could not be completed: $($_.Exception.Message)" `
+        -Details "CIS Controls v8.1 Governance assessment failed to execute"
+}
+
 # ============================================================================
 # Summary Statistics
 # ============================================================================
@@ -2610,7 +2749,7 @@ if ($MyInvocation.InvocationName -ne '.') {
 
     # Detect OS
     try {
-        $osInfo = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+        $osInfo = Get-ModOSInfo
         $standaloneData.OSVersion = "$($osInfo.Caption) (Build $($osInfo.BuildNumber))"
     } catch {
         $standaloneData.OSVersion = "Windows (version detection failed)"
@@ -2663,7 +2802,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "[CIS] Executing checks with standalone environment...`n" -ForegroundColor Cyan
 
     # Clear results from the initial pass (which used empty SharedData)
-    $script:results = @()
+    $script:results = [System.Collections.Generic.List[object]]::new()
 
     # The actual check sections are above -- they reference $SharedData and $useCache
     # which are now set to the standalone values. We need to re-run the check body.
