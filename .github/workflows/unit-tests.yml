@@ -394,11 +394,76 @@ jobs:
         with:
           path: test-results
 
+      # Pester writes NUnit-schema XML. The reporter must be told that;
+      # pointing a JUnit parser at an NUnit document made this job fail with
+      # "TypeError: Cannot read properties of undefined (reading '$')" even
+      # though every test had passed.
       - name: Publish test report
         uses: dorny/test-reporter@v3
         if: always()
+        continue-on-error: true
         with:
           name: Pester Test Results
           path: 'test-results/**/*.xml'
-          reporter: java-junit
+          reporter: dotnet-nunit
           fail-on-error: false
+
+      # Summary computed directly from the result files. This does not depend
+      # on the third-party reporter, so a parser incompatibility can no longer
+      # hide the outcome, and it is what decides whether this job passes.
+      - name: Summarise results
+        if: always()
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem -Path test-results -Recurse -Filter '*.xml' -ErrorAction SilentlyContinue)
+          if (-not $files) {
+            Write-Host "::error::No test result files were found under test-results/"
+            exit 1
+          }
+
+          $total = 0; $failed = 0; $skipped = 0; $rows = @()
+          foreach ($f in $files) {
+            try { [xml]$doc = Get-Content $f.FullName -Raw }
+            catch { Write-Host "::warning::Could not parse $($f.Name): $($_.Exception.Message)"; continue }
+
+            # Pester's NUnit output carries totals on the root <test-results>
+            # element; JUnit uses <testsuite(s)>. Read whichever is present so
+            # this keeps working if the output format is ever changed.
+            $r = $doc.DocumentElement
+            if ($r.LocalName -eq 'test-results') {
+              $t = [int]$r.total; $e = [int]$r.errors; $fl = [int]$r.failures
+              $sk = [int]$r.'not-run'
+              $fail = $e + $fl
+            }
+            elseif ($r.LocalName -in @('testsuites','testsuite')) {
+              $t = [int]$r.tests; $fail = [int]$r.failures + [int]$r.errors; $sk = [int]$r.skipped
+            }
+            else {
+              Write-Host "::warning::Unrecognised result schema in $($f.Name): <$($r.LocalName)>"
+              continue
+            }
+
+            $total += $t; $failed += $fail; $skipped += $sk
+            $rows += [PSCustomObject]@{ File = $f.Directory.Name; Tests = $t; Failed = $fail; Skipped = $sk }
+          }
+
+          $rows | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
+
+          $passed = $total - $failed - $skipped
+          "## Pester Test Summary"                             | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          ""                                                    | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "| Result | Count |"                                  | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "|--------|------:|"                                  | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "| Passed | $passed |"                                | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "| Failed | $failed |"                                | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "| Skipped | $skipped |"                              | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "| **Total** | **$total** |"                          | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+          Write-Host ""
+          Write-Host "Across $($files.Count) result file(s): $passed passed, $failed failed, $skipped skipped, $total total."
+
+          if ($failed -gt 0) {
+            Write-Host "::error::$failed test(s) failed"
+            exit 1
+          }
+          Write-Host "All tests passed."
