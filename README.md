@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/header-wsap.png" alt="Windows Security Audit Project" width="75%" />
+  <img src="assets/Windows-Security-Audit-Project-Updated-Banner.png" alt="Windows Security Audit Project" width="75%" />
 </p>
 
 ---
