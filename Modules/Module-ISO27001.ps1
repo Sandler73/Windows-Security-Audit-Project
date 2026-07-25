@@ -1,6 +1,6 @@
 # module-iso27001.ps1
 # ISO/IEC 27001:2022 Compliance Module for Windows Security Audit
-# Version: 6.1.2
+# Version: 6.6.0
 #
 # Evaluates Windows configuration against ISO/IEC 27001:2022 Annex A controls
 # with Severity ratings and cross-framework references.
@@ -28,8 +28,9 @@
 .NOTES
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
-    References: ISO/IEC 27001:2022, ISO/IEC 27002:2022
-    Version: 6.1.2
+    References: ISO/IEC 27001:2022 (incl. Amd 1:2024), ISO/IEC 27002:2022;
+                NIST SP 800-53 Release 5.2.0 crosswalk current as of Aug 2025
+    Version: 6.6.0
 
 .EXAMPLE
     $results = & .\modules\module-iso27001.ps1 -SharedData $sharedData
@@ -41,16 +42,72 @@ param(
 )
 
 $moduleName = "ISO27001"
-$moduleVersion = "6.1.2"
-$results = @()
 
+# ============================================================================
+# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# One live query per module run instead of one per check site. The helpers
+# return the SAME object the direct call would return (raw call, no error
+# swallowing beyond -ErrorAction SilentlyContinue already present at the
+# migrated sites), so call-site semantics are preserved exactly. Sites using
+# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# Standalone-safe: no shared-library dependency.
+# ============================================================================
+$script:HFMemo = @{}
+
+# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# querying. HostFacts already collects these objects once per RUN; without this
+# lookup each module re-queried them once per MODULE. Raw objects are reused
+# rather than derived scalar facts, so every property a call site reads is still
+# available and no call site needed changing. Falls back to a live query when
+# HostFacts is absent (standalone module execution), preserving prior behaviour.
+function Get-ModHostFact {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    if ($SharedData -and $SharedData.ContainsKey('HostFacts') -and $SharedData.HostFacts) {
+        $hf = $SharedData.HostFacts
+        try {
+            if ($hf.ContainsKey($Name) -and $null -ne $hf[$Name]) { return $hf[$Name] }
+        } catch { return $null }
+    }
+    return $null
+}
+function Get-ModOSInfo {
+    if (-not $script:HFMemo.ContainsKey('OS')) {
+        $fromFacts = Get-ModHostFact -Name 'RawOSCim'
+        $script:HFMemo['OS'] = if ($fromFacts) { $fromFacts }
+                               else { Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['OS']
+}
+function Get-ModDefenderStatus {
+    if (-not $script:HFMemo.ContainsKey('MP')) {
+        $fromFacts = Get-ModHostFact -Name 'RawDefenderStatus'
+        $script:HFMemo['MP'] = if ($fromFacts) { $fromFacts }
+                               else { Get-MpComputerStatus -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['MP']
+}
+function Get-ModFirewallProfiles {
+    if (-not $script:HFMemo.ContainsKey('FW')) {
+        $fromFacts = Get-ModHostFact -Name 'RawFirewallProfiles'
+        $script:HFMemo['FW'] = if ($fromFacts) { @($fromFacts) }
+                               else { @(Get-NetFirewallProfile -ErrorAction SilentlyContinue) }
+    }
+    return $script:HFMemo['FW']
+}
+
+$moduleVersion = "6.6.0"
+$results = [System.Collections.Generic.List[object]]::new()
 # ---------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
 # ---------------------------------------------------------------------------
 function Add-Result {
     param(
+        [Parameter(Mandatory=$true)]
         [string]$Category,
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("Pass","Fail","Warning","Info","Error")]
         [string]$Status,
+        [Parameter(Mandatory=$true)]
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
@@ -58,7 +115,7 @@ function Add-Result {
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
-    $script:results += [PSCustomObject]@{
+    $script:results.Add([PSCustomObject]@{
         Module          = $moduleName
         Category        = $Category
         Status          = $Status
@@ -68,7 +125,7 @@ function Add-Result {
         Remediation     = $Remediation
         CrossReferences = $CrossReferences
         Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    }
+    })
 }
 
 # ---------------------------------------------------------------------------
@@ -1573,7 +1630,7 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- Network Security..
 
     # A.8.20a: Network security -- firewall enabled (Domain profile)
     try {
-        $fwProfiles = Get-NetFirewallProfile -ErrorAction SilentlyContinue
+        $fwProfiles = Get-ModFirewallProfiles
         $domainFw = $fwProfiles | Where-Object { $_.Name -eq "Domain" }
         if ($null -ne $domainFw -and $domainFw.Enabled -eq $true) {
             Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Pass" `
@@ -1597,7 +1654,7 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- Network Security..
     }
     # A.8.20b: Network security -- firewall enabled (Private profile)
     try {
-        $fwProfiles = Get-NetFirewallProfile -ErrorAction SilentlyContinue
+        $fwProfiles = Get-ModFirewallProfiles
         $privateFw = $fwProfiles | Where-Object { $_.Name -eq "Private" }
         if ($null -ne $privateFw -and $privateFw.Enabled -eq $true) {
             Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Pass" `
@@ -1621,7 +1678,7 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- Network Security..
     }
     # A.8.20c: Network security -- firewall enabled (Public profile)
     try {
-        $fwProfiles = Get-NetFirewallProfile -ErrorAction SilentlyContinue
+        $fwProfiles = Get-ModFirewallProfiles
         $publicFw = $fwProfiles | Where-Object { $_.Name -eq "Public" }
         if ($null -ne $publicFw -and $publicFw.Enabled -eq $true) {
             Add-Result -Category "ISO27001 - A.8 Network Security" -Status "Pass" `
@@ -2447,7 +2504,7 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
 
     $standaloneData = @{
         ComputerName = $env:COMPUTERNAME
-        OSVersion    = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
+        OSVersion    = (Get-ModOSInfo).Caption
         IPAddresses  = @((Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -ne "127.0.0.1" }).IPAddress)
         IsAdmin      = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
         ScanDate     = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
@@ -2484,7 +2541,7 @@ if ($MyInvocation.ScriptName -eq "" -or $MyInvocation.ScriptName -eq $MyInvocati
     $useCache = ($null -ne $SharedData.Cache)
 
     Write-Host "[ISO27001] Executing checks with standalone environment...`n" -ForegroundColor Cyan
-    $script:results = @()
+    $script:results = [System.Collections.Generic.List[object]]::new()
 
     Write-Host "`n$("=" * 80)" -ForegroundColor White
     Write-Host "  DETAILED STANDALONE RESULTS" -ForegroundColor Cyan
