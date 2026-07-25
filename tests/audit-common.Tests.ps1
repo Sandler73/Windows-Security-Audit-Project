@@ -4,7 +4,7 @@
 .DESCRIPTION
     Tests the 39 helper functions in shared_components/audit-common.ps1
     covering type-safety helpers, registry/service/policy queries, OS info,
-    BitLocker, Defender, firewall, network, user, software, and v6.1.0+
+    BitLocker, Defender, firewall, network, user, software, and +
     cross-cutting helpers (rollback, impact, correlation, baseline).
 .NOTES
     Author: Windows Security Audit Project
@@ -25,8 +25,8 @@ BeforeAll {
 
     # Expected version is derived from the orchestrator, which the project treats
     # as the single source of truth for ScriptVersion. Deriving it means a version
-    # bump cannot leave these assertions stale (they previously pinned 6.1.2 and
-    # would have failed from 6.2.0 onward).
+    # Bump cannot leave these assertions stale (they previously pinned 6.1.2 and
+    # Would have failed from 6.2.0 onward).
     $script:OrchestratorPath = Join-Path $PSScriptRoot '..\Windows-Security-Audit.ps1'
     $orchSrc = Get-Content $script:OrchestratorPath -Raw
     if ($orchSrc -match '\$script:ScriptVersion\s*=\s*"([^"]+)"') {
@@ -188,7 +188,7 @@ Describe 'Get-BitLockerStatus' {
 
     It 'Returns hashtable with SystemDriveProtected key' {
         # Get-BitLockerStatus returns a [hashtable], not a [PSCustomObject].
-        # Use .ContainsKey() (or .Keys) for membership checks; PSObject.Properties
+        # Use.ContainsKey (or.Keys) for membership checks; PSObject.Properties
         # on a hashtable returns [hashtable]'s intrinsic properties (Keys, Values,
         # Count, etc.), not the user-defined keys.
         $result = Get-BitLockerStatus
@@ -336,7 +336,7 @@ Describe 'Write-AuditLog' {
     }
 }
 
-Describe 'v6.1.0 Cross-Cutting Helpers' {
+Describe 'Cross-Cutting Helpers' {
     It 'ConvertTo-RegistryRollback function exists' {
         Get-Command ConvertTo-RegistryRollback -ErrorAction SilentlyContinue |
             Should -Not -BeNullOrEmpty
@@ -427,11 +427,11 @@ Describe 'Get-AuditCommonInfo' {
     It 'Includes HelperFunctions list' {
         $info = Get-AuditCommonInfo
         $info.HelperFunctions | Should -Not -BeNullOrEmpty
-        # 38 helper functions in v6.1.2: 29 originals + 9 v6.1 additions
+        # 38 helper functions
         # (ConvertTo-RegistryRollback, ConvertTo-ServiceRollback, Get-RemediationImpact,
-        #  Get-RiskPriorityScore, Find-CompensatingControls, Find-CrossFrameworkCorrelations,
-        #  Compare-ToBaseline, Export-RegistryPolicyFile, Test-InternetFacingHost,
-        #  Test-DomainControllerHost) -- adjust this floor when adding new helpers.
+        # Get-RiskPriorityScore, Find-CompensatingControls, Find-CrossFrameworkCorrelations,
+        # Compare-ToBaseline, Export-RegistryPolicyFile, Test-InternetFacingHost,
+        # Test-DomainControllerHost) -- adjust this floor when adding new helpers.
         $info.HelperFunctions.Count | Should -BeGreaterOrEqual 38
     }
 }
