@@ -51,17 +51,17 @@ param(
 $moduleName = "NSA"
 
 # ============================================================================
-# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# Memoized host-state accessors.
 # One live query per module run instead of one per check site. The helpers
 # return the SAME object the direct call would return (raw call, no error
 # swallowing beyond -ErrorAction SilentlyContinue already present at the
 # migrated sites), so call-site semantics are preserved exactly. Sites using
-# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# ErrorAction Stop inside try/catch are intentionally NOT migrated.
 # Standalone-safe: no shared-library dependency.
 # ============================================================================
 $script:HFMemo = @{}
 
-# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# Consult the run-wide HostFacts registry before
 # querying. HostFacts already collects these objects once per RUN; without this
 # lookup each module re-queried them once per MODULE. Raw objects are reused
 # rather than derived scalar facts, so every property a call site reads is still
@@ -104,9 +104,9 @@ function Get-ModFirewallProfiles {
 
 $moduleVersion = "6.6.0"
 $results = [System.Collections.Generic.List[object]]::new()
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Result helper with Severity and CrossReferences support
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 function Add-Result {
     param(
         [Parameter(Mandatory=$true)]
@@ -135,9 +135,9 @@ function Add-Result {
     })
 }
 
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 # Cache-aware registry helper
-# ---------------------------------------------------------------------------
+# --------------------------------------------------------------------------
 $useCache = ($null -ne $SharedData.Cache)
 function Get-RegValue {
     param([string]$Path, [string]$Name, $Default = $null)
@@ -1701,7 +1701,7 @@ try {
 
 
 # ============================================================================
-# v6.1: NSA Cybersecurity Information Sheet (CSI) coverage expansion
+# NSA Cybersecurity Information Sheet (CSI) coverage expansion
 # ============================================================================
 Write-Host "[NSA] Checking expanded NSA CSI guidance..." -ForegroundColor Yellow
 
@@ -1760,7 +1760,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: NSA Active Directory hardening guidance
+# NSA Active Directory hardening guidance
 # ============================================================================
 Write-Host "[NSA] Checking NSA AD hardening recommendations..." -ForegroundColor Yellow
 
@@ -1849,7 +1849,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: NSA Top 10 Cybersecurity Mitigation Strategies
+# NSA Top 10 Cybersecurity Mitigation Strategies
 # ============================================================================
 Write-Host "[NSA] Checking NSA Top 10 Mitigation Strategies..." -ForegroundColor Yellow
 
@@ -1953,7 +1953,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: BlackLotus mitigation checks
+# BlackLotus mitigation checks
 # ============================================================================
 Write-Host "[NSA] Checking BlackLotus mitigation status..." -ForegroundColor Yellow
 
@@ -1996,7 +1996,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: NSA CSfC prerequisites and Network Infrastructure Security
+# NSA CSfC prerequisites and Network Infrastructure Security
 # ============================================================================
 Write-Host "[NSA] Checking CSfC prerequisites and network infrastructure security..." -ForegroundColor Yellow
 
@@ -2068,7 +2068,7 @@ catch {
 }
 
 # ============================================================================
-# v6.1: IPv6 hardening recommendations
+# IPv6 hardening recommendations
 # ============================================================================
 Write-Host "[NSA] Checking IPv6 hardening recommendations..." -ForegroundColor Yellow
 
@@ -2183,7 +2183,7 @@ return $results
 # ============================================================================
 # When invoked directly (not dot-sourced), run in standalone test mode
 # with automatic SharedData initialization, cache warmup, and detailed analysis.
-# Usage: .\modules\module-nsa.ps1
+# Usage:.\modules\module-nsa.ps1
 # ============================================================================
 if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "=" * 80 -ForegroundColor White
