@@ -67,19 +67,19 @@ Describe 'Verification contract' {
 
 Describe 'Plan building' {
     It 'orders steps lowest-impact first and aggregates correctly' {
-        $plan = Build-RemediationPlan -Topics @('BitLockerSystemDrive','GuestAccount','SmbSigningServer')
+        $plan = New-RemediationPlan -Topics @('BitLockerSystemDrive','GuestAccount','SmbSigningServer')
         $plan.Steps[0].Topic | Should -Be 'GuestAccount'
         $plan.Steps[-1].Topic | Should -Be 'BitLockerSystemDrive'
         $plan.MaxImpact | Should -Be 'BreakBoot'
         $plan.RequiresReboot | Should -BeTrue
     }
     It 'segregates unknown topics instead of failing or inventing steps' {
-        $plan = Build-RemediationPlan -Topics @('GuestAccount','FakeTopic')
+        $plan = New-RemediationPlan -Topics @('GuestAccount','FakeTopic')
         $plan.Steps.Count | Should -Be 1
         $plan.UnknownTopics | Should -Contain 'FakeTopic'
     }
     It 'contains no execution machinery (data only)' {
-        $plan = Build-RemediationPlan -Topics @('GuestAccount')
+        $plan = New-RemediationPlan -Topics @('GuestAccount')
         $plan.PSObject.Properties.Name | Should -Not -Contain 'Execute'
     }
 }
