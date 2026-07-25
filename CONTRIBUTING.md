@@ -73,7 +73,7 @@ Get-BitLockerVolume : Access denied
 ## Environment
 - OS: Windows Server 2016 Standard (Build 14393)
 - PowerShell: 5.1.14393.5582
-- Script Version: 6.1.2
+- Script Version: 6.6.0
 ```
 
 ### Suggesting Enhancements
@@ -238,7 +238,7 @@ All modules must follow this structure:
 ```powershell
 # Module-Example.ps1
 # Brief description
-# Version: 6.1.2
+# Version: 6.6.0
 # Based on: Framework Name
 
 <#
@@ -253,7 +253,7 @@ All modules must follow this structure:
 
 .NOTES
     Author: Name
-    Version: 6.1.2
+    Version: 6.6.0
     Based on: Framework
 #>
 
@@ -540,13 +540,13 @@ on `windows-2022` but ~243 on a fully-configured production server.
 
 When writing CI assertions, use thresholds calibrated to the
 LEAST-equipped runner the test runs on, not nominal/production values.
-Concrete benchmarks (as of v6.1.2):
+Concrete benchmarks (as of v6.6.0):
 
 | Test scope             | Production target | CI threshold |
 |------------------------|-------------------|--------------|
 | Single module (core)   | ~243              | >=50         |
 | 3 modules sequential   | ~700              | >=150        |
-| Full 16-module audit   | ~3,994            | >=1,500      |
+| Full 16-module audit   | ~4,053            | >=1,500      |
 | Module diversity       | 16                | >=14         |
 
 Failing tests due to too-strict thresholds is a false-failure pattern
@@ -564,8 +564,8 @@ style, but it surprises test authors who assume a single schema:
 |---------|------------|----------------|
 | In-memory PSCustomObject (modules) | PascalCase | `Module`, `CrossReferences`, `Timestamp` |
 | XML output (Export-XMLResults) | PascalCase | `<Module>`, `<CrossReferences>`, `<Timestamp>` |
-| JSON output (Export-JsonReport) | snake_case + lowercase | `module`, `cross_references`, `timestamp` |
-| HTML output (Export-HtmlReport) | n/a (presentation) | rendered as table cells |
+| JSON output (Export-JSONResults) | snake_case + lowercase | `module`, `cross_references`, `timestamp` |
+| HTML output (ConvertTo-HTMLReport) | n/a (presentation) | rendered as table cells |
 
 When validating field NAMES via `-notcontains` or `-Contain`, you must
 use the convention of the channel under test. PowerShell PROPERTY ACCESS
@@ -581,7 +581,7 @@ ratio confirmed it was a single check firing per result, not a 9x
 field-missing issue).
 
 **Rule:** When validating JSON output, mirror the snake_case keys exactly
-as Export-JsonReport in `Windows-Security-Audit.ps1` writes them. When
+as Export-JSONResults in `Windows-Security-Audit.ps1` writes them. When
 validating XML output, mirror the PascalCase elements. When validating
 in-memory module results before export, use PascalCase.
 
@@ -635,6 +635,37 @@ Job demand budget for this project:
 Self-hosted matrix jobs (16 each in unit-tests + integration-tests + full-matrix
 = 48 phantom queued jobs if they weren't gated) are now gated behind
 `workflow_dispatch` opt-in to prevent queue starvation.
+
+**10. GitHub Actions Node 24 migration: version numbers differ per action**
+
+GitHub is forcing all Actions to Node.js 24 starting June 2nd, 2026. The
+required tag for Node 24 differs across publishers. Don't assume "v6" or
+"latest" means Node 24:
+
+| Action                          | Node 24 Tag | Notes |
+|---------------------------------|-------------|-------|
+| actions/checkout                | @v5         | Released Aug 2025 |
+| actions/upload-artifact         | @v6         | Released Oct 2025 |
+| actions/download-artifact       | @v7         | Released Dec 2025 (v6 was preliminary, default Node 20) |
+| codecov/codecov-action          | @v5         | Released 2025 |
+| dorny/test-reporter             | @v3         | Released 2025+ (v1, v2 = Node 20) |
+| softprops/action-gh-release     | @v2         | Confirmed Node 24 |
+
+Each action publisher independently versions their Node migration; check
+each release notes page for the explicit tag that uses
+`runs.using: node24`. A common trap: `actions/upload-artifact@v6` IS Node
+24, but `actions/download-artifact@v6` is NOT -- v6 of download-artifact
+had only "preliminary" Node 24 support and still ran on Node 20 by
+default. Use @v7 for download-artifact.
+
+**dorny/test-reporter additional requirements (v3):**
+- The runner job MUST `actions/checkout` the repo first. The reporter
+  internally calls `git ls-files` and fails with
+  "fatal: not a git repository" without a checkout step.
+- Required permissions:
+    contents: read
+    actions: read    # to read artifacts from prior jobs in the run
+    checks: write    # to create the test-result check run
 
 ## Submission Process
 
