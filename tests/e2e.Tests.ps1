@@ -40,7 +40,10 @@ BeforeAll {
             [Parameter(Mandatory)] [ValidateSet('html','json','csv','xml')] [string] $Extension
         )
         if (-not (Test-Path $Directory)) { return $null }
-        $files = @(Get-ChildItem -Path $Directory `
+        # Reports are written to <OutputPath>\<hostname>\ so that results for
+        # different hosts stay separated. Search recursively; a non-recursive
+        # search only sees the parent and finds nothing.
+        $files = @(Get-ChildItem -Path $Directory -Recurse `
                                   -Filter "Windows-Security-Audit-*.$Extension" `
                                   -ErrorAction SilentlyContinue)
         if ($files.Count -eq 0) { return $null }
