@@ -1,6 +1,116 @@
-# .github/FUNDING.yml
-github: Sandler73
+# =============================================================================
+# .github/FUNDING.yml — Funding configuration for GitHub Sponsors
+# =============================================================================
+#
+# Description: Configures the "Sponsor" button on the GitHub repository page.
+#              GitHub displays up to 4 sponsor links in the sidebar. Each
+#              platform key maps to either a username or a full URL.
+#
+# Usage      : Uncomment and populate the platforms you use. Remove or leave
+#              commented any platforms you don't use. GitHub ignores commented
+#              and empty entries.
+#
+# Reference  : https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+#
+# Notes      : - This file must be at .github/FUNDING.yml (case-sensitive)
+#              - Changes take effect immediately after push to default branch
+#              - Maximum 4 custom URLs via custom field
+#              - GitHub Sponsors requires separate enrollment at
+#                https://github.com/sponsors
+#
+# Version    : 1.0.0
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# GitHub Sponsors
+# Your GitHub username or organization. Enables the native GitHub Sponsors
+# integration with tiered sponsorship, one-time donations, and recurring
+# monthly support directly on GitHub.
+# Enroll: https://github.com/sponsors
+# ---------------------------------------------------------------------------
+# github: [your-github-username]
+github: [Sandler73]
+# ---------------------------------------------------------------------------
+# Open Collective
+# For projects with transparent budgets and community-governed funds.
+# Supports one-time and recurring contributions with public expense tracking.
+# https://opencollective.com
+# ---------------------------------------------------------------------------
+# open_collective: your-project-name
+
+# ---------------------------------------------------------------------------
+# Ko-fi
+# Simple one-time "buy me a coffee" donations and optional monthly support.
+# No platform fees on donations. Supports PayPal and Stripe.
+# https://ko-fi.com
+# ---------------------------------------------------------------------------
+# ko_fi: your-kofi-username
+
+# ---------------------------------------------------------------------------
+# Patreon
+# Membership-based recurring support with tiered rewards.
+# https://www.patreon.com
+# ---------------------------------------------------------------------------
+# patreon: your-patreon-username
+
+# ---------------------------------------------------------------------------
+# Buy Me a Coffee
+# One-time and recurring "coffee" donations with optional membership tiers.
+# https://www.buymeacoffee.com
+# ---------------------------------------------------------------------------
+# buy_me_a_coffee: your-bmc-username
+
+# ---------------------------------------------------------------------------
+# Liberapay
+# Recurrent donations platform focused on open source. Privacy-friendly,
+# no platform fees (funded by its own donations).
+# https://liberapay.com
+# ---------------------------------------------------------------------------
+# liberapay: your-liberapay-username
+
+# ---------------------------------------------------------------------------
+# IssueHunt
+# Bounty-based funding where sponsors fund specific issues and contributors
+# earn by resolving them. Useful for feature-request-driven projects.
+# https://issuehunt.io
+# ---------------------------------------------------------------------------
+# issuehunt: your-issuehunt-username
+
+# ---------------------------------------------------------------------------
+# Polar
+# Fund specific issues, subscribe to projects, and manage open-source
+# funding with integrated billing and payout.
+# https://polar.sh
+# ---------------------------------------------------------------------------
+# polar: your-polar-username
+
+# ---------------------------------------------------------------------------
+# Community Bridge (Linux Foundation)
+# For Linux Foundation-affiliated projects. Provides mentorship program
+# integration and corporate-friendly donation structure.
+# https://communitybridge.org
+# ---------------------------------------------------------------------------
+# community_bridge: your-project-name
+
+# ---------------------------------------------------------------------------
+# Tidelift
+# Enterprise-focused: companies pay for open source maintenance guarantees.
+# Maintainers earn income for security, licensing, and maintenance commitments.
+# https://tidelift.com
+# ---------------------------------------------------------------------------
+# tidelift: npm/your-package-name
+
+# ---------------------------------------------------------------------------
+# Custom URLs
+# Up to 4 custom funding links. Use for platforms not listed above, personal
+# donation pages, or project-specific crowdfunding campaigns.
+#
+# Examples:
+#   - PayPal.me donation link
+#   - Stripe payment link
+#   - Project website donation page
+#   - Crowdfunding campaign (GoFundMe, Kickstarter, etc.)
+# ---------------------------------------------------------------------------
 # custom:
-# Optional extras you can add:
-# patreon: yourpatreon
-# ko_fi: yourkofi
+#   - https://www.paypal.me/your-paypal-username
+#   - https://your-project-site.com/donate
