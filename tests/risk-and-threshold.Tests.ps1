@@ -2,7 +2,7 @@
 .SYNOPSIS
     Pester tests for operator-settable asset criticality and compliance threshold.
 .DESCRIPTION
-    Validates the v6.5.0 additions that make two previously hardcoded values
+    Validates the parameters that make two previously hardcoded values
     operator-settable: asset criticality feeding the risk-priority score, and
     the weighted-compliance threshold driving the PASS/FAIL verdict. Asserts
     that omitting either parameter preserves the prior derived behavior, that
