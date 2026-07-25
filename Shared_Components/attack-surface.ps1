@@ -45,7 +45,7 @@
 
 .EXAMPLE
     . .\shared_components\attack-surface.ps1
-    $surface = Build-AttackSurface -AllResults $results -HostFacts $hf
+    $surface = New-AttackSurface -AllResults $results -HostFacts $hf
     Export-AttackSurfaceReport -Surface $surface -OutputPath .\attack-surface.html -ExecutionInfo $exec
 
 .NOTES
@@ -146,7 +146,7 @@ function Resolve-PrimaryDomain {
     return -1
 }
 
-function Build-AttackSurface {
+function New-AttackSurface {
     <#
     .SYNOPSIS
         Synthesize the attack-surface assessment from audit results.
@@ -313,7 +313,6 @@ function Export-AttackSurfaceReport {
 
     $hostName = if ($ExecutionInfo.ComputerName) { $ExecutionInfo.ComputerName } else { $env:COMPUTERNAME }
     $osLabel  = if ($ExecutionInfo.OSVersion) { $ExecutionInfo.OSVersion } else { 'Windows' }
-    $ranAt    = if ($ExecutionInfo.StartTime) { $ExecutionInfo.StartTime } else { (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') }
     $fwVer    = if ($ExecutionInfo.ScriptVersion) { $ExecutionInfo.ScriptVersion } else { '6.6.0' }
     $ipList   = if ($ExecutionInfo.IPAddresses) { (@($ExecutionInfo.IPAddresses) -join ', ') } else { 'not collected' }
 
@@ -343,7 +342,7 @@ function Export-AttackSurfaceReport {
 
     $overallColor = Get-RatingColor -Rating $Surface.OverallRating
 
-    # ---- Executive summary visuals ----
+    # --- Executive summary visuals ----
     # A single headline number was too thin a summary, so the panel now leads
     # with a radial gauge, the position of the score on the rating scale, the
     # contributing-finding mix, and a ranked bar chart of domain exposure. The
@@ -495,3 +494,7 @@ $(if ($js) { "<script>$js</script>" })
     $html | Out-File -FilePath $OutputPath -Encoding UTF8
     return $OutputPath
 }
+
+# Backwards-compatible alias. 'Build' is not an approved PowerShell verb, so the
+# function was renamed; the original name remains available to existing callers.
+Set-Alias -Name Build-AttackSurface -Value New-AttackSurface -Scope Script -Force
