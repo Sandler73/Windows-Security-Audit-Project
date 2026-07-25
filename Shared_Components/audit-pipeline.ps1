@@ -123,7 +123,7 @@ function Invoke-AuditPipeline {
         Metadata             = @{}
     }
 
-    # ---- Phase 1: Compliance scoring (per-module and overall) ----
+    # ---: Compliance scoring (per-module and overall) ----
     # If the caller already computed scores (the orchestrator does, upstream of
     # this call), reuse them rather than recomputing: recomputation would be
     # wasted work and could diverge from what the reports already display.
@@ -159,7 +159,7 @@ function Invoke-AuditPipeline {
         $phases.Add((New-PhaseRecord -Name 'ComplianceScoring' -Status 'Skipped' -Detail 'Get-ComplianceScore unavailable'))
     }
 
-    # ---- Phase 2: Risk priority enrichment ----
+    # ---: Risk priority enrichment ----
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     if ($IncludeRiskPriority) {
         if (Get-Command 'Get-RiskPriorityScore' -ErrorAction SilentlyContinue) {
@@ -197,7 +197,7 @@ function Invoke-AuditPipeline {
         $phases.Add((New-PhaseRecord -Name 'RiskPriority' -Status 'Skipped' -Detail 'not requested'))
     }
 
-    # ---- Phase 3: Cross-framework correlation ----
+    # ---: Cross-framework correlation ----
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     if ($IncludeCorrelations -and (Get-Command 'Find-CrossFrameworkCorrelations' -ErrorAction SilentlyContinue)) {
         try {
@@ -214,7 +214,7 @@ function Invoke-AuditPipeline {
         $phases.Add((New-PhaseRecord -Name 'Correlations' -Status 'Skipped' -Detail $reason))
     }
 
-    # ---- Phase 4: Compensating controls ----
+    # ---: Compensating controls ----
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     if ($IncludeCompensatingControls -and (Get-Command 'Find-CompensatingControls' -ErrorAction SilentlyContinue)) {
         try {
@@ -237,7 +237,7 @@ function Invoke-AuditPipeline {
     # and documented); the ordering is deliberate.
     $outcome.Timestamp = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
 
-    # ---- Phase 5: Baseline drift ----
+    # ---: Baseline drift ----
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     if ($BaselinePath -and (Get-Command 'Compare-ToBaseline' -ErrorAction SilentlyContinue)) {
         try {
@@ -258,11 +258,11 @@ function Invoke-AuditPipeline {
     $pipelineStart.Stop()
     $outcome.PhaseTimings   = @($phases)
     $outcome.ElapsedSeconds = [Math]::Round($pipelineStart.Elapsed.TotalSeconds, 4)
-    $outcome.Metadata       = Build-PipelineMetadata -ExecutionInfo $ExecutionInfo -HostFacts $HostFacts -ResultCount @($Results).Count -Threshold $ComplianceThreshold -AssetCriticality $AssetCriticality
+    $outcome.Metadata       = New-PipelineMetadata -ExecutionInfo $ExecutionInfo -HostFacts $HostFacts -ResultCount @($Results).Count -Threshold $ComplianceThreshold -AssetCriticality $AssetCriticality
     return $outcome
 }
 
-function Build-PipelineMetadata {
+function New-PipelineMetadata {
     <#
     .SYNOPSIS
         Assemble run metadata for the pipeline summary payload.
