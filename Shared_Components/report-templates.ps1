@@ -7,8 +7,7 @@
     Renders one tailored HTML report per framework module for -SplitReports.
 
 .DESCRIPTION
-    Implements the per-framework split-report design (parity program GAP-2 as
-    expanded by the tailored-report specification): each framework's report is
+    Implements the per-framework split-report design: each framework's report is
     a purpose-built document over a shared spine, NOT the combined report
     filtered by module.
 
@@ -253,7 +252,7 @@ function Get-FrameworkPosture {
 # Framework panels
 # ============================================================================
 # Sub-section title for framework-native panels. Operator-adjustable single
-# constant (operator decision 2026-07-21: 'Regulatory & Framework Context').
+# constant.
 $script:FrameworkSectionTitle = 'Regulatory & Framework Context'
 # Build provenance: stamped into every generated report (HTML comment + footer)
 # so a tested artifact is always traceable to the renderer that produced it.
@@ -857,7 +856,7 @@ function New-FrameworkReportHtml {
     }
     $donut = New-StatusDonutSvg -Counts $statusCounts
 
-    # ---- Round 2 spine additions (operator-grounded parity 2026-07-21) ----
+    # --- Host, distribution, compliance and priority sections ----
     # Host/scope cards (Linux split spine: Hostname, IP Address(es), OS, Scan
     # Date, Modules)
     $ipList = if ($ExecutionInfo.IPAddresses) { @($ExecutionInfo.IPAddresses) -join ', ' } else { 'not collected' }
@@ -944,7 +943,6 @@ function New-FrameworkReportHtml {
     }
 
     $hostName = if ($ExecutionInfo.ComputerName) { $ExecutionInfo.ComputerName } else { $env:COMPUTERNAME }
-    $osLabel  = if ($ExecutionInfo.OSVersion) { $ExecutionInfo.OSVersion } else { 'Windows' }
     $ranAt    = if ($ExecutionInfo.StartTime) { $ExecutionInfo.StartTime } else { (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') }
     $fwVer    = if ($ExecutionInfo.ScriptVersion) { $ExecutionInfo.ScriptVersion } else { '6.6.0' }
     $reportName = ($ModuleName -replace '[^\w\-]', '_')
@@ -1068,7 +1066,7 @@ function Export-FrameworkReports {
         New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
     }
     $written = [System.Collections.Generic.List[string]]::new()
-    # v6.6.0: file naming is <Module>-Report-<hostname>-<date> so that reports
+    # File naming is <Module>-Report-<hostname>-<date> so that reports
     # remain identifiable once copied out of their directory.
     $stamp = Get-Date -Format 'yyyy-MM-dd_HHmmss'
     if (-not $HostName) {
