@@ -7,7 +7,7 @@
     Role-based audit profiles: named module sets keyed to host role.
 
 .DESCRIPTION
-    Implements parity GAP-1 (Linux profiles.py equivalent). A profile names a
+    Implements parity (Linux profiles.py equivalent). A profile names a
     curated module set for a host role so operators run the right frameworks
     without hand-listing modules. Six built-in profiles:
 
