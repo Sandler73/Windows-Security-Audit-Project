@@ -11,7 +11,7 @@ body:
         Thanks for your interest in improving the Windows Security Audit Project!
 
         **Before opening a feature request, consider:**
-        - **Is it a new check or a new framework?** Use the Compliance Module Request or Check Request templates instead — they capture the framework-mapping context.
+        - **Is it a new check or a new framework?** Use the Compliance Module Request or Check Request templates instead -- they capture the framework-mapping context.
         - **Is it a usage question?** Use [Discussions](https://github.com/Sandler73/Windows-Security-Audit-Project/discussions).
         - **Is the feature specific to a particular customer environment?** Consider whether it has broad value before requesting it upstream.
 
