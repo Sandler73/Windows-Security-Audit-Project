@@ -1,9 +1,9 @@
 # Usage Guide
 
-**Windows Security Audit Project — Comprehensive Usage Guide**
-**Version:** 6.1.2
+**Windows Security Audit Project -- Usage Guide**
+**Version:** 6.6.0
 
-This guide walks you through every aspect of running the Windows Security Audit Script — from your first audit to advanced workflows like baseline drift comparison, Group Policy export, and scripted remediation. Every parameter, every workflow, every output format is covered with worked examples.
+This guide walks you through every aspect of running the Windows Security Audit Project -- from your first audit to advanced workflows like baseline drift comparison, Group Policy export, and scripted remediation. Every parameter, every workflow, every output format is covered with worked examples.
 
 ---
 
@@ -90,21 +90,21 @@ cd Windows-Security-Audit-Project\Windows-Security-Audit
 
 ### Option 2: Download Release Archive
 
-1. Download `Windows-Security-Audit-v6.1.2.zip` from the Releases page
+1. Download `Windows-Security-Audit-v6.6.0.zip` from the Releases page
 2. Verify checksum (SHA-256 published with each release):
    ```powershell
-   Get-FileHash .\Windows-Security-Audit-v6.1.2.zip -Algorithm SHA256
+   Get-FileHash .\Windows-Security-Audit-v6.6.0.zip -Algorithm SHA256
    ```
 3. Extract to your preferred location:
    ```powershell
-   Expand-Archive -Path .\Windows-Security-Audit-v6.1.2.zip -DestinationPath .\
+   Expand-Archive -Path .\Windows-Security-Audit-v6.6.0.zip -DestinationPath .\
    cd .\Windows-Security-Audit
    ```
 
 ### Verify Installation
 
 ```powershell
-# Should display the comprehensive help screen
+# Should display the help screen
 .\Windows-Security-Audit.ps1 -Help
 
 # Should list all 16 available modules
@@ -150,7 +150,7 @@ While running, the script prints color-coded progress to the console:
 
 ```
 ================================================================================
-              Windows Security Audit Script v6.1.2
+              Windows Security Audit Project v6.6.0
 ================================================================================
 
 [*] Checking prerequisites...
@@ -175,7 +175,7 @@ While running, the script prints color-coded progress to the console:
 [*] Audit Complete
 ================================================================================
   Duration:        77.94s
-  Total Checks:    3,994
+  Total Checks:    4,053
   Pass:            2,547 (63.77%)
   Fail:            687 (17.20%)
   Warning:         521 (13.05%)
@@ -318,12 +318,12 @@ The script supports five native output formats and six browser-based exports.
 
 Once the HTML report opens, the **Export** button in the top toolbar offers six additional export formats:
 
-1. **CSV** — flat tabular export
-2. **Excel (.xls)** — opens directly in Microsoft Excel
-3. **JSON** — same shape as native JSON
-4. **XML Workbook** — XSL-styled XML
-5. **SIEM XML** — SIEM-compatible structured XML
-6. **Plain Text (.txt)** — human-readable text dump
+1. **CSV** -- flat tabular export
+2. **Excel (.xls)** -- opens directly in Microsoft Excel
+3. **JSON** -- same shape as native JSON
+4. **XML Workbook** -- XSL-styled XML
+5. **SIEM XML** -- SIEM-compatible structured XML
+6. **Plain Text (.txt)** -- human-readable text dump
 
 You can also export selectively by checking individual rows or filtering by module/category before clicking Export.
 
@@ -357,7 +357,7 @@ Console output is mirrored to this file with the same color-coded format.
 # Default INFO level
 .\Windows-Security-Audit.ps1
 
-# Deep debugging — captures invocation context, parameters, per-module timing
+# Deep debugging -- captures invocation context, parameters, per-module timing
 .\Windows-Security-Audit.ps1 -LogLevel Debug -Verbose
 
 # Custom log file path
@@ -431,7 +431,7 @@ The `-ShowProfile` switch reports per-module timing at the end of the audit:
 ### Cache Control
 
 ```powershell
-# Disable cache (debugging only — adds ~3-5x runtime)
+# Disable cache (debugging only -- adds ~3-5x runtime)
 .\Windows-Security-Audit.ps1 -NoCache
 ```
 
@@ -439,13 +439,13 @@ The `-ShowProfile` switch reports per-module timing at the end of the audit:
 
 ## Remediation Workflows
 
-### Audit-Only Mode (Default — Read-Only)
+### Audit-Only Mode (Default -- Read-Only)
 
 Without any remediation switches, the script performs **only** read-only checks:
 
 ```powershell
 .\Windows-Security-Audit.ps1
-# No system changes — safe to run on any environment
+# No system changes -- safe to run on any environment
 ```
 
 ### Interactive Remediation
@@ -595,9 +595,9 @@ Each drift finding is tagged in the HTML report and JSON output, making it easy 
 
 ### Use Cases
 
-- **Quarterly audit cadence** — capture Q1 baseline, compare Q2/Q3/Q4
-- **Pre/post change validation** — capture baseline before patch deployment, compare after
-- **Compliance evidence** — show regulators "we maintained X% compliance from Date A to Date B"
+- **Quarterly audit cadence** -- capture Q1 baseline, compare Q2/Q3/Q4
+- **Pre/post change validation** -- capture baseline before patch deployment, compare after
+- **Compliance evidence** -- show regulators "we maintained X% compliance from Date A to Date B"
 
 ---
 
@@ -634,11 +634,11 @@ Adds a 1-100 risk priority column combining severity, exploitability heuristics,
 ```
 
 Score breakdown:
-- **80-100** — Critical priority (Critical/High severity + high exploitability + internet-facing)
-- **60-79** — High priority (High severity + moderate exposure)
-- **40-59** — Medium priority
-- **20-39** — Low priority
-- **1-19** — Informational
+- **80-100** -- Critical priority (Critical/High severity + high exploitability + internet-facing)
+- **60-79** -- High priority (High severity + moderate exposure)
+- **40-59** -- Medium priority
+- **20-39** -- Low priority
+- **1-19** -- Informational
 
 ### Cross-Framework Correlations
 
@@ -654,14 +654,14 @@ Example correlation panel:
 === Cross-Framework Correlations ===
 
 [Correlation: SMBv1 Disabled]
-  Tested by 7 modules — all PASS
+  Tested by 7 modules -- all PASS
   Modules: core, stig, ms, nsa, cisa, hipaa, enisa
 
 [Correlation: BitLocker Active on System Drive]
-  Tested by 10 modules — 8 PASS, 2 FAIL
+  Tested by 10 modules -- 8 PASS, 2 FAIL
   PASS: core, stig, ms, nist, hipaa, gdpr, iso27001, pcidss
   FAIL: cmmc, acsc
-  Status mismatch — investigate per-module severity differences
+  Status mismatch -- investigate per-module severity differences
 ```
 
 ### Compensating Controls
@@ -676,7 +676,7 @@ Example:
 
 ```
 [Compensating Control Detected]
-  Failed check:    LSA Protection (RunAsPPL) — Fail
+  Failed check:    LSA Protection (RunAsPPL) -- Fail
   Compensated by:  Credential Guard active (passes)
   Mitigation:     Credential Guard provides VBS-isolated credential storage
                    that mitigates most LSA credential theft scenarios
@@ -703,7 +703,7 @@ Any module can be invoked directly without the orchestrator. Useful for:
 cd modules
 .\module-cis.ps1
 
-# Pass shared cache (optional — module will warm its own if not provided)
+# Pass shared cache (optional -- module will warm its own if not provided)
 $sharedData = @{ Cache = $null }
 .\module-stig.ps1 -SharedData $sharedData
 ```
@@ -725,7 +725,7 @@ The module returns the result array directly; you can pipe it:
 ### Continuous Compliance Monitoring
 
 ```powershell
-# Schedule via Task Scheduler — daily at 3 AM
+# Schedule via Task Scheduler -- daily at 3 AM
 $action = New-ScheduledTaskAction `
     -Execute 'powershell.exe' `
     -Argument '-NoProfile -ExecutionPolicy Bypass -File "C:\WinSecAudit\Windows-Security-Audit.ps1" -Modules All -OutputFormat All -OutputPath "C:\WinSecAudit\reports\daily" -JsonLog'
@@ -760,7 +760,7 @@ $results.Values[0].Results | ForEach-Object {
         ($_.Results | Where-Object { $_.Category -eq $check.Category -and $_.Message -eq $check.Message }).Status
     } | Select-Object -Unique)
     if ($allStatuses.Count -gt 1) {
-        Write-Host "DRIFT: $($check.Module) | $($check.Category) — statuses: $($allStatuses -join ',')"
+        Write-Host "DRIFT: $($check.Module) | $($check.Category) -- statuses: $($allStatuses -join ',')"
     }
 }
 ```
@@ -877,7 +877,7 @@ if ($failures -gt 0) {
 
 ## Troubleshooting
 
-For troubleshooting, see [docs/wiki/Troubleshooting Guide.md](docs/wiki/Troubleshooting%20Guide.md). Quick reference:
+For troubleshooting, see [docs/wiki/Troubleshooting Guide.md](../wiki/Troubleshooting%20Guide.md). Quick reference:
 
 | Symptom | Common Cause | Fix |
 |---------|--------------|-----|
@@ -926,17 +926,17 @@ For deeper troubleshooting, run with `-LogLevel Debug -Verbose` and inspect the 
 # Deep diagnostics
 .\Windows-Security-Audit.ps1 -LogLevel Debug -Verbose
 
-# Comprehensive help
+# help
 .\Windows-Security-Audit.ps1 -Help
 ```
 
 ---
 
 **See also:**
-- [README.md](docs/project/README.md) — project overview
-- [CHANGELOG.md](docs/project/CHANGELOG.md) — release history
-- [docs/wiki/Quick Start Guide.md](docs/wiki/Quick%20Start%20Guide.md) — 5-minute setup
-- [docs/wiki/Module Documentation.md](docs/wiki/Module%20Documentation.md) — per-module details
-- [docs/wiki/Output Reference.md](docs/wiki/Output%20Reference.md) — full output schema
-- [docs/wiki/Architecture and Design.md](docs/wiki/Architecture%20and%20Design.md) — internal architecture
-- [docs/wiki/Troubleshooting Guide.md](docs/wiki/Troubleshooting%20Guide.md) — problem resolution
+- [README.md](README.md) -- project overview
+- [CHANGELOG.md](CHANGELOG.md) -- release history
+- [docs/wiki/Quick Start Guide.md](../wiki/Quick%20Start%20Guide.md) -- 5-minute setup
+- [docs/wiki/Module Documentation.md](../wiki/Module%20Documentation.md) -- per-module details
+- [docs/wiki/Output Reference.md](../wiki/Output%20Reference.md) -- full output schema
+- [docs/wiki/Architecture and Design.md](../wiki/Architecture%20and%20Design.md) -- internal architecture
+- [docs/wiki/Troubleshooting Guide.md](../wiki/Troubleshooting%20Guide.md) -- problem resolution
