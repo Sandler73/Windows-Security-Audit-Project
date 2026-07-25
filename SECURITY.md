@@ -10,7 +10,8 @@ We provide security updates for the following versions:
 
 | Version | Supported          | Notes |
 | ------- | ------------------ | ----- |
-| 6.1.x   | :white_check_mark: | Current release, actively maintained |
+| 6.6.x   | :white_check_mark: | Current release, actively maintained |
+| 6.1.x   | :white_check_mark: | Maintained for security fixes only |
 | 6.0.x   | :white_check_mark: | Maintained for security fixes only |
 | 5.x     | :x:                | Upgrade strongly recommended |
 | < 5.0   | :x:                | No longer supported |
