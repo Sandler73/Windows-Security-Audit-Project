@@ -2,7 +2,7 @@
 
 ## Our Commitment
 
-The security of the Windows Security Audit Script and the systems it runs on is our top priority. We take all security vulnerabilities seriously and are committed to responsible disclosure and timely remediation.
+The security of the Windows Security Audit Project and the systems it runs on is our top priority. We take all security vulnerabilities seriously and are committed to responsible disclosure and timely remediation.
 
 ## Supported Versions
 
@@ -33,7 +33,7 @@ We recommend always using the latest release version for the most up-to-date sec
 - **Rollback support:** When `-RollbackPath <path>` is specified, an inverse-script is generated alongside auto-remediation for reversal.
 - Accesses system configuration and security settings (registry, services, audit policy, WMI/CIM, certificates, etc.)
 - Generates reports containing sensitive system information
-- Requires administrator privileges for comprehensive checks
+- Requires administrator privileges for checks
 - All remediations are logged to the audit log file
 
 **Test First:**
@@ -108,7 +108,7 @@ Please do not open public GitHub issues for:
    - Include "SECURITY" in subject line
 
 2. **GitHub Security Advisory:**
-   - Go to https://github.com/Sandler73/Windows-Security-Audit-Script/security/advisories
+   - Go to https://github.com/Sandler73/Windows-Security-Audit-Project/security/advisories
    - Click "Report a vulnerability"
    - Fill out the private disclosure form
 
