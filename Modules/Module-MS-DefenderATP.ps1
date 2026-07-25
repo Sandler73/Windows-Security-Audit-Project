@@ -1,11 +1,11 @@
 # Module-MS-DefenderATP.ps1
 # Microsoft Defender for Endpoint (Advanced Threat Protection) Module
-# Version: 6.1.2
-# Comprehensive EDR and Advanced Protection Assessment
+# Version: 6.6.0
+# EDR and Advanced Protection Assessment
 
 <#
 .SYNOPSIS
-    Microsoft Defender for Endpoint (ATP/EDR) comprehensive security assessment.
+    Microsoft Defender for Endpoint (ATP/EDR) security assessment.
 
 .DESCRIPTION
     This module performs in-depth analysis of Microsoft Defender for Endpoint capabilities:
@@ -66,7 +66,7 @@
     - ScanDate: Audit timestamp
 
 .NOTES
-    Version: 6.1.2
+    Version: 6.6.0
     Requires:
     - Windows 10 1607+ or Windows Server 2012 R2+
     - PowerShell 5.1+
@@ -85,14 +85,71 @@ param(
 )
 
 $moduleName = "MS-DefenderATP"
-$results = @()
-$moduleVersion = "6.1.2"
+
+# ============================================================================
+# v6.3.0 (HostFacts migration, phase 1): memoized host-state accessors.
+# One live query per module run instead of one per check site. The helpers
+# return the SAME object the direct call would return (raw call, no error
+# swallowing beyond -ErrorAction SilentlyContinue already present at the
+# migrated sites), so call-site semantics are preserved exactly. Sites using
+# -ErrorAction Stop inside try/catch are intentionally NOT migrated.
+# Standalone-safe: no shared-library dependency.
+# ============================================================================
+$script:HFMemo = @{}
+
+# v6.5.0 (HostFacts phase 2): consult the run-wide HostFacts registry before
+# querying. HostFacts already collects these objects once per RUN; without this
+# lookup each module re-queried them once per MODULE. Raw objects are reused
+# rather than derived scalar facts, so every property a call site reads is still
+# available and no call site needed changing. Falls back to a live query when
+# HostFacts is absent (standalone module execution), preserving prior behaviour.
+function Get-ModHostFact {
+    param([Parameter(Mandatory=$true)][string]$Name)
+    if ($SharedData -and $SharedData.ContainsKey('HostFacts') -and $SharedData.HostFacts) {
+        $hf = $SharedData.HostFacts
+        try {
+            if ($hf.ContainsKey($Name) -and $null -ne $hf[$Name]) { return $hf[$Name] }
+        } catch { return $null }
+    }
+    return $null
+}
+function Get-ModOSInfo {
+    if (-not $script:HFMemo.ContainsKey('OS')) {
+        $fromFacts = Get-ModHostFact -Name 'RawOSCim'
+        $script:HFMemo['OS'] = if ($fromFacts) { $fromFacts }
+                               else { Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['OS']
+}
+function Get-ModDefenderStatus {
+    if (-not $script:HFMemo.ContainsKey('MP')) {
+        $fromFacts = Get-ModHostFact -Name 'RawDefenderStatus'
+        $script:HFMemo['MP'] = if ($fromFacts) { $fromFacts }
+                               else { Get-MpComputerStatus -ErrorAction SilentlyContinue }
+    }
+    return $script:HFMemo['MP']
+}
+function Get-ModFirewallProfiles {
+    if (-not $script:HFMemo.ContainsKey('FW')) {
+        $fromFacts = Get-ModHostFact -Name 'RawFirewallProfiles'
+        $script:HFMemo['FW'] = if ($fromFacts) { @($fromFacts) }
+                               else { @(Get-NetFirewallProfile -ErrorAction SilentlyContinue) }
+    }
+    return $script:HFMemo['FW']
+}
+
+$results = [System.Collections.Generic.List[object]]::new()
+$moduleVersion = "6.6.0"
 
 # Helper function to add results
 function Add-Result {
     param(
+        [Parameter(Mandatory=$true)]
         [string]$Category,
+        [Parameter(Mandatory=$true)]
+        [ValidateSet("Pass","Fail","Warning","Info","Error")]
         [string]$Status,
+        [Parameter(Mandatory=$true)]
         [string]$Message,
         [string]$Details     = "",
         [string]$Remediation = "",
@@ -100,7 +157,7 @@ function Add-Result {
         [string]$Severity    = "Medium",
         [hashtable]$CrossReferences = @{}
     )
-    $script:results += [PSCustomObject]@{
+    $script:results.Add([PSCustomObject]@{
         Module          = $moduleName
         Category        = $Category
         Status          = $Status
@@ -110,7 +167,7 @@ function Add-Result {
         Remediation     = $Remediation
         CrossReferences = $CrossReferences
         Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    }
+    })
 }
 
 
@@ -246,7 +303,7 @@ try {
         }
         
         # Check cloud-delivered protection (required for EDR in block mode)
-        $mpStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
+        $mpStatus = Get-ModDefenderStatus
         if ($mpStatus -and $mpStatus.MAPSReporting -gt 0) {
             Add-Result -Category "ATP - EDR Block Mode" -Status "Pass" `
                 -Message "Cloud-delivered protection is enabled (required for EDR in block mode)" `
@@ -555,7 +612,7 @@ try {
     }
     
     # Check cloud-delivered protection service connectivity
-    $mpStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
+    $mpStatus = Get-ModDefenderStatus
     if ($mpStatus) {
         if ($mpStatus.AMServiceEnabled) {
             Add-Result -Category "ATP - Connectivity" -Status "Pass" `
@@ -1713,7 +1770,7 @@ if ($MyInvocation.InvocationName -ne '.') {
         IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
         ScriptPath = $PSScriptRoot; Cache = $null
     }
-    try { $osi = Get-CimInstance Win32_OperatingSystem -EA SilentlyContinue; $standaloneData.OSVersion = "$($osi.Caption) (Build $($osi.BuildNumber))" } catch { $standaloneData.OSVersion = "Windows" }
+    try { $osi = Get-ModOSInfo; $standaloneData.OSVersion = "$($osi.Caption) (Build $($osi.BuildNumber))" } catch { $standaloneData.OSVersion = "Windows" }
     try { $standaloneData.IPAddresses = @((Get-NetIPAddress -AddressFamily IPv4 -EA SilentlyContinue | Where-Object { $_.IPAddress -ne '127.0.0.1' }).IPAddress) } catch { $standaloneData.IPAddresses = @("N/A") }
 
     $commonLibPath = Join-Path (Split-Path $PSScriptRoot -Parent) "shared_components\audit-common.ps1"
