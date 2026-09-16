@@ -1,6 +1,6 @@
 # attack-surface.ps1
 # Attack-surface assessment for the Windows Security Audit framework
-# Version: 6.6.0
+# Version: 6.7.0
 
 <#
 .SYNOPSIS
@@ -53,7 +53,7 @@
     Dependencies: report-templates.ps1 optional (shared spine + HTML encoding);
     self-contained fallback otherwise
     Security: read-only synthesis over existing results; no host queries here
-    Version: 6.6.0
+    Version: 6.7.0
 #>
 
 # ============================================================================
@@ -313,7 +313,7 @@ function Export-AttackSurfaceReport {
 
     $hostName = if ($ExecutionInfo.ComputerName) { $ExecutionInfo.ComputerName } else { $env:COMPUTERNAME }
     $osLabel  = if ($ExecutionInfo.OSVersion) { $ExecutionInfo.OSVersion } else { 'Windows' }
-    $fwVer    = if ($ExecutionInfo.ScriptVersion) { $ExecutionInfo.ScriptVersion } else { '6.6.0' }
+    $fwVer    = if ($ExecutionInfo.ScriptVersion) { $ExecutionInfo.ScriptVersion } else { '6.7.0' }
     $ipList   = if ($ExecutionInfo.IPAddresses) { (@($ExecutionInfo.IPAddresses) -join ', ') } else { 'not collected' }
 
     # Host identification cards, matching the audit reports. The header no
