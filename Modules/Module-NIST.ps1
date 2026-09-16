@@ -1,6 +1,6 @@
 # Module-NIST.ps1
 # NIST (National Institute of Standards and Technology) Compliance Module
-# Version: 6.6.0 - Enhanced and Full
+# Version: 6.7.0 - Enhanced and Full
 # Based on NIST 800-53 Rev 5 (Release 5.2.0, Aug 2025), NIST Cybersecurity Framework 2.0, and NIST 800-171 Rev 2
 
 <#
@@ -56,7 +56,7 @@
     Execute NIST compliance checks with shared data context
 
 .NOTES
-    Version: 6.6.0
+    Version: 6.7.0
     Author: Enhanced NIST Compliance Module
     
     Based on:
@@ -142,7 +142,7 @@ function Get-ModFirewallProfiles {
 }
 
 $results = [System.Collections.Generic.List[object]]::new()
-$moduleVersion = "6.6.0"
+$moduleVersion = "6.7.0"
 $ErrorActionPreference = "Continue"
 
 # Control priority mapping
@@ -216,6 +216,20 @@ function Add-Result {
     }
     
     $script:results.Add($resultObject)
+}
+
+# Host-fact accessors. Consult the HostFacts registry first so a value collected
+# once at run start is reused; fall back to a live query when the registry is
+# absent (standalone execution) or the fact was unavailable.
+function Get-NistComputerSystem {
+    $hf = if ($SharedData -and $SharedData.ContainsKey('HostFacts')) { $SharedData['HostFacts'] } else { $null }
+    if ($hf -and $hf.ContainsKey('RawComputerSystem') -and $hf['RawComputerSystem']) { return $hf['RawComputerSystem'] }
+    return (Get-NistComputerSystem)
+}
+function Get-NistDeviceGuard {
+    $hf = if ($SharedData -and $SharedData.ContainsKey('HostFacts')) { $SharedData['HostFacts'] } else { $null }
+    if ($hf -and $hf.ContainsKey('RawDeviceGuard') -and $hf['RawDeviceGuard']) { return $hf['RawDeviceGuard'] }
+    return (Get-NistDeviceGuard)
 }
 
 <#
@@ -428,7 +442,7 @@ try {
         Add-Result -Category "NIST - AC Access Control" -Status "Warning" `
             -Message "Session inactivity timeout not optimally configured" `
             -Details "NIST 800-53 AC-2(5): Configure automatic logout after 15 minutes of inactivity." `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name AutoDisconnect -Value 15" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name InactivityTimeoutSecs -Value 900" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AC-2'; CIS='1.1'; STIG='V-220902' }
     }
@@ -529,7 +543,7 @@ try {
             Add-Result -Category "NIST - AC Access Control" -Status "Warning" `
                 -Message "UAC: Not configured for secure desktop prompt" `
                 -Details "NIST 800-53 AC-3(2): Configure UAC to prompt on secure desktop." `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name ConsentPromptBehaviorAdmin -Value 2" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name PromptOnSecureDesktop -Value 1" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='AC-3'; CIS='2.3'; STIG='V-220929' }
         }
@@ -1346,7 +1360,7 @@ try {
         Add-Result -Category "NIST - AU Audit Accountability" -Status "Warning" `
             -Message "Command line process auditing not enabled" `
             -Details "NIST 800-53 AU-3(1): Enable command line logging in process creation events." `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1 -Force" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1; auditpol /set /subcategory:`"Process Creation`" /success:enable" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AU-3'; STIG='V-220864' }
     }
@@ -1632,7 +1646,7 @@ try {
         Add-Result -Category "NIST - AU Audit Accountability" -Status "Fail" `
             -Message "Windows Time service is not running" `
             -Details "NIST 800-53 AU-8: Start and configure Windows Time service for accurate timestamps." `
-            -Remediation "Start-Service W32Time; Set-Service W32Time -StartupType Automatic" `
+            -Remediation "Start-Service -Name W32Time; Set-Service -Name W32Time -StartupType Automatic" `
             -Severity "High" `
             -CrossReferences @{ NIST='AU-8'; CIS='17.2' }
     }
@@ -2023,7 +2037,7 @@ try {
     }
     
     # Check domain membership (Kerberos provides device authentication)
-    $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction SilentlyContinue
+    $computerSystem = Get-NistComputerSystem
     
     if ($computerSystem -and $computerSystem.PartOfDomain) {
         Add-Result -Category "NIST - IA Identification Authentication" -Status "Pass" `
@@ -2259,7 +2273,7 @@ try {
             -CrossReferences @{ NIST='IA-5'; CIS='1.1.1'; STIG='V-220903' }
         
         # IA-5(6): Protection of Authenticators
-        $credentialGuard = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction SilentlyContinue
+        $credentialGuard = Get-NistDeviceGuard
         
         if ($credentialGuard -and $credentialGuard.SecurityServicesRunning -contains 1) {
             Add-Result -Category "NIST - IA Identification Authentication" -Status "Pass" `
@@ -2335,7 +2349,7 @@ try {
         Add-Result -Category "NIST - IA Identification Authentication" -Status "Info" `
             -Message "FIPS mode not enabled" `
             -Details "NIST 800-53 IA-7: Enable FIPS mode for federal systems or high-security environments requiring FIPS 140-2 validated crypto." `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy' -Name Enabled -Value 1 -Type DWord; Restart-Computer" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy' -Name Enabled -Value 1" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='IA-7' }
     }
@@ -2351,7 +2365,7 @@ try {
     Write-Host "  [*] IA-8: Non-Organizational User Authentication" -ForegroundColor Gray
     
     # Check domain membership (external users would be in different domain/forest)
-    $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction SilentlyContinue
+    $computerSystem = Get-NistComputerSystem
     
     if ($computerSystem -and $computerSystem.PartOfDomain) {
         Add-Result -Category "NIST - IA Identification Authentication" -Status "Info" `
@@ -2535,7 +2549,7 @@ try {
     Write-Host "  [*] SC-3: Security Function Isolation" -ForegroundColor Gray
     
     # Check for Virtualization Based Security
-    $deviceGuard = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction SilentlyContinue
+    $deviceGuard = Get-NistDeviceGuard
     
     if ($deviceGuard -and $deviceGuard.VirtualizationBasedSecurityStatus -eq 2) {
         Add-Result -Category "NIST - SC System Communications Protection" -Status "Pass" `
@@ -2984,7 +2998,7 @@ try {
             Add-Result -Category "NIST - SC System Communications Protection" -Status "Fail" `
                 -Message "System drive not encrypted (Status: $($bitlocker.VolumeStatus))" `
                 -Details "NIST 800-53 SC-13: Enable BitLocker for data-at-rest protection." `
-                -Remediation "Enable-BitLocker -MountPoint $systemDrive -EncryptionMethod XtsAes256 -TpmProtector" `
+                -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                 -Severity "High" `
                 -CrossReferences @{ NIST='SC-13' }
         }
@@ -2992,7 +3006,7 @@ try {
         Add-Result -Category "NIST - SC System Communications Protection" -Status "Warning" `
             -Message "BitLocker status cannot be determined" `
             -Details "NIST 800-53 SC-13: BitLocker may not be available on this edition of Windows, or system drive is not encrypted." `
-            -Remediation "Enable BitLocker if available, or use third-party encryption" `
+            -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='SC-13' }
     }
@@ -3224,7 +3238,7 @@ try {
     Write-Host "  [*] SC-23: Session Authenticity" -ForegroundColor Gray
     
     # Check for Kerberos (provides session authenticity in domain environments)
-    $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction SilentlyContinue
+    $computerSystem = Get-NistComputerSystem
     
     if ($computerSystem -and $computerSystem.PartOfDomain) {
         Add-Result -Category "NIST - SC System Communications Protection" -Status "Pass" `
@@ -3598,7 +3612,7 @@ try {
             }
             catch {
                 # Silently continue if auto-update check also fails
-                Add-Result -Category "NIST - SI System Information Integrity" -Status "Info" `
+                Add-Result -Category "NIST - SI System Information Integrity" -Status "Info" -Severity "Informational" `
                     -Message "Automatic update state could not be determined" `
                     -Details "Both primary and fallback update-state queries were unavailable"
             }
@@ -3727,7 +3741,7 @@ try {
             Add-Result -Category "NIST - SI System Information Integrity" -Status "Fail" `
                 -Message "Malware definitions OUTDATED `($($signatureAge.Days) days old)" `
                 -Details "NIST 800-53 SI-3(2): Update definitions immediately. Last update: $($defenderStatus.AntivirusSignatureLastUpdated)" `
-                -Remediation "Update-MpSignature; Verify network connectivity and Windows Update service" `
+                -Remediation "Update-MpSignature" `
                 -Severity "High" `
                 -CrossReferences @{ NIST='SI-3'; CIS='8.1'; STIG='V-220916' }
         }
@@ -3972,7 +3986,7 @@ try {
     Write-Host "  [*] SI-7: Software and Information Integrity" -ForegroundColor Gray
     
     # Check Windows Defender Application Control (WDAC) / Device Guard
-    $deviceGuard = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction SilentlyContinue
+    $deviceGuard = Get-NistDeviceGuard
     
     if ($deviceGuard) {
         # SI-7(1): Integrity Checks
@@ -4325,7 +4339,7 @@ try {
     }
     
     # CM-2(2): Automation Support for Accuracy/Currency
-    $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction SilentlyContinue
+    $computerSystem = Get-NistComputerSystem
     
     if ($computerSystem -and $computerSystem.PartOfDomain) {
         Add-Result -Category "NIST - CM Configuration Management" -Status "Pass" `
@@ -4377,7 +4391,7 @@ try {
     Write-Host "  [*] CM-3: Configuration Change Control" -ForegroundColor Gray
     
     # Check if system is managed
-    $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction SilentlyContinue
+    $computerSystem = Get-NistComputerSystem
     
     if ($computerSystem -and $computerSystem.PartOfDomain) {
         Add-Result -Category "NIST - CM Configuration Management" -Status "Pass" `
@@ -4559,7 +4573,7 @@ try {
     }
     
     # CM-7(5): Authorized Software / Whitelisting
-    $wdacPolicy = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction SilentlyContinue
+    $wdacPolicy = Get-NistDeviceGuard
     
     if ($wdacPolicy -and $wdacPolicy.CodeIntegrityPolicyEnforcementStatus -eq 1) {
         Add-Result -Category "NIST - CM Configuration Management" -Status "Pass" `
@@ -4893,7 +4907,7 @@ try {
         Add-Result -Category "NIST - 800-53 Rev 5 Extended" -Status "Warning" `
             -Severity "Medium" `
             -Message "AU-12(3) PowerShell script block logging disabled" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name 'EnableScriptBlockLogging' -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
             -CrossReferences @{ NIST='AU-12(3)' }
     }
 }
@@ -5135,7 +5149,7 @@ try {
         Add-Result -Category "NIST - 800-161 SCRM" -Status "Fail" `
             -Severity "High" `
             -Message "SR-11 Automatic update channel disabled (component authenticity assurance gap)" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name 'NoAutoUpdate' -Value 0 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoUpdate -Value 0" `
             -CrossReferences @{ NIST='SR-11' }
     }
 }
