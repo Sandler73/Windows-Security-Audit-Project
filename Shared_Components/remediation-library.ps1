@@ -144,12 +144,6 @@ $script:RemediationEntries = [ordered]@{
         RollbackCapture = @(@{ Type='registry_value'; Path='HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\Audit'; Name='ProcessCreationIncludeCmdLine_Enabled' })
         Verify = { Test-RegValueEquals -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\Audit' -Name 'ProcessCreationIncludeCmdLine_Enabled' -Expected 1 }
     }
-    'WindowsUpdateAutomatic' = @{
-        Impact = 'None'; RequiresReboot = $false
-        Prerequisite = 'Confirm the host is not intentionally managed by WSUS or a patch-orchestration schedule'
-        RollbackCapture = @(@{ Type='registry_value'; Path='HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU'; Name='NoAutoUpdate' })
-        Verify = { Test-RegValueEquals -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU' -Name 'NoAutoUpdate' -Expected 0 }
-    }
     'DefenderMapsReporting' = @{
         Impact = 'None'; RequiresReboot = $false
         Prerequisite = 'Requires outbound connectivity to Microsoft cloud protection endpoints'
