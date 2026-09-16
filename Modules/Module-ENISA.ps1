@@ -1,6 +1,6 @@
 # module-enisa.ps1
 # ENISA Cybersecurity Guidelines Module for Windows Security Audit
-# Version: 6.6.0
+# Version: 6.7.0
 #
 # Evaluates Windows configuration against ENISA (European Union Agency for
 # Cybersecurity) guidelines and recommendations with Severity ratings
@@ -40,7 +40,7 @@
                 2024-12-10; Art. 14 reporting applies 2026-09-11; full
                 application 2027-12-11), DORA (Regulation (EU) 2022/2554,
                 applies since 2025-01-17)
-    Version: 6.6.0
+    Version: 6.7.0
 
 .EXAMPLE
     $results = & .\modules\module-enisa.ps1 -SharedData $sharedData
@@ -105,7 +105,7 @@ function Get-ModFirewallProfiles {
     return $script:HFMemo['FW']
 }
 
-$moduleVersion = "6.6.0"
+$moduleVersion = "6.7.0"
 $results = [System.Collections.Generic.List[object]]::new()
 # --------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
@@ -264,7 +264,7 @@ Write-Host "[ENISA] Checking GP.1 -- Network Security..." -ForegroundColor Yello
         } else {
             Add-Result -Category "ENISA - GP.1 Network Security" -Status "Fail" `
                 -Message "GP.1.6: SMB signing is NOT required" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name RequireSecuritySignature -Value 1" `
+                -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
                 -Severity "High" -CrossReferences @{ ENISA='GP.1'; NIST='SC-8'; CIS='2.3.9.2' }
         }
     } catch {
@@ -292,7 +292,7 @@ Write-Host "[ENISA] Checking GP.1 -- Network Security..." -ForegroundColor Yello
     }
     # GP.1.8: NetBIOS over TCP/IP disabled
     try {
-        $adapters = Get-WmiObject -Class Win32_NetworkAdapterConfiguration -Filter "IPEnabled=True" -ErrorAction SilentlyContinue
+        $adapters = Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration -Filter "IPEnabled=True" -ErrorAction SilentlyContinue
         $nbEnabled = @($adapters | Where-Object { $_.TcpipNetbiosOptions -ne 2 })
         if ($nbEnabled.Count -eq 0 -and $null -ne $adapters) {
             Add-Result -Category "ENISA - GP.1 Network Security" -Status "Pass" `
@@ -635,7 +635,7 @@ Write-Host "[ENISA] Checking GP.3 -- Patch and Vulnerability Management..." -For
         } else {
             Add-Result -Category "ENISA - GP.3 Patch Mgmt" -Status "Fail" `
                 -Message "GP.3.3: Automatic updates are DISABLED by policy" `
-                -Remediation "Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoUpdate" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoUpdate -Value 0" `
                 -Severity "High" -CrossReferences @{ ENISA='GP.3'; NIST='SI-2'; CIS='18.9.101.2' }
         }
     } catch {
@@ -685,7 +685,7 @@ Write-Host "[ENISA] Checking GP.4 -- Cryptographic Controls..." -ForegroundColor
         } else {
             Add-Result -Category "ENISA - GP.4 Cryptography" -Status "Fail" `
                 -Message "GP.4.1: System drive is NOT encrypted -- data at rest exposure" `
-                -Remediation "Enable-BitLocker -MountPoint $env:SystemDrive -EncryptionMethod XtsAes256" `
+                -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                 -Severity "Critical" -CrossReferences @{ ENISA='GP.4'; NIST='SC-28'; ISO27001='A.8.24' }
         }
     } catch {
@@ -895,7 +895,7 @@ Write-Host "[ENISA] Checking GP.5 -- Logging and Monitoring..." -ForegroundColor
         } else {
             Add-Result -Category "ENISA - GP.5 Logging" -Status "Fail" `
                 -Message "GP.5.6: PowerShell script block logging is NOT enabled" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
                 -Severity "High" -CrossReferences @{ ENISA='GP.5'; NIST='AU-3'; CIS='18.9.100.1' }
         }
     } catch {
@@ -931,7 +931,7 @@ Write-Host "[ENISA] Checking GP.5 -- Logging and Monitoring..." -ForegroundColor
         } else {
             Add-Result -Category "ENISA - GP.5 Logging" -Status "Warning" `
                 -Message "GP.5.8: Command line auditing in process creation is not enabled" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1; auditpol /set /subcategory:`"Process Creation`" /success:enable" `
                 -Severity "Medium" -CrossReferences @{ ENISA='GP.5'; NIST='AU-3'; CIS='18.8.3.1' }
         }
     } catch {
@@ -1146,7 +1146,7 @@ Write-Host "[ENISA] Checking GP.8 -- System Hardening..." -ForegroundColor Yello
         } else {
             Add-Result -Category "ENISA - GP.8 Hardening" -Status "Warning" `
                 -Message "GP.8.4: Autorun may not be disabled" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoAutorun -Value 1" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoDriveTypeAutoRun -Value 255" `
                 -Severity "Medium" -CrossReferences @{ ENISA='GP.8'; NIST='MP-7'; CIS='18.9.8.2' }
         }
     } catch {
@@ -1514,7 +1514,7 @@ try {
         Add-Result -Category "ENISA - Cyber Resilience Act" -Status "Fail" `
             -Severity "High" `
             -Message "CRA Annex I(2)(d) Automatic updates disabled" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name 'NoAutoUpdate' -Value 0 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoUpdate -Value 0" `
             -CrossReferences @{ CRA='Annex I(2)(d)' }
     }
 
@@ -1616,7 +1616,7 @@ try {
         Add-Result -Category "ENISA - Threat Landscape" -Status "Fail" `
             -Severity "Critical" `
             -Message "ETL Threat: Wormable malware exposure (SMBv1 enabled)" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'SMB1' -Value 0 -Type DWord" `
+            -Remediation "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" `
             -CrossReferences @{ ENISA='ETL Malware'; CVE='CVE-2017-0144' }
     }
 }
@@ -1715,7 +1715,7 @@ try {
         Add-Result -Category "ENISA - IoC Good Practice" -Status "Warning" `
             -Severity "Medium" `
             -Message "IoC: Process creation auditing not active" `
-            -Remediation "auditpol /set /subcategory:'Process Creation' /success:enable" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1; auditpol /set /subcategory:`"Process Creation`" /success:enable" `
             -CrossReferences @{ ENISA='IoC Guide' }
     }
 
@@ -1731,7 +1731,7 @@ try {
         Add-Result -Category "ENISA - AI Threat Landscape" -Status "Warning" `
             -Severity "Medium" `
             -Message "ETL-AI: PowerShell script block logging disabled" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name 'EnableScriptBlockLogging' -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
             -CrossReferences @{ ENISA='ETL-AI' }
     }
 
@@ -1843,7 +1843,7 @@ try {
             -Severity "High" `
             -Message "CRA Art. 14 reporting applies from 2026-09-11 but the Windows Event Log service is not running on this host" `
             -Details "Incident notification within 24h/72h presupposes detection and evidence. A stopped event log service undermines both the CRA Art. 14 evidence trail and NIS2 Art. 23 incident reporting readiness." `
-            -Remediation "Start-Service -Name EventLog" `
+            -Remediation "Start-Service -Name EventLog; Set-Service -Name EventLog -StartupType Automatic" `
             -CrossReferences @{ CRA='Art.14'; Regulation='2024/2847' }
     }
 
