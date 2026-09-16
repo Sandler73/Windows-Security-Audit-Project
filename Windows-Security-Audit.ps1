@@ -1,6 +1,6 @@
 # Windows-Security-Audit.ps1
 # Windows Security Audit Project
-# Version: 6.6.0
+# Version: 6.7.0
 # GitHub: https://github.com/Sandler73/Windows-Security-Audit-Project
 
 <#
@@ -182,7 +182,7 @@
 .NOTES
     Requires: Windows 10/11 or Windows Server 2016+, PowerShell 5.1+
     Run as Administrator for complete results
-    Version: 6.6.0
+    Version: 6.7.0
     Logging: Always enabled. Use -LogFile to specify path, -LogLevel to filter.
     Help:    Use -Help (or any of -H, -?, help, -help, --help, --h) for full help.
 #>
@@ -249,7 +249,7 @@ param(
 )
 
 $ErrorActionPreference = "Continue"
-$script:ScriptVersion = "6.6.0"
+$script:ScriptVersion = "6.7.0"
 $script:ScriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 $script:LogDir = Join-Path $script:ScriptPath "logs"
 $script:ReportDir = Join-Path $script:ScriptPath "reports"
@@ -2589,6 +2589,13 @@ function Start-SecurityAudit {
                     # Load shared library in this runspace if available
                     if ($CommonLibPath -and (Test-Path $CommonLibPath)) {
                         try { . $CommonLibPath } catch { <# Expected: item may not exist #> }
+                    }
+                    # Shared assessments must exist in every runspace, since
+                    # modules consume Get-SharedAssessment directly. The records
+                    # themselves travel in SharedData; only the accessor is loaded.
+                    if ($CommonLibPath) {
+                        $saPath = Join-Path (Split-Path $CommonLibPath -Parent) 'shared-assessments.ps1'
+                        if (Test-Path $saPath) { try { . $saPath } catch { <# Expected: item may not exist #> } }
                     }
 
                     # Initialize per-runspace logging against the
