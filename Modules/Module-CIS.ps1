@@ -1,6 +1,6 @@
 # Module-CIS.ps1
 # CIS (Center for Internet Security) Benchmarks Compliance Module for Windows Security Audit
-# Version: 6.6.0
+# Version: 6.7.0
 #
 # Evaluates Windows configuration against CIS Microsoft Windows Benchmarks v3.0+
 # across 15 security domains with Severity ratings and cross-framework references.
@@ -40,7 +40,7 @@
                 CIS Controls v8.1 (Jun 2024: adds the Governance (GV) security
                 function, a Documentation asset class, and realigned NIST CSF
                 2.0 mappings)
-    Version: 6.6.0
+    Version: 6.7.0
 
 .EXAMPLE
     $results = & .\modules\module-cis.ps1 -SharedData $sharedData
@@ -105,7 +105,7 @@ function Get-ModFirewallProfiles {
     return $script:HFMemo['FW']
 }
 
-$moduleVersion = "6.6.0"
+$moduleVersion = "6.7.0"
 $results = [System.Collections.Generic.List[object]]::new()
 # Helper function to add results
 function Add-Result {
@@ -1089,7 +1089,7 @@ try {
         Add-Result -Category "CIS - Network Security" -Status "Fail" `
             -Message "SMB client: Security signature is not required" `
             -Details "CIS Benchmark: Require SMB client signing" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters' -Name RequireSecuritySignature -Value 1" `
+            -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
             -Severity "High" `
             -CrossReferences @{ NIST='SC-8'; NSA='Network Hardening' }
     }
@@ -1460,7 +1460,7 @@ try {
         Add-Result -Category "CIS - Credential Protection" -Status "Warning" `
             -Message "LSASS Protected Process Light (PPL) is not enabled" `
             -Details "CIS Benchmark: Enable PPL on compatible systems" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RunAsPPL -Value 1; Restart-Computer" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RunAsPPL -Value 1" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='IA-5(13)'; NSA='Credential Protection' }
     }
@@ -1524,7 +1524,7 @@ try {
                 Add-Result -Category "CIS - BitLocker" -Status "Fail" `
                     -Message "System drive ($systemDrive) is NOT encrypted (Status: $($volume.VolumeStatus))" `
                     -Details "CIS Benchmark: Enable BitLocker on system drive" `
-                    -Remediation "Enable-BitLocker -MountPoint $systemDrive -EncryptionMethod XtsAes256 -TpmProtector" `
+                    -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                     -Severity "High" `
                     -CrossReferences @{ NIST='SC-28'; STIG='V-220923' }
             }
@@ -1582,7 +1582,7 @@ try {
         Add-Result -Category "CIS - UAC" -Status "Fail" `
             -Message "User Account Control (UAC) is DISABLED" `
             -Details "CIS Benchmark: Enable UAC immediately" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1; Restart-Computer" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1" `
             -Severity "High" `
             -CrossReferences @{ NIST='AC-6'; STIG='V-220930' }
     }
@@ -1976,7 +1976,7 @@ try {
         Add-Result -Category "CIS - Remote Desktop" -Status "Fail" `
             -Message "Network Level Authentication (NLA) is NOT required for RDP" `
             -Details "CIS 18.9.65.3.3.1: Without NLA, RDP is vulnerable to pre-authentication exploits" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1" `
             -Severity "High" `
             -CrossReferences @{ CIS='18.9.65.3.3.1'; NIST='AC-17(2)'; STIG='V-220942'; NSA='RDP Security' }
     }
@@ -2092,7 +2092,7 @@ try {
         Add-Result -Category "CIS - PowerShell Security" -Status "Fail" `
             -Message "PowerShell Script Block Logging is NOT enabled" `
             -Details "CIS 18.9.100.1: Obfuscated and malicious script content not recorded" `
-            -Remediation "New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Force; Set-ItemProperty -Path ... -Name EnableScriptBlockLogging -Value 1" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
             -Severity "High" `
             -CrossReferences @{ CIS='18.9.100.1'; NIST='AU-3'; STIG='V-220950'; NSA='PowerShell Security' }
     }
@@ -2329,7 +2329,7 @@ try {
         Add-Result -Category "CIS - v8 IG2/IG3 Maturity" -Status "Warning" `
             -Severity "Medium" `
             -Message "CIS v8 Control 8.5 (IG2): script block logging disabled" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name 'EnableScriptBlockLogging' -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
             -CrossReferences @{ CIS='8.5'; CISv8='IG2' }
     }
 
@@ -2504,7 +2504,7 @@ try {
         Add-Result -Category "CIS - ICS/OT Companion" -Status "Warning" `
             -Severity "High" `
             -Message "ICS/OT Control 12.1: SMBv1 enabled (legacy protocol; verify segmentation)" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'SMB1' -Value 0 -Type DWord" `
+            -Remediation "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" `
             -CrossReferences @{ CIS='12.1' }
     }
 
