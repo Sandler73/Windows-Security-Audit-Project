@@ -1,6 +1,6 @@
 # remediation-bundles.ps1
 # Named remediation bundles with impact-tiered confirmation for the Windows Security Audit framework
-# Version: 6.6.0
+# Version: 6.7.0
 
 <#
 .SYNOPSIS
@@ -39,7 +39,7 @@
     Dependencies: remediation-library.ps1 (impact resolution); bundles degrade
     to topic lists with conservative Tier 3 if the library is absent
     Security: read-only; no state modification
-    Version: 6.6.0
+    Version: 6.7.0
 #>
 
 $script:RemediationBundles = [ordered]@{
