@@ -1,6 +1,6 @@
 # rollback-generator.ps1
 # State capture and rollback script generation for the Windows Security Audit framework
-# Version: 6.6.0
+# Version: 6.7.0
 
 <#
 .SYNOPSIS
@@ -51,7 +51,7 @@
     Dependencies: none at load; capture handlers are availability-guarded
     Security: capture is strictly read-only; the generated script modifies
     state only after its own confirmation prompt
-    Version: 6.6.0
+    Version: 6.7.0
 #>
 
 $script:MaxCaptureBytes = 1MB
