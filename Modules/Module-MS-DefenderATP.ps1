@@ -1,6 +1,6 @@
 # Module-MS-DefenderATP.ps1
 # Microsoft Defender for Endpoint (Advanced Threat Protection) Module
-# Version: 6.6.0
+# Version: 6.7.0
 # EDR and Advanced Protection Assessment
 
 <#
@@ -66,7 +66,7 @@
     - ScanDate: Audit timestamp
 
 .NOTES
-    Version: 6.6.0
+    Version: 6.7.0
     Requires:
     - Windows 10 1607+ or Windows Server 2012 R2+
     - PowerShell 5.1+
@@ -139,7 +139,7 @@ function Get-ModFirewallProfiles {
 }
 
 $results = [System.Collections.Generic.List[object]]::new()
-$moduleVersion = "6.6.0"
+$moduleVersion = "6.7.0"
 
 # Helper function to add results
 function Add-Result {
@@ -1064,7 +1064,7 @@ try {
                 -Severity "High" `
                 -Message "Antivirus signatures are $sigAge days old" `
                 -Details "Signatures more than 7 days old leave the host exposed to recent threats" `
-                -Remediation "Update-MpSignature; verify Windows Update connectivity" `
+                -Remediation "Update-MpSignature" `
                 -CrossReferences @{ MS='Defender Signature Currency'; NIST='SI-3'; CIS='8.2' }
         }
         else {
@@ -1101,7 +1101,7 @@ try {
             Add-Result -Category "ATP - Component Currency" -Status "Warning" `
                 -Severity "Medium" `
                 -Message "Network Inspection System signatures are $nisAge days old" `
-                -Remediation "Update-MpSignature -UpdateSource MicrosoftUpdateServer" `
+                -Remediation "Update-MpSignature" `
                 -CrossReferences @{ MS='NIS Currency' }
         }
     }
