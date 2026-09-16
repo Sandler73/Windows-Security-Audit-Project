@@ -7,17 +7,113 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+> Changes to the CI pipeline and the automated test suites are recorded in
+> [CI-CD-Testing-Changelog.md](CI-CD-Testing-Changelog.md), which keeps the
+> product history here readable.
+
+### Fixed
+
+- `New-AssessmentRecord` returned `Items` as a scalar for single-item
+  collections, because PowerShell unrolls a one-element array when the output of
+  an `if` expression is assigned. A consumer indexing `.Items[0]` therefore
+  received the first character of a string rather than the item. Array semantics
+  are now enforced with a type constraint, verified for empty, single, typical
+  and boundary-sized collections
+- Three functions used the unapproved verb `Build-` and were renamed to
+  `New-AttackSurface`, `New-PipelineMetadata`, and `New-RemediationPlan`, with
+  aliases retaining the former names for existing callers
+- The `-Profile` parameter assigned to `$Profile`, which is a built-in automatic
+  PowerShell variable. The parameter variable is now `$AuditProfile` with
+  `Profile` retained as an alias, so `-Profile` continues to work unchanged
+- Three assigned-but-unused variables removed
+
+### Changed
+
+- Development bookkeeping removed from code comments. Version markers such as
+  version markers and work-tracking identifiers, recorded when an element was introduced rather than what
+  it does. The changelog already carries that history, so 495 comment lines
+  across the codebase were rewritten to describe purpose and function only.
+  Framework and product versions named in comments (PCI DSS v4.0.1, CIS Controls
+  v8.1, CSF 2.0, STIG V2R8, Windows 25H2) are subject matter and were preserved,
+  as were the CMMC rollout phases
+- Project name corrected throughout: the product is the **Windows Security Audit
+  Project**, not the "Windows Security Audit Script". Corrected in 15 files
+  including the README title, the in-script banner and help header, the HTML
+  report footer, and the security policy
+- Repository URL corrected: five references pointed at a repository slug ending
+  `-Script`, which is not the repository. This error pre-dated the current work
+  and had been carried forward
+- README header rebuilt: banner image added, title centred, and status badges
+  added. Each header block now carries its own alignment attribute instead of
+  sitting inside one wrapping container, which was leaking centring into the body
+  content from the Key Features section onward
+
 ### Documentation
-- Project name corrected throughout: the product is the **Windows Security Audit Project**, not the "Windows Security Audit Script". Corrected in 15 files including the README title, wiki home, the in-script banner and help header, the HTML report footer, the security policy, and every wiki page opener
-- Repository URL corrected: five references pointed at `github.com/Sandler73/Windows-Security-Audit-Script`, which is not the repository. All now point at `Windows-Security-Audit-Project`. This error pre-dated the current work (it is present in the original baseline orchestrator) and had been carried forward; no audit had checked URLs until now
-- The README's example console banner was aligned to the indentation the code actually emits
-- Prose-accuracy review: documented help invocation forms were verified by execution. The bare-token forms (`help`, `--help`, `--h`, `/?`, `/help`, `/h`) do not work: `-Modules` is the first positional parameter and carries a `ValidateSet`, so an unprefixed token binds to it and is rejected during parameter binding, before the remaining-arguments catch-all is reached. The README, usage guide, and quick start now document only the forms that work (`-Help`, `-H`, `-help`, `-h`, `-ShowHelp`, `-?`), and the misleading source comment claiming the catch-all handled them was corrected
-- Architecture diagrams corrected against the codebase: the high-level architecture had nine orphaned nodes (every component added since v6.3 declared but never connected) and omitted `audit-pipeline.ps1`; the component diagram claimed 25 parameters against an actual 34; the cross-cutting diagram showed a superseded phase order with baseline drift running first when the pipeline runs it last; the remediation diagram predated capture-before-apply, verification, and impact tiers; the report pipeline referenced a `present_files` step absent from the codebase and omitted the split reports, attack-surface report, and `reports\<hostname>\` layout
-- Wiki footer, sidebar, and page-currency dates were still advertising v6.1.2 and an April 2026 date. A second, broader audit was written after the first one missed them: the original only matched labelled version forms (`Version:`, `Current Version`), so versions in footers, sidebars, parenthetical claims, download instructions, banner output, and code examples were never checked
-- Documentation referenced functions that do not exist: `Get-HostFacts` (real entry point `New-HostFactsRegistry`), `Initialize-Module` (modules initialise inline), and `Export-HtmlReport` / `Export-JsonReport` (real names `ConvertTo-HTMLReport` and `Export-JSONResults`)
-- `docs/project/SECURITY.md` was a byte-identical duplicate of the root policy and is now a pointer, matching the treatment already applied to the duplicated README
-- Broken relative links corrected: the README pointed at a root `CHANGELOG.md` that lives in `docs/project/`, the development guide pointed at a root `CONTRIBUTING.md` that does not exist, and the project usage guide used repository-root paths from inside `docs/project/`
-- Stale installation instructions in the project usage guide referenced a v6.1.2 archive
+
+- Prose-accuracy review of documented behaviour, verified by execution. The
+  bare-token help forms (`help`, `--help`, `--h`, `/?`) do not work: `-Modules`
+  is the first positional parameter and carries a `ValidateSet`, so an unprefixed
+  token binds to it and is rejected during parameter binding. Only the prefixed
+  forms are now documented, and the source comment claiming otherwise was
+  corrected
+- Architecture diagrams corrected against the codebase: the high-level
+  architecture had nine orphaned nodes and omitted a component entirely; the
+  component diagram understated the parameter count; the enrichment diagram
+  showed a superseded phase order; the remediation diagram predated
+  capture-before-apply, verification, and impact tiers; and the report pipeline
+  referenced a step that does not exist in the codebase
+- Documentation referenced functions that do not exist: `Get-HostFacts` (real
+  entry point `New-HostFactsRegistry`), `Initialize-Module` (modules initialise
+  inline), and `Export-HtmlReport` / `Export-JsonReport` (really
+  `ConvertTo-HTMLReport` and `Export-JSONResults`)
+- Version metadata across wiki and project documents was as much as four releases
+  stale, including the wiki footer, sidebar, and page-currency dates. A README
+  badge still advertised a check count that an audit had discredited
+- The framework reference documented NIST CSF 1.1 while the NIST module
+  implements CSF 2.0; the reference now describes CSF 2.0 including the Govern
+  function
+- Broken relative links corrected for the published repository shape: documents
+  linked to wiki paths that do not resolve in the repository, and several linked
+  into development working state. Wiki references now point at the GitHub wiki
+- A byte-identical duplicate of the root security policy is now a pointer,
+  matching the treatment already applied to the duplicated README
+- Stale installation instructions referenced a superseded release archive
+- The README's example console banner was aligned to the indentation the code
+  actually emits
+
+## [6.7.0] - 2026-09-14
+
+### Added
+- Five checks for settings introduced in the Windows Server 2025 security baseline v2602 (February 2026) that the module had not implemented: incoming and outgoing NTLM traffic auditing, SMB server SPN target-name validation (Extended Protection for Authentication against SMB relay, CVE-2025-55234), Mark of the Web zone-information preservation, and print-spooler RPC packet privacy. Two further v2602 items (ROCA-vulnerable WHfB key blocking, IE11 COM-automation disablement) are reported as advisory because their backing registry values were not verified against the published package. Check count 4,053 to 4,065
+- Ten canonical remediation topics with matching library entries, rollback capture and verification: NoLMHash, UAC secure desktop, process-creation command-line auditing, automatic updates, Defender MAPS reporting, RestrictAnonymousSAM, Defender behaviour monitoring, SmartScreen, virtualization-based security, and FIPS algorithm policy. Two UAC topic patterns widened to catch messages they previously missed. Checks classified to a canonical topic rose from 339 to 406 across 36 topics, and 40 further module remediations were aligned to canonical text
+- HostFacts now retains raw `Win32_ComputerSystem` and `Win32_DeviceGuard` objects alongside the existing raw OS, Defender and firewall objects, so every property is available to consumers without re-querying
+
+### Changed
+- Repeated host queries routed through the shared components: the NIST module's six `Win32_ComputerSystem` and five `Win32_DeviceGuard` queries now consult HostFacts; the NSA module's two `Get-HotFix` calls and the Core module's three unfiltered `Get-LocalUser` calls now consume the `InstalledHotfixes` and `LocalUsers` shared assessments. Each shared record was verified to carry every property the consuming check reads. A defensive accessor with an identical record shape keeps each module executable standalone
+- Parallel runspaces now load the shared-assessments component alongside the common library. Previously only the common library was loaded, so any module consuming `Get-SharedAssessment` would have failed in parallel mode
+- CMMC program-status text carries the directing memorandum (USD(A&S) 26-P-1023), records that Phases 3 and 4 were frozen with Phase 2, that requiring activities may designate only self-assessment levels during the review, and that the Reform Task Force report due about 2026-09-13 had not been published as of 2026-09-14
+- STIG module records Windows Server 2025 STIG V1R3 (2026-08-10; 291 rules, 31/248/12 by category) as the current server authority. Rule-level identifiers are not asserted without the published XCCDF
+
+### Verified current (no change required)
+- Microsoft Server 2025 baseline v2602 is the most recent baseline Microsoft has published; no Windows 11 26H1 baseline exists yet, so the 25H2 anchor stands
+- `Get-CimInstance` replacing `Get-WmiObject` in 6.6.1 introduces no compatibility regression: the framework declares and enforces Windows Server 2016+ / PowerShell 5.1+ at runtime, and `Get-CimInstance` has existed since PowerShell 3.0 and was already used seventy times
+
+## [6.6.1] - 2026-09-12
+
+### Fixed
+- Three checks called `Get-WmiObject`, which does not exist in PowerShell 7. Each was try/catch guarded, so on every PowerShell 7 run they silently degraded to an error result rather than failing visibly. Replaced with `Get-CimInstance` (CISA Sysmon driver check, Core and ENISA network adapter checks)
+- Eight informational results carried the default `Medium` severity because no severity was assigned; they now declare `Informational`, so they no longer inflate risk-priority scoring, severity-adjusted compliance, or the attack-surface exposure figures
+- An empty catch block in the HIPAA BitLocker label lookup swallowed failures silently; the label now records the failure
+- Remediation text for the same setting differed across frameworks: 169 of 339 checks that classify to a canonical remediation topic carried module-source text that diverged from the canonical form shown in reports. 144 were aligned to the canonical text across all 16 modules; 25 were deliberately preserved because they carry dynamic mount-point or size interpolation that a static form cannot express. Same-setting remediation no longer conflicts between any two frameworks
+
+### Changed
+- CMMC: the program-status check stated that Phase 2 C3PAO certification takes effect from 2026-11-10. Phase 2 was suspended on 2026-07-13 by the Department of War pending a CMMC Reform Task Force review; Phase 1 self-assessment obligations, SPRS scores and DFARS 252.204-7012 remain in force. The check now states the suspension and that prime contractors may still require Level 2 certification
+- Microsoft baselines: Windows 11 26H1 reached general availability on 2026-08-27. The module records that the 25H2 / Server 2025 v2602 baseline remains the current published authority until the 26H1 baseline is released, so the next currency review has an explicit trigger
+- A comment described a runtime parameter source as "operator-supplied"; reworded to "caller-supplied" to avoid reading as a development-process reference
+
+### Verified current (no change required)
+- NIST SP 800-53 Release 5.2.0 (2025-08-27) remains the latest release; no 5.3 has been issued
+- NIST SP 800-171: the module already distinguishes Rev 2 (still the CMMC assessment basis) from Rev 3; a FAR CUI proposed rule of 2026-06-23 would require Rev 3 government-wide and is worth tracking
 
 ## [6.6.0] - 2026-07-25
 
@@ -47,14 +143,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `-ComplianceThreshold` (0-100, default 70): the weighted compliance percentage at or above which a module and the overall posture report PASS. The threshold was previously fixed inside the scoring function despite its verdict appearing in the console summary and in the HTML, JSON, and XML reports
 
 ### Changed
-- HostFacts migration phase 2: the per-module memoized host-state accessors now consult the run-wide HostFacts registry before querying. HostFacts retains the raw operating-system, Defender, and firewall objects it already collects, so a module satisfies every property it reads from one run-wide query instead of one query per module. On a full 16-module run this removes up to 48 redundant host queries. Raw objects are reused rather than derived scalar facts, because call sites read properties the fact list does not carry (for example `MAPSReporting`, `AntivirusSignatureAge`, `AMServiceEnabled`, `AMRunningMode`); consequently no call site required changes and no property-parity risk was introduced. Modules run standalone fall back to a live query exactly as before
+- HostFacts raw-object retention: the per-module memoized host-state accessors now consult the run-wide HostFacts registry before querying. HostFacts retains the raw operating-system, Defender, and firewall objects it already collects, so a module satisfies every property it reads from one run-wide query instead of one query per module. On a full 16-module run this removes up to 48 redundant host queries. Raw objects are reused rather than derived scalar facts, because call sites read properties the fact list does not carry (for example `MAPSReporting`, `AntivirusSignatureAge`, `AMServiceEnabled`, `AMRunningMode`); consequently no call site required changes and no property-parity risk was introduced. Modules run standalone fall back to a live query exactly as before
 
 ## [6.4.0] - 2026-07-24
 
 ### Added
 - Shared assessments component (shared_components/shared-assessments.ps1): registry of expensive host-wide collections computed once per run and shared with all modules (LocalUsers, LocalAdministrators, InstalledHotfixes with derived latest-hotfix age, ListeningTcpPorts). Assessment set grounded in measured cross-module duplication. Uniform capped records (25 items with Truncated flag and full Count), error-record discipline instead of exceptions, orchestrator pre-warm after HostFacts with standalone memoization fallback
 - Canonical remediations component (shared_components/canonical-remediations.ps1): 28-topic table providing one authoritative fix form per hardening topic, with rationale, value-independence flag, and precompiled word-boundary match patterns. Every canonical command is sourced from remediation strings already present in the audited module tree; where variants disagreed the stricter form was selected and the choice recorded. Normalization never invents a fix for an unclassified finding
-- Remediation library (shared_components/remediation-library.ps1): per-topic Apply (resolved from the canonical table at load, single source of truth), guarded read-only Verify with a three-state contract (applied / not applied / unverifiable), impact profile (None, RestartService, RequireReboot, BreakSessions, BreakNetwork, BreakBoot), reboot flag, typed rollback-capture specifications, and prerequisites. Build-RemediationPlan orders steps lowest-impact-first and segregates unknown topics
+- Remediation library (shared_components/remediation-library.ps1): per-topic Apply (resolved from the canonical table at load, single source of truth), guarded read-only Verify with a three-state contract (applied / not applied / unverifiable), impact profile (None, RestartService, RequireReboot, BreakSessions, BreakNetwork, BreakBoot), reboot flag, typed rollback-capture specifications, and prerequisites. New-RemediationPlan orders steps lowest-impact-first and segregates unknown topics
 - Remediation bundles (shared_components/remediation-bundles.ps1): 10 named bundles covering all 28 topics, with aggregate impact and confirmation-tier mapping (Tier 1 Standard, Tier 2 Elevated, Tier 3 Critical); unknown impacts map conservatively to Tier 3
 - Rollback generator (shared_components/rollback-generator.ps1): read-only pre-change state capture across 12 capture types (registry value, service state, security policy via secedit export, audit policy via auditpol backup, MpPreference, SMB server configuration, Windows feature, local user enablement, event log size, firewall profile, file content, manual note) with a 1 MB payload cap, safe-path validation, and Base64 payload embedding. New-RollbackScript emits a standalone restore script that runs in reverse capture order behind its own typed confirmation, with per-record guards, absent-value removal semantics, and failure aggregation
 - Attack-surface assessment (shared_components/attack-surface.ps1): synthesizes 10 Windows exposure domains from audit findings with deterministic single-primary domain resolution (word-boundary regex against category then message, never details; priority tie-break), severity-by-status exposure scoring, and a five-tier rating scale. Rendered through the shared report spine with collapsible domains, overall gauge, and cross-domain highlights
@@ -80,7 +176,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Composite report: Module Summary (At-a-Glance) rollup tiles (per-module weighted score, worst-severity chip, P/F/W/I/E counts, health color, scroll anchors)
 - Role-based audit profiles (shared_components/profiles.ps1): six profiles with -Profile / -ListProfiles, explicit -Modules override, and informational HostFacts-based suggestion
 - Module memoized host-state accessors (Get-ModOSInfo / Get-ModDefenderStatus / Get-ModFirewallProfiles) in all 16 modules
-- New Pester suites: report-templates.Tests.ps1, profiles.Tests.ps1; module-schema baselines regenerated
 
 ### Changed
 - Framework currency PRs 1-16 (all 16 modules re-verified against current authorities): CMMC 48 CFR binding acquisition rule (Nov 2025) with Conditional/Final POA&M and SPRS obligations; PCI DSS v4.0.1 formerly-future-dated requirements assessed as mandatory (since 2025-03-31); NIST SP 800-53 Release 5.2.0 additions (SA-15(13), SA-24, SI-2(7), SI-7(12)); Microsoft baseline deltas for Windows 11 25H2 and Server 2025 v2602 (BlockNtlmv1SSO, expanded NTLM auditing, sudo lockdown, ROCA WHfB guidance, IE11 COM disable, MotW preservation, ASR D1E49AAC); Windows 11 STIG V2R8 (behavioral one-week security-log retention check, NoConnectedUser tri-state) with corrected rule-label provenance; CIS Controls v8.1 (Governance-by-policy signal, Documentation asset class, CSF 2.0 realignment); HIPAA Jan 2025 NPRM as labeled Status=Info forward-looking indicators only (current Security Rule remains sole scored basis); ENISA references and checks for CRA Art. 14 (applies 2026-09-11) and DORA (applies since 2025-01-17); ACSC November 2023 model reference; SOC 2 2017 TSC with 2022 Revised Points of Focus framing; ISO 27001 Amd 1:2024 and 800-53 5.2.0 crosswalk note
@@ -100,40 +195,39 @@ v6.1.2 full-codebase audit are closed in this release.
 - 16 comment-only catch blocks across cis/cisa/ms/nist/stig modules now emit
   explicit results (Status=Error for genuine failures, Status=Info for
   expected-absence conditions). Failed checks no longer silently vanish from
-  totals or compliance scoring. (WSA-F1)
+  totals or compliance scoring.
 
 ### Consistency
 - Add-Result parameter contract unified across all 16 modules: Category, Status,
   and Message are Mandatory and Status carries ValidateSet, matching the
-  previous NIST-module contract. (WSA-C1)
+  previous NIST-module contract.
 - Sequential module invocation now uses the direct call operator, matching the
-  parallel path; dynamic scriptblock construction removed. (WSA-D1)
+  parallel path; dynamic scriptblock construction removed.
 
 ### Performance
 - Result accumulation converted from O(n^2) array append to Generic List in all
-  16 modules and in the orchestrator's Get-ValidatedResults. (WSA-P1)
+  16 modules and in the orchestrator's Get-ValidatedResults.
 - Module statistics computed in a single Group-Object pass instead of five
-  full-collection scans. (WSA-P2)
+  full-collection scans.
 
 ### Parallel execution
 - Per-runspace logging is now initialized inside each runspace and file writes
   are serialized on a named mutex derived from the log path, closing the
-  parallel-mode logging blind spot. (WSA-D2)
+  parallel-mode logging blind spot.
 - Partial-collection tracking prevents module double-execution when the
-  parallel framework fails after some results were collected. (WSA-D3)
+  parallel framework fails after some results were collected.
 - Per-module timings are measured inside the job, so -ShowProfile is accurate
-  under -Parallel. (WSA-D4)
+  under -Parallel.
 
 ### Structure and documentation
 - USAGE_GUIDE.md and RELEASE-NOTES-v6.1.md relocated from project root to
-  docs/project/ per the canonical structure rule. (WSA-ST1)
+  docs/project/ per the canonical structure rule.
 - tasks/sync_function.md regenerated by script from the actual tree; hand-drift
-  eliminated. (WSA-ST2)
+  eliminated.
 - Em-dash (U+2014) removed across all documentation and CI files (542
   occurrences, 30 files); zero occurrences remain anywhere in the tree.
-  (WSA-ST4)
 - Check-count documentation now states call sites (4,053) with host-dependent
-  runtime counts, replacing the raw token-count claim. (WSA-F2)
+  runtime counts, replacing the raw token-count claim.
 
 ### Tests
 - module-schema.Tests.ps1 check-count baselines regenerated for the v6.2.0
