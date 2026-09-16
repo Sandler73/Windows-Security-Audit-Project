@@ -1,6 +1,6 @@
 # audit-pipeline.ps1
 # Composed post-execution pipeline for the Windows Security Audit framework
-# Version: 6.6.0
+# Version: 6.7.0
 
 <#
 .SYNOPSIS
@@ -60,7 +60,7 @@
     (Get-ComplianceScore). Every call is availability-guarded, so the component
     degrades to recorded skips rather than failing.
     Security: read-only composition over existing results; no state modification
-    Version: 6.6.0
+    Version: 6.7.0
 #>
 
 function New-PhaseRecord {
@@ -182,7 +182,7 @@ function Invoke-AuditPipeline {
                 }
                 $outcome.RiskScoredCount = $scored
                 $sw.Stop()
-                $critLbl = if ($exposureCtx.ContainsKey('AssetCriticality')) { "asset criticality $AssetCriticality (operator-supplied)" } else { 'role-derived criticality' }
+                $critLbl = if ($exposureCtx.ContainsKey('AssetCriticality')) { "asset criticality $AssetCriticality (caller-supplied)" } else { 'role-derived criticality' }
                 $phases.Add((New-PhaseRecord -Name 'RiskPriority' -Status 'Completed' -ElapsedMs $sw.Elapsed.TotalMilliseconds -Detail "$scored finding(s) scored using $critLbl"))
             } catch {
                 $sw.Stop()
