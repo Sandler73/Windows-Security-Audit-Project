@@ -1,6 +1,6 @@
 # module-acsc.ps1
 # ACSC Essential Eight Compliance Module for Windows Security Audit
-# Version: 6.6.0
+# Version: 6.7.0
 #
 # Evaluates Windows configuration against the Australian Cyber Security Centre (ACSC)
 # Essential Eight mitigation strategies with Severity ratings and cross-framework references.
@@ -32,7 +32,7 @@
     Dependencies: audit-common.ps1 (optional, for caching)
     References: ACSC Essential Eight Maturity Model (November 2023 update; current),
                 ACSC Strategies to Mitigate Cyber Security Incidents
-    Version: 6.6.0
+    Version: 6.7.0
 
 .EXAMPLE
     $results = & .\modules\module-acsc.ps1 -SharedData $sharedData
@@ -97,7 +97,7 @@ function Get-ModFirewallProfiles {
     return $script:HFMemo['FW']
 }
 
-$moduleVersion = "6.6.0"
+$moduleVersion = "6.7.0"
 $results = [System.Collections.Generic.List[object]]::new()
 # --------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
@@ -749,7 +749,7 @@ Write-Host "[ACSC] Checking E6 -- Patch Operating Systems..." -ForegroundColor Y
         } else {
             Add-Result -Category "ACSC - E6 Patch OS" -Status "Fail" `
                 -Message "E6.4: Automatic updates are DISABLED by policy" `
-                -Remediation "Remove NoAutoUpdate policy to allow automatic updates" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoUpdate -Value 0" `
                 -Severity "High" -CrossReferences @{ ACSC='E6'; NIST='SI-2'; CIS='18.9.101.2' }
         }
     } catch {
@@ -834,7 +834,7 @@ Write-Host "[ACSC] Checking E7 -- Multi-Factor Authentication..." -ForegroundCol
         } else {
             Add-Result -Category "ACSC - E7 MFA" -Status "Fail" `
                 -Message "E7.4: Machine inactivity timeout is not configured" `
-                -Remediation "Set InactivityTimeoutSecs to 900 or less" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name InactivityTimeoutSecs -Value 900" `
                 -Severity "Medium" -CrossReferences @{ ACSC='E7'; NIST='AC-11'; CIS='2.3.7.3' }
         }
     } catch {
@@ -896,7 +896,7 @@ Write-Host "[ACSC] Checking E8 -- Regular Backups..." -ForegroundColor Yellow
             } else {
                 Add-Result -Category "ACSC - E8 Backups" -Status "Warning" `
                     -Message "E8.3: No BitLocker recovery password found -- backup recovery risk" `
-                    -Remediation "Add-BitLockerKeyProtector -MountPoint $env:SystemDrive -RecoveryPasswordProtector" `
+                    -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                     -Severity "High" -CrossReferences @{ ACSC='E8'; NIST='CP-9'; ISO27001='A.8.24' }
             }
         } else {
@@ -1087,7 +1087,7 @@ try {
         Add-Result -Category "ACSC - ISM Controls" -Status "Warning" `
             -Severity "Medium" `
             -Message "ISM-1490 UAC consent behavior weaker than recommended (value: $consentPrompt)" `
-            -Remediation "Set-ItemProperty -Path '$rcaPath' -Name 'ConsentPromptBehaviorAdmin' -Value 2 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name ConsentPromptBehaviorAdmin -Value 2" `
             -CrossReferences @{ ACSC='ISM-1490' }
     }
     else {
@@ -1265,7 +1265,7 @@ try {
         Add-Result -Category "ACSC - Strategies to Mitigate" -Status "Fail" `
             -Severity "High" `
             -Message "Strategy 18 SMBv1 enabled (legacy protocol)" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'SMB1' -Value 0 -Type DWord; Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" `
+            -Remediation "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" `
             -CrossReferences @{ ACSC='Strategy-18'; CVE='CVE-2017-0144' }
     }
 
@@ -1287,7 +1287,7 @@ try {
         Add-Result -Category "ACSC - Strategies to Mitigate" -Status "Fail" `
             -Severity "High" `
             -Message "Strategy 24 RDP enabled without NLA enforcement" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name 'UserAuthentication' -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1" `
             -CrossReferences @{ ACSC='Strategy-24' }
     }
 }
@@ -1346,7 +1346,7 @@ try {
         Add-Result -Category "ACSC - Privacy Principles" -Status "Warning" `
             -Severity "Medium" `
             -Message "APP 1 Security event log undersized for accountability requirements" `
-            -Remediation "wevtutil sl Security /ms:268435456" `
+            -Remediation "wevtutil sl Security /ms:1073741824" `
             -CrossReferences @{ APP='APP-1' }
     }
 }
