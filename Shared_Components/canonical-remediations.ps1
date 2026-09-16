@@ -104,12 +104,6 @@ $script:CanonicalTopics = [ordered]@{
         ValueIndependent = $true
         Match            = @('ProcessCreationIncludeCmdLine', 'command.?line.*(audit|logging)', 'Process Creation.*audit', 'audit.*process creation')
     }
-    'WindowsUpdateAutomatic' = @{
-        Canonical        = "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoUpdate -Value 0"
-        Rationale        = 'Keeps automatic updating enabled so security patches are not silently withheld'
-        ValueIndependent = $true
-        Match            = @('NoAutoUpdate', 'automatic update.*(disabled|off|not enabled)', 'Windows Update.*(disabled|not configured|off)')
-    }
     'DefenderMapsReporting' = @{
         Canonical        = "Set-MpPreference -MAPSReporting Advanced"
         Rationale        = 'Enables cloud-delivered protection so Defender can block emerging threats before signatures ship'
@@ -276,7 +270,7 @@ $script:CanonicalTopics = [ordered]@{
         Canonical        = "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name 'NoAutoUpdate' -Value 0 -Type DWord"
         Rationale        = 'Automatic updates are the default patch-currency mechanism'
         ValueIndependent = $true
-        Match            = @('NoAutoUpdate', '[Aa]utomatic [Uu]pdates.*(disabled|off)')
+        Match            = @('NoAutoUpdate', '[Aa]utomatic [Uu]pdates?.*(disabled|off|not enabled)', 'Windows Update.*(disabled|not configured|off)')
     }
 }
 
