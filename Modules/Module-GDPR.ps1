@@ -1,6 +1,6 @@
 # module-gdpr.ps1
 # GDPR Technical Measures Compliance Module for Windows Security Audit
-# Version: 6.6.0
+# Version: 6.7.0
 #
 # Evaluates Windows configuration against EU General Data Protection Regulation (2016/679)
 # with Severity ratings and cross-framework references.
@@ -31,7 +31,7 @@
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
     References: GDPR (2016/679), EDPB Guidelines, ENISA Guidance on GDPR Technical Measures
-    Version: 6.6.0
+    Version: 6.7.0
 
 .EXAMPLE
     $results = & .\modules\module-gdpr.ps1 -SharedData $sharedData
@@ -96,7 +96,7 @@ function Get-ModFirewallProfiles {
     return $script:HFMemo['FW']
 }
 
-$moduleVersion = "6.6.0"
+$moduleVersion = "6.7.0"
 $results = [System.Collections.Generic.List[object]]::new()
 # --------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
@@ -378,7 +378,7 @@ Write-Host "[GDPR] Checking Article 32(1)(a) -- Encryption..." -ForegroundColor 
             Add-Result -Category "GDPR - Art.32 Encryption" -Status "Fail" `
                 -Message "Art.32(1)(a)-1: BitLocker NOT active -- personal data at rest may be unencrypted" `
                 -Details "Art.32(1)(a): Encryption is a key technical measure for GDPR compliance" `
-                -Remediation "Enable-BitLocker -MountPoint C: -EncryptionMethod XtsAes256" `
+                -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                 -Severity "High" `
                 -CrossReferences @{ GDPR='Art.32(1)(a)'; NIST='SC-28'; ISO27001='A.8.24'; 'PCI-DSS'='3.4.1' }
         }
@@ -591,7 +591,7 @@ Write-Host "[GDPR] Checking Article 32(1)(b) -- Confidentiality and Integrity...
             Add-Result -Category "GDPR - Art.32 Confidentiality" -Status "Fail" `
                 -Message "Art.32(1)(b)-5: Integrity -- SMB signing required -- not configured (Value=$val)" `
                 -Details "Art.32(1)(b): Data integrity during network transfer protects personal data" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name RequireSecuritySignature -Value 1" `
+                -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
                 -Severity "High" `
                 -CrossReferences @{ GDPR='Art.32(1)(b)'; NIST='SC-8'; ISO27001='A.8.5' }
         }
@@ -811,7 +811,7 @@ Write-Host "[GDPR] Checking Article 32(1)(c) -- Availability and Resilience..." 
             Add-Result -Category "GDPR - Art.32 Availability" -Status "Fail" `
                 -Message "Art.32(1)(c)-4: Resilience -- real-time protection -- not configured (Value=$val)" `
                 -Details "Art.32(1)(c): Real-time protection ensures resilience against malware threats to personal data" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' -Name DisableRealtimeMonitoring -Value 0" `
+                -Remediation "Set-MpPreference -DisableRealtimeMonitoring $false" `
                 -Severity "Critical" `
                 -CrossReferences @{ GDPR='Art.32(1)(c)'; NIST='SI-3'; ISO27001='A.8.1'; CIS='18.9.47.9.1' }
         }
@@ -834,7 +834,7 @@ Write-Host "[GDPR] Checking Article 32(1)(c) -- Availability and Resilience..." 
             Add-Result -Category "GDPR - Art.32 Availability" -Status "Fail" `
                 -Message "Art.32(1)(c)-5: Resilience -- SMBv1 disabled -- not configured (Value=$val)" `
                 -Details "Art.32(1)(c): SMBv1 (WannaCry vector) threatens availability of personal data systems" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name SMB1 -Value 0" `
+                -Remediation "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" `
                 -Severity "Critical" `
                 -CrossReferences @{ GDPR='Art.32(1)(c)'; NIST='CM-7'; ISO27001='A.8.9' }
         }
@@ -935,7 +935,7 @@ Write-Host "[GDPR] Checking Article 32(1)(d) -- Testing and Evaluation..." -Fore
             Add-Result -Category "GDPR - Art.32 Testing" -Status "Fail" `
                 -Message "Art.32(1)(d)-3: Testing -- PowerShell Script Block Logging -- not configured (Value=$val)" `
                 -Details "Art.32(1)(d): Script execution logging supports security testing and evaluation" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
                 -Severity "Medium" `
                 -CrossReferences @{ GDPR='Art.32(1)(d)'; NIST='AU-12'; ISO27001='A.8.9'; CIS='18.9.100.1' }
         }
@@ -1247,7 +1247,7 @@ try {
         Add-Result -Category "GDPR - ePrivacy Directive" -Status "Fail" `
             -Severity "Medium" `
             -Message "ePrivacy Art. 4 SMB signing not required (integrity protection gap)" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'RequireSecuritySignature' -Value 1 -Type DWord" `
+            -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
             -CrossReferences @{ ePrivacy='Art.4'; Directive='2002/58/EC' }
     }
 
@@ -1545,7 +1545,7 @@ try {
         Add-Result -Category "GDPR - Art. 35 DPIA Evidence" -Status "Warning" `
             -Severity "Medium" `
             -Message "Art. 35 Security log undersized for DPIA evidence retention" `
-            -Remediation "wevtutil sl Security /ms:268435456" `
+            -Remediation "wevtutil sl Security /ms:1073741824" `
             -CrossReferences @{ GDPR='Art.35' }
     }
 
