@@ -1,6 +1,6 @@
 # module-cmmc.ps1
 # CMMC 2.0 Compliance Module for Windows Security Audit
-# Version: 6.6.0
+# Version: 6.7.0
 #
 # Evaluates Windows configuration against Cybersecurity Maturity Model Certification 2.0 (DoD)
 # with Severity ratings and cross-framework references.
@@ -13,7 +13,9 @@
     This module assesses alignment with Cybersecurity Maturity Model Certification 2.0 (DoD).
     CMMC is contractually binding: the 48 CFR acquisition final rule took effect
     2025-11-10 (Phase 1, self-assessment requirements in new solicitations;
-    Phase 2 adds C3PAO certification requirements for applicable Level 2
+    Phase 2 (C3PAO certification for applicable Level 2) was suspended by the
+    Department of War on 2026-07-13 pending a CMMC Reform Task Force review;
+    Phase 1 self-assessment obligations remain in force
     procurements from 2026-11-10). Coverage includes:
     - Level 1: Basic Cyber Hygiene (FCI protection, 17 practices)
     - AC: Access Control (least privilege, session locks, remote access, mobile)
@@ -40,7 +42,7 @@
                 contractually binding with phased rollout); DFARS 252.204-7012/
                 -7019/-7020/-7021/-7025; NIST SP 800-171 Rev 2 (current DoD
                 assessment basis)
-    Version: 6.6.0
+    Version: 6.7.0
 
 .EXAMPLE
     $results = & .\modules\module-cmmc.ps1 -SharedData $sharedData
@@ -105,7 +107,7 @@ function Get-ModFirewallProfiles {
     return $script:HFMemo['FW']
 }
 
-$moduleVersion = "6.6.0"
+$moduleVersion = "6.7.0"
 $results = [System.Collections.Generic.List[object]]::new()
 # --------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
@@ -340,7 +342,7 @@ Write-Host "[CMMC] Checking AU -- Audit and Accountability..." -ForegroundColor 
             Add-Result -Category "CMMC - AU Audit" -Status "Fail" `
                 -Message "AU.L2-3.3.1: Audit events -- Event Log service -- service not running (Status=$svcSt)" `
                 -Details "AU.L2-3.3.1: Create and retain system audit logs" `
-                -Remediation "Start-Service -Name EventLog" `
+                -Remediation "Start-Service -Name EventLog; Set-Service -Name EventLog -StartupType Automatic" `
                 -Severity "Critical" `
                 -CrossReferences @{ CMMC='AU.L2-3.3.1'; NIST171='3.3.1'; NIST='AU-2' }
         }
@@ -404,7 +406,7 @@ Write-Host "[CMMC] Checking AU -- Audit and Accountability..." -ForegroundColor 
             Add-Result -Category "CMMC - AU Audit" -Status "Fail" `
                 -Message "AU.L2-3.3.8: Audit protection -- Script Block Logging -- not configured (Value=$val)" `
                 -Details "AU.L2-3.3.8: Protect audit information from unauthorized access/modification" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
                 -Severity "High" `
                 -CrossReferences @{ CMMC='AU.L2-3.3.8'; NIST171='3.3.8'; NIST='AU-9' }
         }
@@ -428,7 +430,7 @@ Write-Host "[CMMC] Checking AU -- Audit and Accountability..." -ForegroundColor 
             Add-Result -Category "CMMC - AU Audit" -Status "Fail" `
                 -Message "AU.L2-3.3.7: Time synchronization -- W32Time -- service not running (Status=$svcSt)" `
                 -Details "AU.L2-3.3.7: Provide reliable time source for audit records" `
-                -Remediation "Start-Service -Name W32Time" `
+                -Remediation "Start-Service -Name W32Time; Set-Service -Name W32Time -StartupType Automatic" `
                 -Severity "Medium" `
                 -CrossReferences @{ CMMC='AU.L2-3.3.7'; NIST171='3.3.7'; NIST='AU-8' }
         }
@@ -480,7 +482,7 @@ Write-Host "[CMMC] Checking CM -- Configuration Management..." -ForegroundColor 
             Add-Result -Category "CMMC - CM Config Mgmt" -Status "Fail" `
                 -Message "CM.L2-3.4.6: Least functionality -- SMBv1 disabled -- not configured (Value=$val)" `
                 -Details "CM.L2-3.4.6: Employ principle of least functionality (disable unnecessary protocols)" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name SMB1 -Value 0" `
+                -Remediation "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" `
                 -Severity "Critical" `
                 -CrossReferences @{ CMMC='CM.L2-3.4.6'; NIST171='3.4.6'; NIST='CM-7' }
         }
@@ -767,7 +769,7 @@ Write-Host "[CMMC] Checking SC -- System and Communications Protection..." -Fore
             Add-Result -Category "CMMC - SC Comms" -Status "Fail" `
                 -Message "SC.L2-3.13.11: CUI encryption at rest -- BitLocker policy -- not configured (Value=$val)" `
                 -Details "SC.L2-3.13.11: Employ FIPS-validated cryptography for CUI protection" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\FVE' -Name EncryptionMethodWithXtsOs -Value 7" `
+                -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                 -Severity "High" `
                 -CrossReferences @{ CMMC='SC.L2-3.13.11'; NIST171='3.13.11'; NIST='SC-13' }
         }
@@ -790,7 +792,7 @@ Write-Host "[CMMC] Checking SC -- System and Communications Protection..." -Fore
             Add-Result -Category "CMMC - SC Comms" -Status "Fail" `
                 -Message "SC.L2-3.13.15: Network integrity -- SMB signing -- not configured (Value=$val)" `
                 -Details "SC.L2-3.13.15: Protect authenticity of communications sessions" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name RequireSecuritySignature -Value 1" `
+                -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
                 -Severity "High" `
                 -CrossReferences @{ CMMC='SC.L2-3.13.15'; NIST171='3.13.15'; NIST='SC-23' }
         }
@@ -890,7 +892,7 @@ Write-Host "[CMMC] Checking SI -- System and Information Integrity..." -Foregrou
             Add-Result -Category "CMMC - SI Integrity" -Status "Fail" `
                 -Message "SI.L1-3.14.2b: Malicious code -- real-time protection -- not configured (Value=$val)" `
                 -Details "SI.L1-3.14.2: Update malicious code protection mechanisms when new releases available" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' -Name DisableRealtimeMonitoring -Value 0" `
+                -Remediation "Set-MpPreference -DisableRealtimeMonitoring $false" `
                 -Severity "Critical" `
                 -CrossReferences @{ CMMC='SI.L1-3.14.2'; NIST171='3.14.2'; NIST='SI-3' }
         }
@@ -989,7 +991,7 @@ try {
         Add-Result -Category "CMMC - L1 Basic Safeguarding" -Status "Fail" `
             -Severity "High" `
             -Message "L1 AC.L1-3.1.1 UAC is disabled" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'EnableLUA' -Value 1 -Type DWord; Restart-Computer" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1" `
             -CrossReferences @{ CMMC='AC.L1-3.1.1'; FAR='52.204-21'; NIST171='3.1.1' }
     }
 
@@ -998,7 +1000,7 @@ try {
         Add-Result -Category "CMMC - L1 Basic Safeguarding" -Status "Fail" `
             -Severity "High" `
             -Message "L1 AC.L1-3.1.20 Guest account is enabled" `
-            -Remediation "Disable-LocalUser -Name 'Guest'" `
+            -Remediation "Disable-LocalUser -Name Guest" `
             -CrossReferences @{ CMMC='AC.L1-3.1.20'; FAR='52.204-21'; NIST171='3.1.20' }
     }
     else {
@@ -1151,7 +1153,7 @@ try {
         Add-Result -Category "CMMC - L3 Enhanced Controls" -Status "Fail" `
             -Severity "Medium" `
             -Message "L3 AU.L3-3.3.1 Process command line auditing disabled" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name 'ProcessCreationIncludeCmdLine_Enabled' -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1; auditpol /set /subcategory:`"Process Creation`" /success:enable" `
             -CrossReferences @{ CMMC='AU.L3-3.3.1'; NIST172='3.3.1e' }
     }
 }
@@ -1260,7 +1262,7 @@ try {
         Add-Result -Category "CMMC - DFARS Safeguarding" -Status "Fail" `
             -Severity "High" `
             -Message "DFARS 252.204-7012(b)(2)(i)(B) SMB signing not required" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'RequireSecuritySignature' -Value 1 -Type DWord" `
+            -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
             -CrossReferences @{ DFARS='252.204-7012'; CMMC='SC.L2-3.13.8'; NIST171='3.13.8' }
     }
 
@@ -1352,7 +1354,7 @@ try {
         Add-Result -Category "CMMC - CUI Handling" -Status "Warning" `
             -Severity "Medium" `
             -Message "AutoPlay not fully disabled (current value: $autoPlay)" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name 'NoDriveTypeAutoRun' -Value 255 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoDriveTypeAutoRun -Value 255" `
             -CrossReferences @{ CMMC='MP.L2-3.8.7'; NIST171='3.8.7' }
     }
 }
@@ -1374,7 +1376,7 @@ try {
     Add-Result -Category "CMMC - Program Status (48 CFR)" -Status "Info" `
         -Severity "Informational" `
         -Message "CMMC is contractually binding: 48 CFR acquisition final rule effective 2025-11-10" `
-        -Details "DoD solicitations now include CMMC level requirements per the phased rollout. Phase 1 (from 2025-11-10): self-assessment requirements (Level 1 and applicable Level 2) in new solicitations. Phase 2 (from 2026-11-10): C3PAO third-party certification required for applicable Level 2 procurements. Verify contract clauses for the level and assessment type this system must meet." `
+        -Details "Phase 1 (from 2025-11-10) remains in force: self-assessment requirements (Level 1 and applicable Level 2) in new solicitations, SPRS scores, and annual affirmations under DFARS 252.204-7012/7019/7020. Phase 2 (C3PAO third-party certification, originally from 2026-11-10) was SUSPENDED on 2026-07-13 by the Department of War (USD(A&S) Memorandum 26-P-1023) pending a 60-day CMMC Reform Task Force review; Phases 3 and 4 were frozen with it; requiring activities may designate only Level 1 (Self) or Level 2 (Self) during the review; the Cyber AB confirmed on 2026-07-15 that certification itself remains available; as of 2026-09-14 the Task Force report (due about 2026-09-13) has not been published; the suspension affects DoW award conditions and does not remove clauses from existing contracts, and prime contractors may still require Level 2 certification. Verify current program status and contract clauses for the level and assessment type this system must meet." `
         -CrossReferences @{ CFR48='CMMC Acquisition Rule'; DFARS='252.204-7021'; CFR32='Part 170' }
 
     # Conditional vs Final status model
