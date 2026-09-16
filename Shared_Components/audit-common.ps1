@@ -33,7 +33,7 @@
     once per run and shares the resulting cache with every module.
 
 .NOTES
-    Version: 6.6.0
+    Version: 6.7.0
     Part of: Windows Security Audit Framework
     GitHub: https://github.com/Sandler73/Windows-Security-Audit-Project
     
@@ -52,7 +52,7 @@
 # ============================================================================
 # Library Configuration
 # ============================================================================
-$script:COMMON_LIB_VERSION = "6.6.0"
+$script:COMMON_LIB_VERSION = "6.7.0"
 $script:HAS_COMMON_LIB = $true
 
 # ============================================================================
@@ -1591,7 +1591,7 @@ function Get-RiskPriorityScore {
 
     # Asset criticality (0-15 band of the composite score). Default is the
     # derived value: 5 for a general host, 10 for a domain controller. An
-    # operator-supplied AssetCriticality (1-10) overrides the derivation and is
+    # caller-supplied AssetCriticality (1-10) overrides the derivation and is
     # scaled onto the same 0-15 band, so an explicitly rated asset ranks its
     # findings by the rating the operator assigned rather than by role alone.
     $criticality = 5
