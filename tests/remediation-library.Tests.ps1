@@ -133,9 +133,17 @@ Describe 'v6.1 bundle-name aliases (option B migration)' {
         ($topics | Select-Object -Unique).Count | Should -Be $topics.Count
     }
     It 'resolves EssentialEightLevel1 across four bundles without duplicates' {
+        # The alias is the ordered union of four canonical bundles. Derive the
+        # expected size from those bundles so that adding a topic to one of them
+        # does not break this test; the invariant is completeness and uniqueness.
+        $parts = 'PatchAndTime', 'EncryptionAtRest', 'DefenderBaseline', 'MediaAndAutorun'
+        $expected = ($parts | ForEach-Object { (Get-RemediationBundle -Name $_).Topics } | Select-Object -Unique).Count
         $topics = @(Get-ResolvedBundleTopics -Name 'EssentialEightLevel1' -Quiet)
-        $topics.Count | Should -Be 8
-        ($topics | Select-Object -Unique).Count | Should -Be 8
+        $topics.Count | Should -Be $expected
+        ($topics | Select-Object -Unique).Count | Should -Be $expected
+        foreach ($p in $parts) {
+            foreach ($tp in (Get-RemediationBundle -Name $p).Topics) { $topics | Should -Contain $tp }
+        }
     }
     It 'returns empty for unknown names' {
         Resolve-BundleName -Name 'NotARealBundle' -Quiet | Should -BeNullOrEmpty
