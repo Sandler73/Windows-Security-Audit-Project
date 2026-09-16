@@ -1,6 +1,6 @@
 # module-pcidss.ps1
 # PCI DSS v4.0.1 Compliance Module for Windows Security Audit
-# Version: 6.6.0
+# Version: 6.7.0
 #
 # Evaluates Windows configuration against Payment Card Industry Data Security Standard v4.0.1
 # with Severity ratings and cross-framework references.
@@ -40,7 +40,7 @@
     References: PCI DSS v4.0.1 (June 2024; sole active version -- v4.0 retired
                 2024-12-31; formerly future-dated requirements mandatory since
                 2025-03-31), PCI SSC Quick Reference Guide
-    Version: 6.6.0
+    Version: 6.7.0
 
 .EXAMPLE
     $results = & .\modules\module-pcidss.ps1 -SharedData $sharedData
@@ -105,7 +105,7 @@ function Get-ModFirewallProfiles {
     return $script:HFMemo['FW']
 }
 
-$moduleVersion = "6.6.0"
+$moduleVersion = "6.7.0"
 $results = [System.Collections.Generic.List[object]]::new()
 # --------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
@@ -312,7 +312,7 @@ Write-Host "[PCI-DSS] Checking Req 1 -- Network Security Controls..." -Foregroun
             Add-Result -Category "PCI-DSS - Req 1 Network Security" -Status "Fail" `
                 -Message "1.3.1: Network traffic restriction -- SMBv1 disabled -- not configured (Value=$val)" `
                 -Details "Req 1.3.1: Insecure protocols must be disabled within CDE network segments" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name SMB1 -Value 0" `
+                -Remediation "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" `
                 -Severity "Critical" `
                 -CrossReferences @{ 'PCI-DSS'='1.3.1'; NIST='CM-7'; ISO27001='A.8.9'; STIG='V-220968' }
         }
@@ -427,7 +427,7 @@ Write-Host "[PCI-DSS] Checking Req 1 -- Network Security Controls..." -Foregroun
             Add-Result -Category "PCI-DSS - Req 1 Network Security" -Status "Fail" `
                 -Message "1.4.1: Network connections -- SMB signing required (server) -- not configured (Value=$val)" `
                 -Details "Req 1.4.1: SMB signing prevents man-in-the-middle within CDE network" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name RequireSecuritySignature -Value 1" `
+                -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
                 -Severity "High" `
                 -CrossReferences @{ 'PCI-DSS'='1.4.1'; NIST='SC-8'; CIS='2.3.9.2' }
         }
@@ -450,7 +450,7 @@ Write-Host "[PCI-DSS] Checking Req 1 -- Network Security Controls..." -Foregroun
             Add-Result -Category "PCI-DSS - Req 1 Network Security" -Status "Fail" `
                 -Message "1.4.2: Network connections -- SMB signing required (client) -- not configured (Value=$val)" `
                 -Details "Req 1.4.2: Client-side SMB signing prevents relay attacks targeting cardholder data" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters' -Name RequireSecuritySignature -Value 1" `
+                -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
                 -Severity "High" `
                 -CrossReferences @{ 'PCI-DSS'='1.4.2'; NIST='SC-8'; CIS='2.3.9.5' }
         }
@@ -738,14 +738,14 @@ Write-Host "[PCI-DSS] Checking Req 3 -- Protect Stored Account Data..." -Foregro
             Add-Result -Category "PCI-DSS - Req 3 Stored Data" -Status "Fail" `
                 -Message "3.4.1: BitLocker is present but NOT active (Status=$($blStatus.ProtectionStatus))" `
                 -Details "Req 3.4.1: Full disk encryption must protect stored account data" `
-                -Remediation "Enable-BitLocker -MountPoint C: -EncryptionMethod XtsAes256 -UsedSpaceOnly" `
+                -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                 -Severity "Critical" `
                 -CrossReferences @{ 'PCI-DSS'='3.4.1'; NIST='SC-28'; ISO27001='A.8.24' }
         } else {
             Add-Result -Category "PCI-DSS - Req 3 Stored Data" -Status "Fail" `
                 -Message "3.4.1: BitLocker is NOT available or not configured" `
                 -Details "Req 3.4.1: Disk encryption required for CDE systems storing cardholder data" `
-                -Remediation "Enable-BitLocker -MountPoint C: -EncryptionMethod XtsAes256" `
+                -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                 -Severity "Critical" `
                 -CrossReferences @{ 'PCI-DSS'='3.4.1'; NIST='SC-28'; ISO27001='A.8.24' }
         }
@@ -768,7 +768,7 @@ Write-Host "[PCI-DSS] Checking Req 3 -- Protect Stored Account Data..." -Foregro
             Add-Result -Category "PCI-DSS - Req 3 Stored Data" -Status "Fail" `
                 -Message "3.4.2: Encryption at rest -- BitLocker encryption method -- not configured (Value=$val)" `
                 -Details "Req 3.4.2: Encryption algorithm must be AES-256 or stronger for cardholder data" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\FVE' -Name EncryptionMethodWithXtsOs -Value 7" `
+                -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                 -Severity "High" `
                 -CrossReferences @{ 'PCI-DSS'='3.4.2'; NIST='SC-13'; CIS='18.10.9.1.2' }
         }
@@ -1010,7 +1010,7 @@ Write-Host "[PCI-DSS] Checking Req 5 -- Protect Against Malware..." -ForegroundC
             Add-Result -Category "PCI-DSS - Req 5 Malware" -Status "Fail" `
                 -Message "5.2.1a: Anti-malware -- real-time protection enabled -- not configured (Value=$val)" `
                 -Details "Req 5.2.1: Anti-malware solution must provide real-time protection on all CDE systems" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' -Name DisableRealtimeMonitoring -Value 0" `
+                -Remediation "Set-MpPreference -DisableRealtimeMonitoring $false" `
                 -Severity "Critical" `
                 -CrossReferences @{ 'PCI-DSS'='5.2.1'; NIST='SI-3'; ISO27001='A.8.7'; CIS='18.9.47.9.1' }
         }
@@ -1080,7 +1080,7 @@ Write-Host "[PCI-DSS] Checking Req 5 -- Protect Against Malware..." -ForegroundC
             Add-Result -Category "PCI-DSS - Req 5 Malware" -Status "Fail" `
                 -Message "5.2.2: Anti-malware -- behavior monitoring -- not configured (Value=$val)" `
                 -Details "Req 5.2.2: Behavioral analysis detects malware that evades signature-based detection" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' -Name DisableBehaviorMonitoring -Value 0" `
+                -Remediation "Set-MpPreference -DisableBehaviorMonitoring $false" `
                 -Severity "High" `
                 -CrossReferences @{ 'PCI-DSS'='5.2.2'; NIST='SI-3'; CIS='18.9.47.9.2' }
         }
@@ -1103,7 +1103,7 @@ Write-Host "[PCI-DSS] Checking Req 5 -- Protect Against Malware..." -ForegroundC
             Add-Result -Category "PCI-DSS - Req 5 Malware" -Status "Fail" `
                 -Message "5.2.3: Anti-malware -- cloud-delivered protection -- not configured (Value=$val)" `
                 -Details "Req 5.2.3: Cloud intelligence enhances malware detection speed and accuracy" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet' -Name SpyNetReporting -Value 2" `
+                -Remediation "Set-MpPreference -MAPSReporting Advanced" `
                 -Severity "High" `
                 -CrossReferences @{ 'PCI-DSS'='5.2.3'; NIST='SI-3(10)'; CIS='18.9.47.11.1' }
         }
@@ -1828,7 +1828,7 @@ Write-Host "[PCI-DSS] Checking Req 10 -- Log and Monitor All Access..." -Foregro
             Add-Result -Category "PCI-DSS - Req 10 Logging" -Status "Fail" `
                 -Message "10.6.1: Time synchronization -- W32Time service -- service not running (Status=$svcSt)" `
                 -Details "Req 10.6.1: Time synchronization is critical for accurate audit trail timestamps" `
-                -Remediation "Start-Service -Name W32Time; Set-Service -Name W32Time -StartupType Automatic; w32tm /resync" `
+                -Remediation "Start-Service -Name W32Time; Set-Service -Name W32Time -StartupType Automatic" `
                 -Severity "High" `
                 -CrossReferences @{ 'PCI-DSS'='10.6.1'; NIST='AU-8'; CIS='18.5.14.1' }
         }
@@ -1851,7 +1851,7 @@ Write-Host "[PCI-DSS] Checking Req 10 -- Log and Monitor All Access..." -Foregro
             Add-Result -Category "PCI-DSS - Req 10 Logging" -Status "Fail" `
                 -Message "10.5.1: Log protection -- PowerShell Script Block Logging -- not configured (Value=$val)" `
                 -Details "Req 10.5.1: All script execution must be logged for audit trail completeness" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
                 -Severity "High" `
                 -CrossReferences @{ 'PCI-DSS'='10.5.1'; NIST='AU-12'; CIS='18.9.100.1' }
         }
@@ -2293,7 +2293,7 @@ try {
         Add-Result -Category "PCI-DSS - Req 9 Physical" -Status "Warning" `
             -Severity "Medium" `
             -Message "Req 9.4.6 AutoPlay not fully disabled" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name 'NoDriveTypeAutoRun' -Value 255 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoDriveTypeAutoRun -Value 255" `
             -CrossReferences @{ PCIDSS='9.4.6' }
     }
 
@@ -2308,7 +2308,7 @@ try {
         Add-Result -Category "PCI-DSS - Req 9 Physical" -Status "Fail" `
             -Severity "High" `
             -Message "Req 8.2.8 Inactivity timeout absent or excessive ($idleTimeout seconds)" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'InactivityTimeoutSecs' -Value 900 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name InactivityTimeoutSecs -Value 900" `
             -CrossReferences @{ PCIDSS='8.2.8' }
     }
 }
