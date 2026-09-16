@@ -8,7 +8,7 @@
     aggregation, and that the generated script itself parses cleanly.
 .NOTES
     Author: Windows Security Audit Project
-    Version: 6.6.0
+    Version: 6.7.0
     Pester Version: 5.x
 
     Run via:
