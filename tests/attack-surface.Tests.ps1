@@ -9,7 +9,7 @@
     output.
 .NOTES
     Author: Windows Security Audit Project
-    Version: 6.6.0
+    Version: 6.7.0
     Pester Version: 5.x
 
     Run via:
@@ -92,7 +92,7 @@ Describe 'Report rendering' {
             New-ASResult -Category 'Network' -Message 'firewall port exposed' -Status 'Warning' -Severity 'Medium'
         )
         $script:AsOut = Join-Path ([System.IO.Path]::GetTempPath()) ("wsa-as-" + [guid]::NewGuid().ToString('N') + ".html")
-        Export-AttackSurfaceReport -Surface $s -OutputPath $AsOut -ExecutionInfo @{ ComputerName='H'; ScriptVersion='6.6.0' } | Out-Null
+        Export-AttackSurfaceReport -Surface $s -OutputPath $AsOut -ExecutionInfo @{ ComputerName='H'; ScriptVersion='6.7.0' } | Out-Null
         $script:AsHtml = Get-Content $AsOut -Raw
     }
     AfterAll { if (Test-Path $AsOut) { Remove-Item $AsOut -Force -ErrorAction SilentlyContinue } }
