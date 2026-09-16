@@ -1,6 +1,6 @@
 # report-templates.ps1
 # Per-framework tailored split-report renderers for the Windows Security Audit framework
-# Version: 6.6.0
+# Version: 6.7.0
 
 <#
 .SYNOPSIS
@@ -58,7 +58,7 @@
     Requires: PowerShell 5.1+
     Dependencies: none (standalone; consumes the standard result object schema)
     Security: writes HTML files only; all dynamic content is HTML-encoded
-    Version: 6.6.0
+    Version: 6.7.0
 #>
 
 # ============================================================================
@@ -256,7 +256,7 @@ function Get-FrameworkPosture {
 $script:FrameworkSectionTitle = 'Regulatory & Framework Context'
 # Build provenance: stamped into every generated report (HTML comment + footer)
 # so a tested artifact is always traceable to the renderer that produced it.
-$script:ReportTemplatesBuild = '6.6.0'
+$script:ReportTemplatesBuild = '6.7.0'
 
 function New-CollapsibleSection {
     <#
@@ -944,7 +944,7 @@ function New-FrameworkReportHtml {
 
     $hostName = if ($ExecutionInfo.ComputerName) { $ExecutionInfo.ComputerName } else { $env:COMPUTERNAME }
     $ranAt    = if ($ExecutionInfo.StartTime) { $ExecutionInfo.StartTime } else { (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') }
-    $fwVer    = if ($ExecutionInfo.ScriptVersion) { $ExecutionInfo.ScriptVersion } else { '6.6.0' }
+    $fwVer    = if ($ExecutionInfo.ScriptVersion) { $ExecutionInfo.ScriptVersion } else { '6.7.0' }
     $reportName = ($ModuleName -replace '[^\w\-]', '_')
 
     $html = @"
