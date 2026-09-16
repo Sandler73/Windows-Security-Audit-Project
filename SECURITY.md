@@ -10,8 +10,7 @@ We provide security updates for the following versions:
 
 | Version | Supported          | Notes |
 | ------- | ------------------ | ----- |
-| 6.6.x   | :white_check_mark: | Current release, actively maintained |
-| 6.1.x   | :white_check_mark: | Maintained for security fixes only |
+| 6.1.x   | :white_check_mark: | Current release, actively maintained |
 | 6.0.x   | :white_check_mark: | Maintained for security fixes only |
 | 5.x     | :x:                | Upgrade strongly recommended |
 | < 5.0   | :x:                | No longer supported |
@@ -265,7 +264,7 @@ Select-String -Path ".\Module.ps1" -Pattern "(password|secret|key|token)" -CaseS
 
 ```powershell
 # Backup current version first
-Copy-Item -Path ".\Windows-Security-Audit-Script" -Destination ".\Backup" -Recurse
+Copy-Item -Path ".\Windows-Security-Audit-Project" -Destination ".\Backup" -Recurse
 
 # Update via Git
 git pull origin main
