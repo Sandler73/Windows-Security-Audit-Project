@@ -1,6 +1,6 @@
 # Module-MS.ps1
 # Microsoft Security Baseline Compliance Module
-# Version: 6.6.0 - Edition
+# Version: 6.7.0 - Edition
 # Based on Microsoft Security Compliance Toolkit and Security Baselines
 
 <#
@@ -91,7 +91,7 @@
     - RemediateIssues: Remediation flag
 
 .NOTES
-    Version: 6.6.0 - Edition
+    Version: 6.7.0 - Edition
     Based on: 
     - Microsoft Security Compliance Toolkit (SCT)
     - Microsoft Security Baselines (Windows 10/11, Server 2016/2019/2022)
@@ -170,7 +170,7 @@ function Get-ModFirewallProfiles {
 }
 
 $results = [System.Collections.Generic.List[object]]::new()
-$moduleVersion = "6.6.0"
+$moduleVersion = "6.7.0"
 
 # Helper function to add results with consistent formatting
 function Add-Result {
@@ -764,7 +764,7 @@ try {
                 Add-Result -Category "MS - SmartScreen" -Status "Fail" `
                     -Message "Windows SmartScreen is disabled" `
                     -Details "MS Baseline: System lacks protection against malicious downloads and applications" `
-                    -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer' -Name SmartScreenEnabled -Value 'Warn'" `
+                    -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name EnableSmartScreen -Value 1" `
                     -Severity "Medium" `
                     -CrossReferences @{ NIST='SI-3'; CIS='18.9.85' }
             }
@@ -834,7 +834,7 @@ try {
     
 } catch {
     # Edge may not be installed or configured via policy
-    Add-Result -Category "MS - SmartScreen" -Status "Info" `
+    Add-Result -Category "MS - SmartScreen" -Status "Info" -Severity "Informational" `
         -Message "Edge SmartScreen policy not configured (Edge may not be installed or policy-managed)" `
         -Details "Absence of Edge policy configuration is informational, not a failure"
 }
@@ -999,7 +999,7 @@ try {
         Add-Result -Category "MS - Credential Protection" -Status "Warning" `
             -Message "LSASS PPL is not enabled" `
             -Details "MS Baseline: LSASS vulnerable to credential dumping tools like mimikatz" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RunAsPPL -Value 1 -Type DWord; Restart-Computer" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RunAsPPL -Value 1" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='IA-5(13)'; NSA='Credential Protection'; CIS='18.3.6' }
     }
@@ -1023,7 +1023,7 @@ try {
         Add-Result -Category "MS - Credential Protection" -Status "Fail" `
             -Message "WDigest plaintext credential storage is ENABLED" `
             -Details "MS Baseline: Critical vulnerability - passwords stored in plaintext in LSASS memory" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' -Name UseLogonCredential -Value 0 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' -Name UseLogonCredential -Value 0" `
             -Severity "High" `
             -CrossReferences @{ NIST='IA-5(13)'; NSA='Credential Protection'; CIS='18.3.6' }
     } else {
@@ -1097,14 +1097,14 @@ try {
             Add-Result -Category "MS - Credential Protection" -Status "Warning" `
                 -Message "LAN Manager authentication level is $level" `
                 -Details "MS Baseline: Consider setting to 5 for NTLMv2-only authentication" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name LmCompatibilityLevel -Value 5 -Type DWord" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name LmCompatibilityLevel -Value 5" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='IA-5(13)'; NSA='Credential Protection'; CIS='18.3.6' }
         } else {
             Add-Result -Category "MS - Credential Protection" -Status "Fail" `
                 -Message "LAN Manager authentication level is weak ($level)" `
                 -Details "MS Baseline: Allows weak LM/NTLM authentication protocols" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name LmCompatibilityLevel -Value 5 -Type DWord" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name LmCompatibilityLevel -Value 5" `
                 -Severity "High" `
                 -CrossReferences @{ NIST='IA-5(13)'; NSA='Credential Protection'; CIS='18.3.6' }
         }
@@ -1234,7 +1234,7 @@ try {
                 Add-Result -Category "MS - BitLocker" -Status "Fail" `
                     -Message "BitLocker is NOT enabled on OS drive $mountPoint" `
                     -Details "MS Baseline: Critical - Operating system drive should be encrypted" `
-                    -Remediation "Enable-BitLocker -MountPoint '$mountPoint' -EncryptionMethod XtsAes256 -UsedSpaceOnly -TpmProtector" `
+                    -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                     -Severity "High" `
                     -CrossReferences @{ NIST='SC-28'; CIS='3.11'; STIG='V-220920' }
             } elseif ($protectionStatus -eq "Off") {
@@ -1478,7 +1478,7 @@ try {
             Add-Result -Category "MS - RDP Security" -Status "Fail" `
                 -Message "RDP: Network Level Authentication is NOT required" `
                 -Details "MS Baseline: Critical - enable NLA to prevent pre-authentication attacks" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1 -Type DWord" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1" `
                 -Severity "High" `
                 -CrossReferences @{ NIST='AC-17'; CIS='18.9.65'; STIG='V-220940' }
         }
@@ -1610,7 +1610,7 @@ try {
         Add-Result -Category "MS - PowerShell Security" -Status "Warning" `
             -Message "PowerShell Script Block Logging is not enabled" `
             -Details "MS Baseline: Enable for security monitoring and incident response" `
-            -Remediation "New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Force; Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AU-3'; NSA='PowerShell Security'; STIG='V-220950' }
     }
@@ -1657,7 +1657,7 @@ try {
     }
 } catch {
     # Module logging is less critical
-    Add-Result -Category "MS - PowerShell Security" -Status "Info" `
+    Add-Result -Category "MS - PowerShell Security" -Status "Info" -Severity "Informational" `
         -Message "PowerShell module logging policy not configured" `
         -Details "Module logging is supplementary to script block logging; recorded for visibility"
 }
@@ -1953,7 +1953,7 @@ try {
         Add-Result -Category "MS - UAC" -Status "Fail" `
             -Message "User Account Control is DISABLED" `
             -Details "MS Baseline: Critical - all processes run with full privileges" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1 -Type DWord; Restart-Computer" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1" `
             -Severity "High" `
             -CrossReferences @{ NIST='AC-6'; CIS='2.3.17'; STIG='V-220932' }
     }
@@ -2051,7 +2051,7 @@ try {
         Add-Result -Category "MS - UAC" -Status "Warning" `
             -Message "UAC prompts do not use secure desktop" `
             -Details "MS Baseline: Vulnerable to UI automation and clickjacking" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name PromptOnSecureDesktop -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name PromptOnSecureDesktop -Value 1" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AC-6'; CIS='2.3.17'; STIG='V-220932' }
     }
@@ -2097,7 +2097,7 @@ try {
         Add-Result -Category "MS - Windows Update" -Status "Fail" `
             -Message "Automatic Updates are DISABLED" `
             -Details "MS Baseline: Critical - system not receiving security updates" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoUpdate -Value 0 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoUpdate -Value 0" `
             -Severity "High" `
             -CrossReferences @{ NIST='SI-2'; CISA='BOD 22-01' }
     } else {
@@ -2366,7 +2366,7 @@ try {
     }
 } catch {
     # WSH settings may not be configured
-    Add-Result -Category "MS - Legacy Features" -Status "Info" `
+    Add-Result -Category "MS - Legacy Features" -Status "Info" -Severity "Informational" `
         -Message "Windows Script Host policy not configured" `
         -Details "WSH restriction policy absent; default WSH behavior applies"
 }
@@ -2385,7 +2385,7 @@ try {
         Add-Result -Category "MS - Legacy Features" -Status "Warning" `
             -Message "AutoRun may not be fully disabled" `
             -Details "MS Baseline: Disable AutoRun to prevent malware spread via USB" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoDriveTypeAutoRun -Value 255 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoDriveTypeAutoRun -Value 255" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='CM-7'; CIS='5.1' }
     }
@@ -2486,7 +2486,7 @@ try {
         Add-Result -Category "MS - Audit Policy" -Status "Info" `
             -Message "Command line auditing in process creation events is not enabled" `
             -Details "MS Baseline: Enable for enhanced forensic capabilities" `
-            -Remediation "New-Item -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Force; Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1; auditpol /set /subcategory:`"Process Creation`" /success:enable" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AU-2'; CIS='17.1'; STIG='V-220748' }
     }
@@ -2584,7 +2584,7 @@ try {
     }
 } catch {
     # PowerShell logs may not be available on older systems
-    Add-Result -Category "MS - Event Logs" -Status "Info" `
+    Add-Result -Category "MS - Event Logs" -Status "Info" -Severity "Informational" `
         -Message "PowerShell operational log unavailable on this system" `
         -Details "Log channel may be absent on older systems; recorded for visibility"
 }
@@ -2626,7 +2626,7 @@ try {
         Add-Result -Category "MS - Anonymous Access" -Status "Warning" `
             -Message "Anonymous SAM enumeration is not restricted" `
             -Details "MS Baseline: Anonymous users can enumerate account information" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RestrictAnonymousSAM -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RestrictAnonymousSAM -Value 1" `
             -Severity "Medium" `
             -CrossReferences @{ NIST='AC-14'; CIS='2.3.10'; STIG='V-220936' }
     }
@@ -2706,7 +2706,7 @@ try {
             Add-Result -Category "MS - LDAP Security" -Status "Warning" `
                 -Message "LDAP server signing not required (Domain Controller)" `
                 -Details "MS Baseline: Consider requiring LDAP signing on domain controllers" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\NTDS\Parameters' -Name LDAPServerIntegrity -Value 2 -Type DWord; Restart-Computer" `
+                -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
                 -Severity "Medium" `
                 -CrossReferences @{ NIST='SC-8'; CIS='18.3.4' }
         }
@@ -3206,6 +3206,91 @@ Write-Host "`n[MS] Sections 1-32 checks complete" -ForegroundColor Cyan
 
 
 # ============================================================================
+# Windows Server 2025 baseline v2602 (February 2026): settings introduced in that
+# revision beyond the sudo control already checked above. Registry values below are
+# the documented policy backing stores. Two v2602 items (ROCA-vulnerable WHfB key
+# blocking, IE11 COM automation) are reported as advisory because their backing
+# values were not verified against the published baseline package.
+try {
+    $ntlmLsa = 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0'
+    $auditIn = Get-RegValue -Path $ntlmLsa -Name 'AuditReceivingNTLMTraffic' -Default 0
+    if ([int]$auditIn -ge 2) {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Pass" -Severity "Medium" `
+            -Message "Incoming NTLM traffic auditing is enabled (all accounts)" `
+            -Details "v2602 enables auditing of incoming NTLM so legacy dependencies can be mapped before restriction" `
+            -CrossReferences @{ MS='v2602'; NIST='AU-2' }
+    } else {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Fail" -Severity "Medium" `
+            -Message "Incoming NTLM traffic auditing is not enabled" `
+            -Details "v2602 recommends auditing all incoming NTLM traffic (AuditReceivingNTLMTraffic=2) on member servers and domain controllers" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0' -Name AuditReceivingNTLMTraffic -Value 2" `
+            -CrossReferences @{ MS='v2602'; NIST='AU-2' }
+    }
+    $auditOut = Get-RegValue -Path $ntlmLsa -Name 'RestrictSendingNTLMTraffic' -Default 0
+    if ([int]$auditOut -ge 1) {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Pass" -Severity "Medium" `
+            -Message "Outgoing NTLM traffic to remote servers is audited or restricted" `
+            -Details "RestrictSendingNTLMTraffic=$auditOut (1=audit all, 2=deny all)" `
+            -CrossReferences @{ MS='v2602'; NIST='AU-2' }
+    } else {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Fail" -Severity "Medium" `
+            -Message "Outgoing NTLM traffic is neither audited nor restricted" `
+            -Details "v2602 recommends auditing outgoing NTLM traffic to remote servers (RestrictSendingNTLMTraffic=1)" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0' -Name RestrictSendingNTLMTraffic -Value 1" `
+            -CrossReferences @{ MS='v2602'; NIST='AU-2' }
+    }
+    $spn = Get-RegValue -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'SmbServerNameHardeningLevel' -Default 0
+    if ([int]$spn -ge 1) {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Pass" -Severity "High" `
+            -Message "SMB server SPN target name validation is enabled (level $spn)" `
+            -Details "v2602 recommends SPN validation as Extended Protection for Authentication against SMB relay (CVE-2025-55234)" `
+            -CrossReferences @{ MS='v2602'; NIST='SC-8' }
+    } else {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Fail" -Severity "High" `
+            -Message "SMB server SPN target name validation is off" `
+            -Details "v2602 recommends 'Server SPN target name validation level' as EPA against SMB relay attacks (CVE-2025-55234); level 1 accepts, level 2 requires" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name SmbServerNameHardeningLevel -Value 1" `
+            -CrossReferences @{ MS='v2602'; NIST='SC-8' }
+    }
+    $motw = Get-RegValue -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Attachments' -Name 'SaveZoneInformation' -Default 0
+    if ([int]$motw -eq 2) {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Pass" -Severity "Medium" `
+            -Message "Mark of the Web zone information is preserved on downloaded files" `
+            -Details "SaveZoneInformation=2 keeps the zone identifier that SmartScreen and Office Protected View rely on" `
+            -CrossReferences @{ MS='v2602'; NIST='SI-3' }
+    } else {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Fail" -Severity "Medium" `
+            -Message "Mark of the Web zone information is not enforced as preserved" `
+            -Details "v2602 configures 'Do not preserve zone information in file attachments' as Disabled so the zone identifier is retained" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Attachments' -Name SaveZoneInformation -Value 2" `
+            -CrossReferences @{ MS='v2602'; NIST='SI-3' }
+    }
+    $rpcPriv = Get-RegValue -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers\RPC' -Name 'RpcAuthnLevelPrivacyEnabled' -Default 0
+    if ([int]$rpcPriv -eq 1) {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Pass" -Severity "Medium" `
+            -Message "Print spooler RPC connections require packet privacy" `
+            -Details "RpcAuthnLevelPrivacyEnabled=1 enforces encrypted RPC for printer operations" `
+            -CrossReferences @{ MS='v2602'; NIST='SC-8' }
+    } else {
+        Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Fail" -Severity "Medium" `
+            -Message "Print spooler RPC connections do not require packet privacy" `
+            -Details "v2602 hardens printer RPC by requiring authentication level privacy" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Printers\RPC' -Name RpcAuthnLevelPrivacyEnabled -Value 1" `
+            -CrossReferences @{ MS='v2602'; NIST='SC-8' }
+    }
+    Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Info" -Severity "Informational" `
+        -Message "v2602 advisory items: ROCA-vulnerable WHfB key blocking (DC) and IE11 COM-automation disablement" `
+        -Details "Both are part of the v2602 revision. Confirm via the Security Compliance Toolkit v2602 GPO reports; the backing registry values are not asserted here" `
+        -CrossReferences @{ MS='v2602' }
+} catch {
+    Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Error" -Severity "Low" `
+        -Message "v2602 baseline extension checks failed" -Details $_.Exception.Message
+}
+
+# Currency note: Windows 11 26H1 reached general availability on 2026-08-27.
+# Microsoft publishes a security baseline for each feature update after GA;
+# the 25H2 / Server 2025 v2602 baseline below remains the current published
+# authority until the 26H1 baseline is released and verified.
 # Windows 11 24H2 / Server 2025 baseline alignment (see also 25H2/v2602 section)
 # ============================================================================
 Write-Host "[MS] Checking Windows 11 24H2 / Server 2025 baseline alignment..." -ForegroundColor Yellow
@@ -3288,7 +3373,7 @@ try {
         Add-Result -Category "MS - Edge Baseline" -Status "Fail" `
             -Severity "High" `
             -Message "Edge SmartScreen explicitly disabled" `
-            -Remediation "Set-ItemProperty -Path '$edgePath' -Name 'SmartScreenEnabled' -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name EnableSmartScreen -Value 1" `
             -CrossReferences @{ MS='Edge SmartScreen' }
     }
     else {
@@ -3683,7 +3768,7 @@ try {
             -Severity "Medium" `
             -Message "NTLMv1-derived SSO in Audit mode (BlockNtlmv1SSO = 0); enforcement becomes the default October 2026" `
             -Details "Audit mode logs Event ID 4024 for NTLMv1-derived SSO use. Inventory dependencies via the NTLM Operational log, remediate, then set Enforce (1) ahead of the October 2026 default flip." `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0' -Name BlockNtlmv1SSO -Value 1" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name LmCompatibilityLevel -Value 5" `
             -CrossReferences @{ MS='NTLMv1 deprecation'; CIS='2.3.11' }
     } else {
         Add-Result -Category "MS - 25H2/v2602 Baseline" -Status "Info" `
@@ -3792,7 +3877,7 @@ try {
             -Severity "Medium" `
             -Message "25H2 baseline: ASR rule 'Block process creations from PSExec/WMI' not configured (baseline recommends at least Audit)" `
             -Details "The 25H2 baseline adds ASR rule $psexecGuid in Audit mode. Unconfigured means no telemetry on PSExec/WMI-originated process creation, a primary lateral-movement channel." `
-            -Remediation "Add-MpPreference -AttackSurfaceReductionRules_Ids $psexecGuid -AttackSurfaceReductionRules_Actions AuditMode" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1; auditpol /set /subcategory:`"Process Creation`" /success:enable" `
             -CrossReferences @{ MS='Baseline 25H2'; ASR='D1E49AAC'; MITRE='T1047' }
     }
 } catch {
