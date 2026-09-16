@@ -644,58 +644,108 @@ Version 4.x and earlier used a monolithic script design. Version 5.0 represents 
 
 ## Version Comparison
 
-| Version | Modules | Checks | Output Formats | Key Feature | Architecture |
-|---------|---------|--------|----------------|-------------|--------------|
-| 6.1.0   | 16      | 4,053  | HTML, JSON, CSV, XML, Console + 6 browser exports | Cross-cutting capabilities: risk priority, correlations, baseline drift, rollback, GPO export, bundles | Modular, cache-aware |
-| 6.0.5   | 16      | 3,199  | HTML, JSON, CSV, XML, Console + 6 browser exports | 8 new frameworks, XSL-styled XML, report overhaul | Modular, cache-aware |
-| 6.0.0   | 8       | 1,855  | HTML, JSON, CSV, XML, Console | Severity + CrossReferences | Modular, cache-aware |
-| 5.3.0   | 7       | 550+   | HTML, JSON, CSV, XML, Console | Remediation + Interactive HTML | Modular |
-| 5.0.0   | 7       | 550+   | HTML, JSON, CSV | Multi-framework modular | Modular |
-| 4.x     | N/A     | ~200   | HTML only | Basic scan | Monolithic |
+Capability milestones. Check counts are taken from the release records and from
+direct measurement of the source tree; releases whose count was not recorded at
+the time are omitted rather than estimated.
+
+| Version | Modules | Checks | Output | Key capability added | Architecture |
+|---------|---------|--------|--------|----------------------|--------------|
+| 6.7.0   | 16      | 4,065  | HTML, JSON, CSV, XML, Console; per-framework split reports; attack-surface report | Server 2025 baseline v2602 coverage; 38 canonical remediation topics; host queries routed through HostFacts and shared assessments | Modular, cache-aware, memoised host facts |
+| 6.6.1   | 16      | 4,053  | as 6.6.0 | PowerShell 7 compatibility corrections; remediation text aligned to canonical form across all modules | as 6.6.0 |
+| 6.6.0   | 16      | 4,053  | Unified output layout under `reports/<hostname>/`; all report filenames carry hostname and date | Attack-surface report rebuilt with host cards, contents and ranked domain chart; documentation and diagrams reconciled to source | as 6.5.0 |
+| 6.5.0   | 16      | 4,053  | as 6.4.0 | Composed post-execution pipeline; `-AssetCriticality` and `-ComplianceThreshold`; raw host objects retained | Pipeline component extracted from the orchestrator |
+| 6.4.0   | 16      | 4,053  | as 6.3.0 | Canonical remediation table; remediation library with impact tiers, rollback capture and post-apply verification; topic-based bundles | Remediation subsystem componentised |
+| 6.3.0   | 16      | not recorded | Per-framework split reports | Audit profiles; shared assessments; HostFacts registry; report templates component | Shared components introduced |
+| 6.1.0   | 16      | 3,994  | HTML, JSON, CSV, XML, Console with browser exports | Risk priority, cross-framework correlation, baseline drift, rollback scripts, GPO export, remediation bundles | Modular, cache-aware |
+| 6.0.5   | 16      | 3,199  | as 6.0.0 with XSL-styled XML | Eight additional frameworks; report overhaul | Modular, cache-aware |
+| 6.0.0   | 8       | 1,855  | HTML, JSON, CSV, XML, Console | `Severity` and `CrossReferences` on every result | Modular, cache-aware |
+| 5.3.0   | 7       | 550+   | HTML, JSON, CSV, XML, Console | Remediation guidance; interactive HTML | Modular |
+| 5.0.0   | 7       | 550+   | HTML, JSON, CSV | Multi-framework modular design | Modular |
+| 4.x     | n/a     | ~200   | HTML only | Basic scan | Monolithic |
 
 ---
 
 ## Upgrade Notes
 
+Each note names what changed for a caller and what, if anything, must be
+adjusted. Where a rename kept an alias, existing invocations continue to work
+without change.
+
+### Upgrading to 6.7.0
+
+**Non-breaking:**
+- The `-Profile` parameter variable is now `-AuditProfile`; `-Profile` is retained as an alias, so existing invocations are unchanged
+- `New-AssessmentRecord` now always returns `Items` as an array, including for zero and one item. Consumers that indexed `.Items[0]` on a single-item record previously received the first character of a string; they now receive the item
+- Parallel runspaces load the shared-assessments component. Modules that consume `Get-SharedAssessment` work identically in sequential and parallel modes
+- Check count increased from 4,053 to 4,065 with the Server 2025 baseline v2602 additions. Automation that asserts an exact total should read the total from the JSON summary rather than hard-coding it
+
+### Upgrading to 6.6.1
+
+**Non-breaking:**
+- `Build-AttackSurface`, `Build-PipelineMetadata` and `Build-RemediationPlan` were renamed to `New-AttackSurface`, `New-PipelineMetadata` and `New-RemediationPlan`. Aliases retain the former names
+- Three checks that called a cmdlet absent from PowerShell 7 now use `Get-CimInstance`. On PowerShell 7 these checks previously produced an error result; they now produce a finding. Baselines captured on PowerShell 7 before 6.6.1 will show these three as changed
+- Remediation text for the same setting is now identical across frameworks. Automation that matched on a framework-specific remediation string should match on the canonical form
+
+### Upgrading to 6.6.0
+
+**Breaking for path-based automation:**
+- Reports are written to `reports/<hostname>/` rather than `reports/`, and per-framework reports to `reports/<hostname>/by-framework/`. Every report filename now carries the hostname and date. Any script that reads reports from a fixed path must search the host subdirectory; `-OutputPath` still applies, with the host folder created beneath it
+
+**Non-breaking:**
+- The documented bare-token help forms (`help`, `--help`, `/?`) never worked, because the first positional parameter carries a validation set. Use `-Help`, `-H`, `-h` or `-ShowHelp`
+
+### Upgrading to 6.5.0
+
+**Non-breaking:**
+- `-AssetCriticality` (1 to 10) and `-ComplianceThreshold` (0 to 100, default 70) are new optional parameters. Omitting them preserves prior behaviour
+- The JSON summary gains a pipeline section with per-phase timing and run metadata
+
+### Upgrading to 6.4.0
+
+**Non-breaking:**
+- Remediation is applied through a library with impact tiers. Tiers add confirmation requirements on top of the existing typed `YES` gate; nothing that previously required confirmation now runs without it
+- `-RollbackPath` captures pre-change state before any remediation is applied
+- Bundle names introduced in 6.1 remain accepted as deprecated aliases of the topic-based bundles and emit a notice
+
+### Upgrading to 6.3.0
+
+**Non-breaking:**
+- `-Profile` (now `-AuditProfile`) selects modules and defaults by host role; `-ListProfiles` enumerates them
+- `-SplitReports` and `-SplitOnly` produce per-framework reports alongside or instead of the composite report
+
 ### Migrating from 5.x to 6.0
 
-**Non-Breaking Changes:**
-- All existing command-line parameters remain compatible
-- Output format is backwards-compatible (2 new fields appended)
-- Module names unchanged for the original 7 modules
+**Non-breaking:**
+- All command-line parameters remain compatible
+- Output is backwards-compatible; two fields are appended
+- Module names are unchanged for the original seven modules
 
-**New Capabilities:**
-- Results now include `Severity` and `CrossReferences` fields -- update any custom parsers
-- New module `MS-DefenderATP` available for selection
-- Modules can be run standalone for targeted testing
-- Enhanced summary output in console
+**New:**
+- Results carry `Severity` and `CrossReferences`; update any custom parser to accept the additional fields
+- `MS-DefenderATP` is available for selection
+- Modules can be run standalone
 
-**Migration Steps:**
-1. Replace module files in `modules/` directory
-2. Update any report-parsing logic to handle 9-field output objects
-3. Add `MS-DefenderATP` to module selection if Defender for Endpoint assessment is desired
-4. Review enhanced HTML reports for new severity and cross-reference columns
+**Steps:**
+1. Replace the module files in `modules/`
+2. Update report-parsing logic to accept the additional result fields
+3. Add `MS-DefenderATP` to the module selection if Defender for Endpoint assessment is wanted
 
 ### Migrating from 4.x to 5.0
 
-**Breaking Changes:**
-- Command-line parameters have changed
-- Output format is different
-- Module organization is new
+**Breaking:**
+- Command-line parameters, output format and module organisation all changed
 
-**Migration Steps:**
-1. Back up any custom modifications to 4.x script
-2. Download/clone version 6.0 (current)
-3. Update any automation scripts to use new parameters:
+**Steps:**
+1. Back up any customisation made to the 4.x script
+2. Replace invocations, for example:
    ```powershell
-   # Old (4.x)
+   # 4.x
    .\SecurityAudit.ps1 -Type Full
-   
-   # New (6.0)
+
+   # 5.0 and later
    .\Windows-Security-Audit.ps1 -Modules Core,STIG,NIST,CIS,NSA,CISA,MS,MS-DefenderATP
    ```
-4. Update report parsing logic for new formats
-5. Test thoroughly before production use
+3. Update report-parsing logic for the new formats and test before production use
 
 ---
 
@@ -705,24 +755,23 @@ Version 4.x and earlier used a monolithic script design. Version 5.0 represents 
 
 | Version | Support Status | Notes |
 |---------|---------------|-------|
-| Windows 11 | ✅ Fully Supported | Latest builds tested |
-| Windows 10 | ✅ Fully Supported | 21H2 and later |
-| Server 2025 | ✅ Fully Supported | Latest builds tested |
-| Server 2022 | ✅ Fully Supported | Latest builds tested |
-| Server 2019 | ✅ Fully Supported | All builds |
-| Server 2016 | ✅ Fully Supported | All builds |
-| Windows 10 <21H2 | ⚠️ Limited Support | May work but not actively tested |
-| Windows 8.1 | ❌ Not Supported | End of life |
-| Server 2012 R2 | ❌ Not Supported | End of extended support |
+| Windows 11 | Fully supported | 21H2 through 25H2 tested; 26H1 is under evaluation pending the Microsoft security baseline for that release |
+| Windows 10 | Fully supported | 21H2 and later, including IoT LTSC 2021 |
+| Server 2025 | Fully supported | 24H2 |
+| Server 2022 | Fully supported | 21H2 |
+| Server 2019 | Fully supported | 1809 |
+| Server 2016 | Fully supported | Minimum supported server release; enforced at runtime |
+| Windows 10 before 21H2 | Limited | May work; not tested |
+| Windows 8.1 | Not supported | End of life |
+| Server 2012 R2 and earlier | Not supported | Below the enforced floor; several cmdlets the framework relies on are absent |
 
 ### PowerShell Versions
 
 | Version | Support Status |
 |---------|---------------|
-| 7.x | ✅ Fully Compatible |
-| 5.1 | ✅ Fully Supported (Minimum) |
-| 5.0 | ⚠️ May Work |
-| <5.0 | ❌ Not Supported |
+| 7.x | Fully supported; tested in CI on Windows Server 2025 and `windows-latest` |
+| 5.1 | Fully supported; minimum version, enforced at runtime |
+| 5.0 and earlier | Not supported; the runtime check refuses to start |
 
 ---
 
