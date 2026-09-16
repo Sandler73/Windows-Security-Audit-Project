@@ -1,6 +1,6 @@
 # host-facts.ps1
 # Derived host-facts registry for the Windows Security Audit framework
-# Version: 6.6.0
+# Version: 6.7.0
 
 <#
 .SYNOPSIS
@@ -57,7 +57,7 @@
     Security: read-only; no state is modified; no network calls
     Registry paths: all paths herein already appear in the audited
     module set (verified during the principal audit); no new paths invented
-    Version: 6.6.0
+    Version: 6.7.0
 #>
 
 # ============================================================================
@@ -317,8 +317,19 @@ function New-HostFactsRegistry {
         ElapsedSeconds = [Math]::Round(((Get-Date) - $started).TotalSeconds, 3)
         FactCount      = ($facts.Keys | Where-Object { $_ -ne 'Meta' }).Count
         Errors         = $errors
-        Version        = '6.6.0'
+        Version        = '6.7.0'
     }
+
+
+    # Raw CIM objects retained so modules can consume them without re-querying.
+    # Every property of the live object is preserved, so a consumer that reads
+    # any attribute sees exactly what a fresh Get-CimInstance would return.
+    try {
+        $facts.RawComputerSystem = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
+    } catch { $facts.RawComputerSystem = $null }
+    try {
+        $facts.RawDeviceGuard = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction Stop
+    } catch { $facts.RawDeviceGuard = $null }
 
     return $facts
 }
