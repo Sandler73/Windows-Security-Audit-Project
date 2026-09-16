@@ -8,7 +8,7 @@
     latest-hotfix-age signal.
 .NOTES
     Author: Windows Security Audit Project
-    Version: 6.6.0
+    Version: 6.7.0
     Pester Version: 5.x
 
     Run via:
