@@ -1,6 +1,6 @@
 # module-hipaa.ps1
 # HIPAA Security Rule Compliance Module for Windows Security Audit
-# Version: 6.6.0
+# Version: 6.7.0
 #
 # Evaluates Windows configuration against HIPAA Security Rule (45 CFR Part 164 Subpart C)
 # with Severity ratings and cross-framework references.
@@ -34,7 +34,7 @@
     References: HIPAA Security Rule (45 CFR 164.302-318 -- CURRENT and sole
                 authoritative basis; Jan 2025 NPRM proposed update pending, final
                 action projected July 2027), HITECH Act, HHS Guidance on Risk Analysis
-    Version: 6.6.0
+    Version: 6.7.0
 
 .EXAMPLE
     $results = & .\modules\module-hipaa.ps1 -SharedData $sharedData
@@ -99,7 +99,7 @@ function Get-ModFirewallProfiles {
     return $script:HFMemo['FW']
 }
 
-$moduleVersion = "6.6.0"
+$moduleVersion = "6.7.0"
 $results = [System.Collections.Generic.List[object]]::new()
 # --------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
@@ -322,7 +322,7 @@ Write-Host "[HIPAA] Checking 164.312(a) Access Control..." -ForegroundColor Yell
             Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
                 -Message "164.312(a)(2)(iv): BitLocker NOT active -- ePHI at rest may be unencrypted" `
                 -Details "164.312(a)(2)(iv) Encryption/Decryption: Addressable but strongly recommended" `
-                -Remediation "Enable-BitLocker -MountPoint C: -EncryptionMethod XtsAes256" `
+                -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                 -Severity "High" `
                 -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-28'; 'PCI-DSS'='3.4.1'; ISO27001='A.8.24' }
         }
@@ -345,7 +345,7 @@ Write-Host "[HIPAA] Checking 164.312(a) Access Control..." -ForegroundColor Yell
             Add-Result -Category "HIPAA - Access Control" -Status "Fail" `
                 -Message "164.312(a)(2)(iv)b: Encryption of ePHI -- BitLocker encryption method -- not configured (Value=$val)" `
                 -Details "164.312(a)(2)(iv): Encryption must use AES-256 or equivalent for ePHI protection" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\FVE' -Name EncryptionMethodWithXtsOs -Value 7" `
+                -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                 -Severity "Medium" `
                 -CrossReferences @{ HIPAA='164.312(a)(2)(iv)'; NIST='SC-13'; 'PCI-DSS'='3.4.2' }
         }
@@ -660,7 +660,7 @@ Write-Host "[HIPAA] Checking 164.312(b) Audit Controls..." -ForegroundColor Yell
             Add-Result -Category "HIPAA - Audit Controls" -Status "Fail" `
                 -Message "164.312(b)(7): Audit controls -- PowerShell Script Block Logging -- not configured (Value=$val)" `
                 -Details "164.312(b): PowerShell script execution must be logged for ePHI system forensics" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
                 -Severity "High" `
                 -CrossReferences @{ HIPAA='164.312(b)'; NIST='AU-12'; CIS='18.9.100.1' }
         }
@@ -736,7 +736,7 @@ Write-Host "[HIPAA] Checking 164.312(c) Integrity Controls..." -ForegroundColor 
             Add-Result -Category "HIPAA - Integrity" -Status "Fail" `
                 -Message "164.312(c)(1): Integrity -- SMB signing required (server) -- not configured (Value=$val)" `
                 -Details "164.312(c)(1): ePHI must not be improperly altered or destroyed during network transfer" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name RequireSecuritySignature -Value 1" `
+                -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
                 -Severity "High" `
                 -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SC-8'; CIS='2.3.9.2' }
         }
@@ -759,7 +759,7 @@ Write-Host "[HIPAA] Checking 164.312(c) Integrity Controls..." -ForegroundColor 
             Add-Result -Category "HIPAA - Integrity" -Status "Fail" `
                 -Message "164.312(c)(2): Integrity -- SMB signing required (client) -- not configured (Value=$val)" `
                 -Details "164.312(c)(1): Client-side message signing ensures ePHI transit integrity" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters' -Name RequireSecuritySignature -Value 1" `
+                -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
                 -Severity "High" `
                 -CrossReferences @{ HIPAA='164.312(c)(1)'; NIST='SC-8'; CIS='2.3.9.5' }
         }
@@ -1567,7 +1567,7 @@ Write-Host "[HIPAA] Checking HITECH Act & ePHI Protection..." -ForegroundColor Y
             Add-Result -Category "HIPAA - ePHI Protection" -Status "Fail" `
                 -Message "HITECH-7: ePHI protection -- SMBv1 disabled -- not configured (Value=$val)" `
                 -Details "HITECH: SMBv1 is a critical ransomware vector threatening ePHI systems" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name SMB1 -Value 0" `
+                -Remediation "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" `
                 -Severity "Critical" `
                 -CrossReferences @{ HIPAA='HITECH'; NIST='CM-7'; ISO27001='A.8.9'; STIG='V-220968' }
         }
@@ -1728,7 +1728,7 @@ try {
         Add-Result -Category "HIPAA - NIST 800-66 R2" -Status "Fail" `
             -Severity "High" `
             -Message "AC-11 No automatic session lock configured" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'InactivityTimeoutSecs' -Value 900 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name InactivityTimeoutSecs -Value 900" `
             -CrossReferences @{ NIST66R2='AC-11'; HIPAA='164.312(a)(2)(iii)' }
     }
     else {
@@ -1851,7 +1851,7 @@ try {
         Add-Result -Category "HIPAA - 405(d) HICP" -Status "Fail" `
             -Severity "Critical" `
             -Message "HICP TV5 SMBv1 enabled (wormable malware exposure to medical devices)" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'SMB1' -Value 0 -Type DWord" `
+            -Remediation "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" `
             -CrossReferences @{ HICP='TV5' }
     }
 }
@@ -1951,7 +1951,7 @@ try {
         Add-Result -Category "HIPAA - Sec.164.312(e)(2)(ii)" -Status "Fail" `
             -Severity "Medium" `
             -Message "SMB signing not required (transmission integrity gap)" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'RequireSecuritySignature' -Value 1 -Type DWord" `
+            -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
             -CrossReferences @{ HIPAA='164.312(e)(2)(i)' }
     }
 }
@@ -2095,7 +2095,7 @@ try {
             $sysVol = Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction Stop
             if ($sysVol) { $blStateLbl = "system drive protection: $($sysVol.ProtectionStatus)" }
         }
-    } catch { }
+    } catch { $blStateLbl = "system drive protection: unavailable ($($_.Exception.Message))" }
     Add-Result -Category "HIPAA - Proposed Rule (NPRM)" -Status "Info" `
         -Severity "Informational" `
         -Message "PROPOSED: NPRM would mandate encryption of ePHI at rest and in transit ($blStateLbl)" `
