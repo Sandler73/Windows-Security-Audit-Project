@@ -1,7 +1,7 @@
 # Usage Guide
 
 **Windows Security Audit Project -- Usage Guide**
-**Version:** 6.6.0
+**Version:** 6.7.0
 
 This guide walks you through every aspect of running the Windows Security Audit Project -- from your first audit to advanced workflows like baseline drift comparison, Group Policy export, and scripted remediation. Every parameter, every workflow, every output format is covered with worked examples.
 
@@ -90,14 +90,14 @@ cd Windows-Security-Audit-Project\Windows-Security-Audit
 
 ### Option 2: Download Release Archive
 
-1. Download `Windows-Security-Audit-v6.6.0.zip` from the Releases page
+1. Download `Windows-Security-Audit-v6.7.0.zip` from the Releases page
 2. Verify checksum (SHA-256 published with each release):
    ```powershell
-   Get-FileHash .\Windows-Security-Audit-v6.6.0.zip -Algorithm SHA256
+   Get-FileHash .\Windows-Security-Audit-v6.7.0.zip -Algorithm SHA256
    ```
 3. Extract to your preferred location:
    ```powershell
-   Expand-Archive -Path .\Windows-Security-Audit-v6.6.0.zip -DestinationPath .\
+   Expand-Archive -Path .\Windows-Security-Audit-v6.7.0.zip -DestinationPath .\
    cd .\Windows-Security-Audit
    ```
 
@@ -150,7 +150,7 @@ While running, the script prints color-coded progress to the console:
 
 ```
 ================================================================================
-              Windows Security Audit Project v6.6.0
+              Windows Security Audit Project v6.7.0
 ================================================================================
 
 [*] Checking prerequisites...
@@ -175,7 +175,7 @@ While running, the script prints color-coded progress to the console:
 [*] Audit Complete
 ================================================================================
   Duration:        77.94s
-  Total Checks:    4,053
+  Total Checks:    4,065
   Pass:            2,547 (63.77%)
   Fail:            687 (17.20%)
   Warning:         521 (13.05%)
