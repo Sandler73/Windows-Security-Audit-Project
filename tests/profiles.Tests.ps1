@@ -7,7 +7,7 @@
     module referenced by a profile resolves to a module file on disk.
 .NOTES
     Author: Windows Security Audit Project
-    Version: 6.6.0
+    Version: 6.7.0
     Pester Version: 5.x
 
     Run via:

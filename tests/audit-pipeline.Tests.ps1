@@ -11,7 +11,7 @@
     complete and JSON-serializable.
 .NOTES
     Author: Windows Security Audit Project
-    Version: 6.6.0
+    Version: 6.7.0
     Pester Version: 5.x
 
     Run via:
@@ -97,9 +97,9 @@ Describe 'Risk decoration' {
         Invoke-AuditPipeline -Results $r -IncludeRiskPriority | Out-Null
         (Invoke-AuditPipeline -Results $r -IncludeRiskPriority).RiskScoredCount | Should -Be 0
     }
-    It 'reports operator-supplied criticality distinctly from the role-derived default' {
+    It 'reports caller-supplied criticality distinctly from the role-derived default' {
         $withCrit = Invoke-AuditPipeline -Results (New-PlResults) -IncludeRiskPriority -AssetCriticality 9
-        ($withCrit.PhaseTimings | Where-Object Name -eq 'RiskPriority').Detail | Should -Match 'operator-supplied'
+        ($withCrit.PhaseTimings | Where-Object Name -eq 'RiskPriority').Detail | Should -Match 'caller-supplied'
         $derived = Invoke-AuditPipeline -Results (New-PlResults) -IncludeRiskPriority
         ($derived.PhaseTimings | Where-Object Name -eq 'RiskPriority').Detail | Should -Match 'role-derived'
     }

@@ -1,6 +1,6 @@
 # Module-Core.ps1
 # Core Security Baseline Module for Windows Security Audit
-# Version: 6.6.0
+# Version: 6.7.0
 #
 # Provides fundamental operating system security checks across 22 categories
 # including antivirus, firewall, updates, UAC, accounts, encryption, network
@@ -53,7 +53,7 @@
 .NOTES
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching and structured logging)
-    Version: 6.6.0
+    Version: 6.7.0
 
 .EXAMPLE
     $results = & .\modules\module-core.ps1 -SharedData $sharedData
@@ -119,7 +119,7 @@ function Get-ModFirewallProfiles {
     return $script:HFMemo['FW']
 }
 
-$moduleVersion = "6.6.0"
+$moduleVersion = "6.7.0"
 $results = [System.Collections.Generic.List[object]]::new()
 # --------------------------------------------------------------------------
 # Result helper: Creates a canonical audit result with Severity and
@@ -152,6 +152,25 @@ function Add-Result {
         CrossReferences = $CrossReferences
         Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     })
+}
+
+# Defensive accessor: use the shared assessment when the component is loaded,
+# otherwise fall back to a live query with the same record shape. Keeps the
+# module executable standalone and inside a runspace that lacks the component.
+function Get-ModuleSharedAssessment {
+    param([Parameter(Mandatory)][string]$Name, $SharedData)
+    if (Get-Command Get-SharedAssessment -ErrorAction SilentlyContinue) {
+        return (Get-SharedAssessment -Name $Name -SharedData $SharedData)
+    }
+    $items = switch ($Name) {
+        'LocalUsers' { @(Get-LocalUser -ErrorAction SilentlyContinue | ForEach-Object {
+            [PSCustomObject]@{ Name=$_.Name; Enabled=$_.Enabled; PasswordRequired=$_.PasswordRequired
+                               PasswordNeverExpires=($null -eq $_.PasswordExpires -and $_.Enabled); LastLogon=$_.LastLogon; SID="$($_.SID)" } }) }
+        'InstalledHotfixes' { @(Get-HotFix -ErrorAction SilentlyContinue | Sort-Object InstalledOn -Descending | ForEach-Object {
+            [PSCustomObject]@{ HotFixID=$_.HotFixID; Description=$_.Description; InstalledOn=$_.InstalledOn } }) }
+        default { @() }
+    }
+    return [PSCustomObject]@{ Name=$Name; Items=[object[]]$items; Count=@($items).Count; Truncated=$false; Error=$null }
 }
 
 # --------------------------------------------------------------------------
@@ -449,7 +468,7 @@ try {
                 -Message "Windows Update service is disabled" `
                 -Details "System cannot receive critical security updates" `
                 -Severity "Critical" `
-                -Remediation "Set-Service -Name wuauserv -StartupType Manual; Start-Service wuauserv" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoUpdate -Value 0" `
                 -CrossReferences @{ CIS="18.10.92.2.1"; NIST="SI-2"; STIG="V-254243"; CISA="Vulnerability Mgmt" }
         }
     }
@@ -546,7 +565,7 @@ try {
             -Message "User Account Control (UAC) is disabled" `
             -Details "System is vulnerable to privilege escalation attacks without UAC enforcement" `
             -Severity "Critical" `
-            -Remediation "Set-ItemProperty -Path '$uacPath' -Name EnableLUA -Value 1" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1" `
             -CrossReferences @{ CIS="2.3.17.1"; NIST="AC-6"; STIG="V-254479"; NSA="Least Privilege" }
     }
 
@@ -638,7 +657,7 @@ try {
             -Message "UAC installer detection is disabled" `
             -Details "Application installations will not automatically trigger elevation prompts" `
             -Severity "Low" `
-            -Remediation "Set-ItemProperty -Path '$uacPath' -Name EnableInstallerDetection -Value 1"
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1"
     }
 
 } catch {
@@ -654,7 +673,7 @@ Write-Host "[Core] Checking account security..." -ForegroundColor Yellow
 
 try {
     # 5.1 Built-in Administrator account
-    $adminAccount = Get-LocalUser -ErrorAction SilentlyContinue | Where-Object { $_.SID -like "*-500" }
+    $adminAccount = @((Get-ModuleSharedAssessment -Name 'LocalUsers' -SharedData $SharedData).Items) | Where-Object { $_.SID -like "*-500" }
     if ($adminAccount) {
         if ($adminAccount.Enabled -eq $false) {
             Add-Result -Category "Core - Accounts" -Status "Pass" `
@@ -702,7 +721,7 @@ try {
     }
 
     # 5.3 Accounts without password requirements
-    $usersWithoutPasswords = Get-LocalUser -ErrorAction SilentlyContinue | Where-Object { $_.PasswordRequired -eq $false -and $_.Enabled -eq $true }
+    $usersWithoutPasswords = @((Get-ModuleSharedAssessment -Name 'LocalUsers' -SharedData $SharedData).Items) | Where-Object { $_.PasswordRequired -eq $false -and $_.Enabled -eq $true }
     if ($usersWithoutPasswords.Count -gt 0) {
         $userList = ($usersWithoutPasswords.Name | Select-Object -First 10) -join ", "
         Add-Result -Category "Core - Accounts" -Status "Fail" `
@@ -721,7 +740,7 @@ try {
 
     # 5.4 Inactive accounts (no login in 90+ days)
     $inactiveThreshold = (Get-Date).AddDays(-90)
-    $allUsers = Get-LocalUser -ErrorAction SilentlyContinue | Where-Object { $_.Enabled -eq $true }
+    $allUsers = @((Get-ModuleSharedAssessment -Name 'LocalUsers' -SharedData $SharedData).Items) | Where-Object { $_.Enabled -eq $true }
     $inactiveUsers = @()
 
     foreach ($user in $allUsers) {
@@ -1059,7 +1078,7 @@ try {
                 -Message "RDP: Network Level Authentication (NLA) is not required" `
                 -Details "Without NLA, attackers can interact with the login screen before authenticating, enabling BlueKeep-style attacks" `
                 -Severity "High" `
-                -Remediation "Set-ItemProperty -Path '$nlaPath' -Name UserAuthentication -Value 1" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1" `
                 -CrossReferences @{ CIS="18.10.57.2"; NIST="IA-2"; STIG="V-254475"; NSA="Remote Access" }
         }
 
@@ -1365,7 +1384,7 @@ try {
             -Message "LSA protection (RunAsPPL) is not enabled" `
             -Details "Without PPL, tools like Mimikatz can dump credentials from LSASS memory" `
             -Severity "High" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RunAsPPL -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RunAsPPL -Value 1" `
             -CrossReferences @{ CIS="18.4.7"; NIST="AC-3"; STIG="V-254373"; NSA="Credential Protection" }
     }
 } catch {
@@ -1395,7 +1414,7 @@ try {
             -Message "PowerShell Script Block Logging is not enabled" `
             -Details "Script block logging captures decoded/deobfuscated PowerShell commands for forensics" `
             -Severity "High" `
-            -Remediation "New-Item -Path '$psLogPath\ScriptBlockLogging' -Force; Set-ItemProperty -Path '$psLogPath\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
             -CrossReferences @{ CIS="18.10.65.1"; NIST="AU-3"; STIG="V-254393"; NSA="Logging Best Practices" }
     }
 
@@ -1629,7 +1648,7 @@ try {
 
     # 18.2 NetBIOS over TCP/IP
     try {
-        $adapters = Get-WmiObject -Class Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
+        $adapters = Get-CimInstance -ClassName Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
         $netbiosEnabled = $false
         foreach ($adapter in $adapters) {
             # TcpipNetbiosOptions: 0=default, 1=enabled, 2=disabled
@@ -1842,14 +1861,14 @@ try {
             -Message "AutoRun is partially restricted (NoDriveTypeAutoRun=$autoPlayDisabled)" `
             -Details "Recommend disabling for all drive types (value=255) to prevent USB-based malware" `
             -Severity "Medium" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoDriveTypeAutoRun -Value 255 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoDriveTypeAutoRun -Value 255" `
             -CrossReferences @{ CIS="18.10.5.1"; NIST="CM-7" }
     } else {
         Add-Result -Category "Core - AutoPlay" -Status "Fail" `
             -Message "AutoRun is not disabled" `
             -Details "Removable media can automatically execute programs, enabling USB-based malware delivery" `
             -Severity "High" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoDriveTypeAutoRun -Value 255 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoDriveTypeAutoRun -Value 255" `
             -CrossReferences @{ CIS="18.10.5.1"; NIST="CM-7"; STIG="V-254310" }
     }
 
@@ -1952,7 +1971,7 @@ try {
         Add-Result -Category "Core - VBS Foundation" -Status "Fail" `
             -Severity "High" `
             -Message "Virtualization Based Security not enabled (kernel exploit surface elevated)" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard' -Name 'EnableVirtualizationBasedSecurity' -Value 1 -Type DWord; Restart-Computer" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard' -Name EnableVirtualizationBasedSecurity -Value 1; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard' -Name RequirePlatformSecurityFeatures -Value 1" `
             -CrossReferences @{ MS='VBS'; NIST='SC-39' }
     }
 

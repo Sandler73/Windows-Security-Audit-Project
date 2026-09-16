@@ -1,6 +1,6 @@
 # profiles.ps1
 # Audit profiles for the Windows Security Audit framework
-# Version: 6.6.0
+# Version: 6.7.0
 
 <#
 .SYNOPSIS
@@ -34,7 +34,7 @@
     Dependencies: none; Get-SuggestedProfile consumes a HostFacts hashtable if
     provided (shared_components/host-facts.ps1) but degrades without it
     Security: read-only; no state modification
-    Version: 6.6.0
+    Version: 6.7.0
 #>
 
 $script:AuditProfiles = [ordered]@{

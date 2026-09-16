@@ -1,6 +1,6 @@
 # canonical-remediations.ps1
 # Canonical remediation topics and normalization for the Windows Security Audit framework
-# Version: 6.6.0
+# Version: 6.7.0
 
 <#
 .SYNOPSIS
@@ -23,7 +23,7 @@
       canonical form when a topic matches (original text returned unchanged
       otherwise -- never invents a fix for an unclassified finding).
     - Test-ValueIndependentTopic: whether the canonical form is complete as-is
-      (value-independent) or carries an operator-supplied value.
+      (value-independent) or carries an caller-supplied value.
 
     Every canonical command is sourced from remediation strings already
     present in the audited module tree (provenance-safe); where variants
@@ -41,7 +41,7 @@
     Requires: PowerShell 5.1+
     Dependencies: none
     Security: data + classification only; executes nothing
-    Version: 6.6.0
+    Version: 6.7.0
 #>
 
 # ============================================================================
@@ -86,6 +86,60 @@ $script:CanonicalTopics = [ordered]@{
         ValueIndependent = $true
         Match            = @('RunAsPPL', 'LSA [Pp]rotection', 'LSASS.*protect')
     }
+    'NoLmHash' = @{
+        Canonical        = "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name NoLMHash -Value 1"
+        Rationale        = 'Stops storing the trivially crackable LAN Manager hash at the next password change'
+        ValueIndependent = $true
+        Match            = @('NoLMHash', 'LM hash', 'LAN Manager hash')
+    }
+    'UacSecureDesktop' = @{
+        Canonical        = "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name PromptOnSecureDesktop -Value 1"
+        Rationale        = 'Isolates the elevation prompt on the secure desktop so it cannot be spoofed or driven by other processes'
+        ValueIndependent = $true
+        Match            = @('PromptOnSecureDesktop', 'secure desktop')
+    }
+    'ProcessCreationAudit' = @{
+        Canonical        = "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1; auditpol /set /subcategory:`"Process Creation`" /success:enable"
+        Rationale        = 'Records every process start with its command line, the single most valuable telemetry for detection'
+        ValueIndependent = $true
+        Match            = @('ProcessCreationIncludeCmdLine', 'command.?line.*(audit|logging)', 'Process Creation.*audit', 'audit.*process creation')
+    }
+    'DefenderMapsReporting' = @{
+        Canonical        = "Set-MpPreference -MAPSReporting Advanced"
+        Rationale        = 'Enables cloud-delivered protection so Defender can block emerging threats before signatures ship'
+        ValueIndependent = $true
+        Match            = @('MAPSReporting', 'MAPS', 'cloud.delivered protection', 'cloud protection.*(disabled|off)')
+    }
+    'RestrictAnonymousSam' = @{
+        Canonical        = "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RestrictAnonymousSAM -Value 1"
+        Rationale        = 'Prevents anonymous sessions from enumerating SAM accounts'
+        ValueIndependent = $true
+        Match            = @('RestrictAnonymousSAM', 'anonymous.*SAM.*enumerat')
+    }
+    'DefenderBehaviorMonitoring' = @{
+        Canonical        = "Set-MpPreference -DisableBehaviorMonitoring `$false"
+        Rationale        = 'Restores behaviour-based detection of malicious activity patterns'
+        ValueIndependent = $true
+        Match            = @('DisableBehaviorMonitoring', 'behavio[u]?r monitoring')
+    }
+    'SmartScreen' = @{
+        Canonical        = "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -Name EnableSmartScreen -Value 1"
+        Rationale        = 'Enables reputation checks on downloaded files and executables'
+        ValueIndependent = $true
+        Match            = @('EnableSmartScreen', 'SmartScreen.*(disabled|off|not enabled)')
+    }
+    'VirtualizationBasedSecurity' = @{
+        Canonical        = "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard' -Name EnableVirtualizationBasedSecurity -Value 1; Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard' -Name RequirePlatformSecurityFeatures -Value 1"
+        Rationale        = 'Turns on VBS, the hypervisor isolation that Credential Guard and HVCI depend on'
+        ValueIndependent = $true
+        Match            = @('EnableVirtualizationBasedSecurity', 'Virtualization.?Based Security.*(disabled|not enabled|off)', '\bVBS\b.*(disabled|not enabled|off)')
+    }
+    'FipsAlgorithmPolicy' = @{
+        Canonical        = "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy' -Name Enabled -Value 1"
+        Rationale        = 'Restricts cryptographic operations to FIPS-validated algorithms'
+        ValueIndependent = $true
+        Match            = @('FipsAlgorithmPolicy', 'FIPS.*(disabled|not enabled|off|compliant)')
+    }
     'RestrictAnonymous' = @{
         Canonical        = "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RestrictAnonymous -Value 1"
         Rationale        = 'Blocks anonymous enumeration of SAM accounts and shares'
@@ -108,7 +162,7 @@ $script:CanonicalTopics = [ordered]@{
         Canonical        = "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name ConsentPromptBehaviorAdmin -Value 2"
         Rationale        = 'Prompt-on-secure-desktop for admin elevation (deny auto-elevate)'
         ValueIndependent = $true
-        Match            = @('ConsentPromptBehaviorAdmin', 'admin.*consent.*prompt')
+        Match            = @('ConsentPromptBehaviorAdmin', 'admin.*consent.*prompt', 'UAC.*(consent|elevation).*prompt', 'consent prompt.*(admin|insecure|weak)')
     }
     'GuestAccount' = @{
         Canonical        = "Disable-LocalUser -Name Guest"
@@ -216,7 +270,7 @@ $script:CanonicalTopics = [ordered]@{
         Canonical        = "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name 'NoAutoUpdate' -Value 0 -Type DWord"
         Rationale        = 'Automatic updates are the default patch-currency mechanism'
         ValueIndependent = $true
-        Match            = @('NoAutoUpdate', '[Aa]utomatic [Uu]pdates.*(disabled|off)')
+        Match            = @('NoAutoUpdate', '[Aa]utomatic [Uu]pdates?.*(disabled|off|not enabled)', 'Windows Update.*(disabled|not configured|off)')
     }
 }
 

@@ -1,6 +1,6 @@
 # remediation-library.ps1
 # Remediation library for the Windows Security Audit framework
-# Version: 6.6.0
+# Version: 6.7.0
 
 <#
 .SYNOPSIS
@@ -49,7 +49,7 @@
     Dependencies: canonical-remediations.ps1 (topic table); degrades to an
     empty library with a warning if absent
     Security: read-only verification only; no state modification
-    Version: 6.6.0
+    Version: 6.7.0
 #>
 
 # Impact profile constants and severity ranking
@@ -125,6 +125,60 @@ $script:RemediationEntries = [ordered]@{
         Prerequisite = 'Verify third-party LSA plugins are signed/compatible before enabling PPL'
         RollbackCapture = @(@{ Type='registry_value'; Path='HKLM:\SYSTEM\CurrentControlSet\Control\Lsa'; Name='RunAsPPL' })
         Verify = { Test-RegValueEquals -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name 'RunAsPPL' -Expected 1 }
+    }
+    'NoLmHash' = @{
+        Impact = 'None'; RequiresReboot = $false
+        Prerequisite = 'Takes effect at the next password change for each account'
+        RollbackCapture = @(@{ Type='registry_value'; Path='HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa'; Name='NoLMHash' })
+        Verify = { Test-RegValueEquals -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa' -Name 'NoLMHash' -Expected 1 }
+    }
+    'UacSecureDesktop' = @{
+        Impact = 'None'; RequiresReboot = $false
+        Prerequisite = 'None; elevation prompts move to the secure desktop immediately'
+        RollbackCapture = @(@{ Type='registry_value'; Path='HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System'; Name='PromptOnSecureDesktop' })
+        Verify = { Test-RegValueEquals -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System' -Name 'PromptOnSecureDesktop' -Expected 1 }
+    }
+    'ProcessCreationAudit' = @{
+        Impact = 'None'; RequiresReboot = $false
+        Prerequisite = 'Security log volume increases; confirm log size and SIEM capacity'
+        RollbackCapture = @(@{ Type='registry_value'; Path='HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\Audit'; Name='ProcessCreationIncludeCmdLine_Enabled' })
+        Verify = { Test-RegValueEquals -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System\\Audit' -Name 'ProcessCreationIncludeCmdLine_Enabled' -Expected 1 }
+    }
+    'DefenderMapsReporting' = @{
+        Impact = 'None'; RequiresReboot = $false
+        Prerequisite = 'Requires outbound connectivity to Microsoft cloud protection endpoints'
+        RollbackCapture = @(@{ Type='mp_preference'; Name='MAPSReporting' })
+        Verify = { (Get-MpPreference -ErrorAction SilentlyContinue).MAPSReporting -eq 2 }
+    }
+    'RestrictAnonymousSam' = @{
+        Impact = 'BreakSessions'; RequiresReboot = $false
+        Prerequisite = 'Confirm no legacy applications enumerate accounts anonymously'
+        RollbackCapture = @(@{ Type='registry_value'; Path='HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa'; Name='RestrictAnonymousSAM' })
+        Verify = { Test-RegValueEquals -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa' -Name 'RestrictAnonymousSAM' -Expected 1 }
+    }
+    'DefenderBehaviorMonitoring' = @{
+        Impact = 'None'; RequiresReboot = $false
+        Prerequisite = 'None'
+        RollbackCapture = @(@{ Type='mp_preference'; Name='DisableBehaviorMonitoring' })
+        Verify = { -not (Get-MpPreference -ErrorAction SilentlyContinue).DisableBehaviorMonitoring }
+    }
+    'SmartScreen' = @{
+        Impact = 'None'; RequiresReboot = $false
+        Prerequisite = 'None'
+        RollbackCapture = @(@{ Type='registry_value'; Path='HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\System'; Name='EnableSmartScreen' })
+        Verify = { Test-RegValueEquals -Path 'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\System' -Name 'EnableSmartScreen' -Expected 1 }
+    }
+    'VirtualizationBasedSecurity' = @{
+        Impact = 'RequireReboot'; RequiresReboot = $true
+        Prerequisite = 'Requires UEFI, Secure Boot and a hypervisor-capable CPU; verify before enabling'
+        RollbackCapture = @(@{ Type='registry_value'; Path='HKLM:\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard'; Name='EnableVirtualizationBasedSecurity' }, @{ Type='registry_value'; Path='HKLM:\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard'; Name='RequirePlatformSecurityFeatures' })
+        Verify = { Test-RegValueEquals -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\DeviceGuard' -Name 'EnableVirtualizationBasedSecurity' -Expected 1 }
+    }
+    'FipsAlgorithmPolicy' = @{
+        Impact = 'RequireReboot'; RequiresReboot = $true
+        Prerequisite = 'Applications using non-FIPS algorithms (MD5, RC4) will fail; test first'
+        RollbackCapture = @(@{ Type='registry_value'; Path='HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa\\FipsAlgorithmPolicy'; Name='Enabled' })
+        Verify = { Test-RegValueEquals -Path 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Lsa\\FipsAlgorithmPolicy' -Name 'Enabled' -Expected 1 }
     }
     'RestrictAnonymous' = @{
         Impact = 'BreakSessions'; RequiresReboot = $false

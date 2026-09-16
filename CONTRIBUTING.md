@@ -73,7 +73,7 @@ Get-BitLockerVolume : Access denied
 ## Environment
 - OS: Windows Server 2016 Standard (Build 14393)
 - PowerShell: 5.1.14393.5582
-- Script Version: 6.6.0
+- Script Version: 6.7.0
 ```
 
 ### Suggesting Enhancements
@@ -238,7 +238,7 @@ All modules must follow this structure:
 ```powershell
 # Module-Example.ps1
 # Brief description
-# Version: 6.6.0
+# Version: 6.7.0
 # Based on: Framework Name
 
 <#
@@ -253,7 +253,7 @@ All modules must follow this structure:
 
 .NOTES
     Author: Name
-    Version: 6.6.0
+    Version: 6.7.0
     Based on: Framework
 #>
 
@@ -540,13 +540,13 @@ on `windows-2022` but ~243 on a fully-configured production server.
 
 When writing CI assertions, use thresholds calibrated to the
 LEAST-equipped runner the test runs on, not nominal/production values.
-Concrete benchmarks (as of v6.6.0):
+Concrete benchmarks (as of v6.7.0):
 
 | Test scope             | Production target | CI threshold |
 |------------------------|-------------------|--------------|
 | Single module (core)   | ~243              | >=50         |
 | 3 modules sequential   | ~700              | >=150        |
-| Full 16-module audit   | ~4,053            | >=1,500      |
+| Full 16-module audit   | ~4,065            | >=1,500      |
 | Module diversity       | 16                | >=14         |
 
 Failing tests due to too-strict thresholds is a false-failure pattern
@@ -778,4 +778,12 @@ Always include framework references in Details:
 
 ---
 
-**Thank you for contributing to making Windows systems more secure!** 
+**Thank you for contributing to making Windows systems more secure!**
+
+
+**Which changelog?** `CHANGELOG.md` records changes to the product: the framework,
+its modules and shared components, its reports, and the documentation shipped with
+it. Changes to GitHub Actions workflows, Pester suites, and repository automation
+go in `CI-CD-Testing-Changelog.md` instead, because they do not change the shipped
+artefact. Where a failing test exposes a genuine defect, the defect fix belongs in
+`CHANGELOG.md` and the test correction in the CI/CD changelog.

@@ -1,6 +1,6 @@
 # Module-STIG.ps1
 # DISA STIG (Security Technical Implementation Guide) Compliance Module for Windows Security Audit
-# Version: 6.6.0
+# Version: 6.7.0
 #
 # Evaluates Windows configuration against DISA Windows 10/11 STIG and
 # Windows Server STIG with CAT I/II/III severity mapping and cross-framework references.
@@ -43,7 +43,7 @@
                 Windows 11 STIG V2R8 (Jul 2026, 236 requirements),
                 Windows 10 STIG V3R6 (Jan 2026),
                 Windows Server 2019/2022/2025 STIGs (current releases per DISA cycle)
-    Version: 6.6.0
+    Version: 6.7.0
 
 .EXAMPLE
     $results = & .\modules\module-stig.ps1 -SharedData $sharedData
@@ -108,7 +108,7 @@ function Get-ModFirewallProfiles {
     return $script:HFMemo['FW']
 }
 
-$moduleVersion = "6.6.0"
+$moduleVersion = "6.7.0"
 $results = [System.Collections.Generic.List[object]]::new()
 # --------------------------------------------------------------------------
 # Enhanced result helper with Severity and CrossReferences
@@ -267,7 +267,7 @@ try {
             Add-Result -Category "STIG - V-220719 (CAT II)" -Status "Fail" `
                 -Message "Account lockout threshold is too high: $lockoutThreshold" `
                 -Details "STIG: Set lockout threshold to 3 or fewer attempts" `
-                -Remediation "net accounts /lockoutthreshold:3" `
+                -Remediation "net accounts /lockoutthreshold:5" `
                 -Severity "Critical" `
                 -CrossReferences @{ STIG='CAT-I'; NIST='CM-6' }
         }
@@ -706,7 +706,7 @@ try {
         Add-Result -Category "STIG - V-220926 (CAT I)" -Status "Fail" `
             -Message "User Account Control is DISABLED" `
             -Details "STIG CAT I: Enable UAC immediately - critical security control" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1; Restart-Computer" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1" `
             -Severity "Critical" `
             -CrossReferences @{ STIG='CAT-I'; NIST='CM-6' }
     }
@@ -985,7 +985,7 @@ try {
         Add-Result -Category "STIG - V-220970 (CAT II)" -Status "Fail" `
             -Message "SMB client signing is NOT required" `
             -Details "STIG: Enable required SMB client signing" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters' -Name RequireSecuritySignature -Value 1" `
+            -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
             -Severity "Critical" `
             -CrossReferences @{ STIG='CAT-I'; NIST='CM-6' }
     }
@@ -1022,7 +1022,7 @@ try {
             Add-Result -Category "STIG - V-220958 (CAT II)" -Status "Fail" `
                 -Message "System drive is NOT encrypted (Status: $($bitlocker.VolumeStatus))" `
                 -Details "STIG: Enable BitLocker on system drive" `
-                -Remediation "Enable-BitLocker -MountPoint $systemDrive -EncryptionMethod XtsAes256 -TpmProtector" `
+                -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                 -Severity "Critical" `
                 -CrossReferences @{ STIG='CAT-I'; NIST='CM-6' }
         }
@@ -1088,7 +1088,7 @@ try {
         Add-Result -Category "STIG - V-220972 (CAT II)" -Status "Fail" `
             -Message "PowerShell Script Block Logging is NOT enabled" `
             -Details "STIG: Enable Script Block Logging for audit trail" `
-            -Remediation "New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Force; Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
             -Severity "Critical" `
             -CrossReferences @{ STIG='CAT-I'; NIST='CM-6' }
     }
@@ -1141,7 +1141,7 @@ try {
         Add-Result -Category "STIG - V-220974 (CAT II)" -Status "Fail" `
             -Message "Autorun is NOT disabled" `
             -Details "STIG: Disable Autorun to prevent malware execution" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoAutorun -Value 1" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoDriveTypeAutoRun -Value 255" `
             -Severity "Critical" `
             -CrossReferences @{ STIG='CAT-I'; NIST='CM-6' }
     }
@@ -1411,7 +1411,7 @@ foreach ($svcName in $xboxServices) {
         }
     } catch {
         # Service may not exist on this system
-        Add-Result -Category "STIG - V-220983 (CAT II)" -Status "Info" `
+        Add-Result -Category "STIG - V-220983 (CAT II)" -Status "Info" -Severity "Informational" `
             -Message "Xbox service $svcName not present on this system" `
             -Details "Service absence satisfies the intent of the disablement requirement"
     }
@@ -1464,7 +1464,7 @@ try {
         Add-Result -Category "STIG - Credential Protection" -Status "Fail" `
             -Message "V-220929: WDigest authentication is ENABLED -- plaintext credentials in memory" `
             -Details "CAT I: Attackers can extract plaintext passwords from LSASS process memory" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' -Name UseLogonCredential -Value 0 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' -Name UseLogonCredential -Value 0" `
             -Severity "Critical" `
             -CrossReferences @{ STIG='V-220929'; NIST='IA-5(13)'; NSA='Credential Protection'; CIS='18.3.6' }
     }
@@ -1498,7 +1498,7 @@ try {
         Add-Result -Category "STIG - Credential Protection" -Status "Fail" `
             -Message "V-220931: LSA Protection (RunAsPPL) is NOT enabled" `
             -Details "CAT I: LSASS process vulnerable to code injection and credential dumping" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\LSA' -Name RunAsPPL -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RunAsPPL -Value 1" `
             -Severity "Critical" `
             -CrossReferences @{ STIG='V-220931'; NIST='SI-7'; NSA='Credential Protection'; CIS='18.3.5' }
     }
@@ -1515,7 +1515,7 @@ try {
         Add-Result -Category "STIG - Credential Protection" -Status "Fail" `
             -Message "V-220862: LM hash storage is ENABLED" `
             -Details "CAT I: LM hashes can be cracked in seconds using rainbow tables" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\LSA' -Name NoLMHash -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name NoLMHash -Value 1" `
             -Severity "Critical" `
             -CrossReferences @{ STIG='V-220862'; NIST='IA-5'; CIS='2.3.11.7' }
     }
@@ -1576,7 +1576,7 @@ try {
         Add-Result -Category "STIG - Credential Protection" -Status "Fail" `
             -Message "V-220936: Anonymous enumeration restrictions not fully configured (RestrictAnonymous=$restrictAnon, RestrictAnonymousSAM=$restrictAnonSam)" `
             -Details "CAT I: Anonymous users may enumerate user accounts, shares, and group memberships" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\LSA' -Name RestrictAnonymous -Value 1; Set-ItemProperty ... -Name RestrictAnonymousSAM -Value 1" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RestrictAnonymousSAM -Value 1" `
             -Severity "High" `
             -CrossReferences @{ STIG='V-220936'; NIST='AC-14'; CIS='2.3.10.2' }
     }
@@ -1931,7 +1931,7 @@ try {
         Add-Result -Category "STIG - V-Findings" -Status "Fail" `
             -Severity "Medium" `
             -Message "V-253265 SMB server signing not required" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'RequireSecuritySignature' -Value 1 -Type DWord" `
+            -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
             -CrossReferences @{ STIG='V-253265' }
     }
 
@@ -1990,7 +1990,7 @@ try {
         Add-Result -Category "STIG - V-Findings" -Status "Fail" `
             -Severity "Medium" `
             -Message "V-253303 AutoPlay not fully disabled (current: $autoPlay)" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name 'NoDriveTypeAutoRun' -Value 255 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoDriveTypeAutoRun -Value 255" `
             -CrossReferences @{ STIG='V-253303' }
     }
 }
@@ -2174,7 +2174,11 @@ catch {
 }
 
 # ===========================================================================
-# Currency: Windows 11 STIG V2R8 (July 2026) alignment.
+# Currency (verified 2026-09-14): Windows Server 2025 STIG V1R3 released 2026-08-10
+# (291 rules: 31 CAT I, 248 CAT II, 12 CAT III; 12 content changes vs V1R2 of
+# 2026-07-01). Rule-level WN25- identifiers require the published XCCDF and are
+# not asserted here; the checks below map to the control content, not the IDs.
+# Windows 11 STIG V2R8 (July 2026) alignment.
 # V2R8 adds 3 requirements (incl. security event log sized for at least one
 # week of events) and updates 2; the V2R6 cycle (Feb 2026) added the consumer
 # account block requirement. New rule V-IDs are not restated here because they
@@ -2208,7 +2212,7 @@ try {
                 -Severity "Medium" `
                 -Message "V2R8: Security event log wraps in $oldestAgeDays days at current volume (< 7 days; max size $sizeMB MB, log at capacity)" `
                 -Details "The log is at or near its size cap and the oldest record is under one week old, so events are being overwritten before the STIG V2R8 one-week retention window. Increase the maximum log size or forward events." `
-                -Remediation "Increase the Security log maximum size (e.g., wevtutil sl Security /ms:1073741824) or configure event forwarding to meet one week of retention" `
+                -Remediation "wevtutil sl Security /ms:1073741824" `
                 -CrossReferences @{ STIG='V2R8 addition'; NIST='AU-4'; CIS='8.3' }
         } else {
             $ageLbl = if ($null -ne $oldestAgeDays) { "$oldestAgeDays days of events retained" } else { "retention age unreadable (insufficient privilege or empty log)" }

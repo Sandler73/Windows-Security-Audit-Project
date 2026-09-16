@@ -1,6 +1,6 @@
 # Module-CISA.ps1
 # CISA Cybersecurity Performance Goals Compliance Module for Windows Security Audit
-# Version: 6.6.0
+# Version: 6.7.0
 #
 # Evaluates Windows configuration against CISA Cybersecurity Performance Goals (CPG),
 # Binding Operational Directives (BOD), and Zero Trust guidance across 12 domains.
@@ -38,7 +38,7 @@
     References: CISA Cybersecurity Performance Goals v1.0.1,
                 CISA BOD 22-01 (KEV), BOD 23-01 (Asset Visibility),
                 CISA Zero Trust Maturity Model v2.0
-    Version: 6.6.0
+    Version: 6.7.0
 
 .EXAMPLE
     $results = & .\modules\module-cisa.ps1 -SharedData $sharedData
@@ -103,7 +103,7 @@ function Get-ModFirewallProfiles {
     return $script:HFMemo['FW']
 }
 
-$moduleVersion = "6.6.0"
+$moduleVersion = "6.7.0"
 $results = [System.Collections.Generic.List[object]]::new()
 # --------------------------------------------------------------------------
 # Enhanced result helper with Severity and CrossReferences
@@ -437,7 +437,7 @@ try {
                 Add-Result -Category "CISA - Patch Management" -Status "Fail" `
                     -Message "Automatic updates are disabled" `
                     -Details "CISA CPG: Enable automatic updates immediately" `
-                    -Remediation "Enable Windows Update automatic updates" `
+                    -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoUpdate -Value 0" `
                     -Severity "High" `
                     -CrossReferences @{ CISA='CPG 2.1'; NIST='SI-2'; CIS='3.4' }
             }
@@ -568,7 +568,7 @@ try {
         Add-Result -Category "CISA - Logging" -Status "Fail" `
             -Message "PowerShell Script Block Logging is not enabled" `
             -Details "CISA CPG: Enable PowerShell logging to detect threats" `
-            -Remediation "New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Force; Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
             -Severity "High" `
             -CrossReferences @{ CISA='CPG 3.1'; NIST='AU-2'; CIS='17.1' }
     }
@@ -637,7 +637,7 @@ try {
         Add-Result -Category "CISA - Logging" -Status "Fail" `
             -Message "Process Creation auditing is not enabled" `
             -Details "CISA CPG: Enable process creation auditing for threat detection" `
-            -Remediation "auditpol /set /subcategory:'Process Creation' /success:enable" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1; auditpol /set /subcategory:`"Process Creation`" /success:enable" `
             -Severity "High" `
             -CrossReferences @{ CISA='CPG 3.1'; NIST='AU-2'; CIS='17.1' }
     }
@@ -654,7 +654,7 @@ try {
         Add-Result -Category "CISA - Logging" -Status "Warning" `
             -Message "Command line logging in process auditing is not enabled" `
             -Details "CISA CPG: Enable to capture process command line arguments" `
-            -Remediation "New-Item -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Force; Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1; auditpol /set /subcategory:`"Process Creation`" /success:enable" `
             -Severity "Medium" `
             -CrossReferences @{ CISA='CPG 3.1'; NIST='AU-2'; CIS='17.1' }
     }
@@ -667,7 +667,7 @@ try {
 # Check for Sysmon installation (advanced logging)
 try {
     $sysmonService = Get-Service -Name "Sysmon*" -ErrorAction SilentlyContinue
-    $sysmonDriver = Get-WmiObject Win32_SystemDriver | Where-Object { $_.Name -like "Sysmon*" }
+    $sysmonDriver = Get-CimInstance -ClassName Win32_SystemDriver | Where-Object { $_.Name -like "Sysmon*" }
     
     if ($sysmonService -or $sysmonDriver) {
         if ($sysmonService.Status -eq "Running" -or $sysmonDriver) {
@@ -842,7 +842,7 @@ try {
         Add-Result -Category "CISA - EDR" -Status "Fail" `
             -Message "Antivirus signatures are severely outdated `($($signatureAge.Days) days old)" `
             -Details "CISA CPG: Update signatures immediately - system is vulnerable" `
-            -Remediation "Update-MpSignature -UpdateSource Microsoft" `
+            -Remediation "Update-MpSignature" `
             -Severity "High" `
             -CrossReferences @{ CISA='CPG 4.2'; NIST='SI-4' }
     }
@@ -1094,7 +1094,7 @@ try {
     }
 } catch {
     # EFS check is optional
-    Add-Result -Category "CISA - Data Encryption" -Status "Info" `
+    Add-Result -Category "CISA - Data Encryption" -Status "Info" -Severity "Informational" `
         -Message "EFS state could not be determined (feature may not be present)" `
         -Details "EFS is optional; absence of the component is not a finding"
 }
@@ -1333,7 +1333,7 @@ try {
         Add-Result -Category "CISA - Configuration" -Status "Fail" `
             -Message "User Account Control (UAC) is DISABLED" `
             -Details "CISA CPG: Enable UAC for security isolation" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1; Restart-Computer" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1" `
             -Severity "Medium" `
             -CrossReferences @{ CISA='CPG 7.1'; NIST='CM-6'; CIS='18.1' }
     }
@@ -1345,7 +1345,7 @@ try {
             Add-Result -Category "CISA - Configuration" -Status "Fail" `
                 -Message "UAC: Admin approval mode is disabled (Elevate without prompting)" `
                 -Details "CISA CPG: This bypasses UAC protection" `
-                -Remediation "Set ConsentPromptBehaviorAdmin to 2 or higher" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1" `
                 -Severity "Medium" `
                 -CrossReferences @{ CISA='CPG 7.1'; NIST='CM-6'; CIS='18.1' }
         }
@@ -1579,7 +1579,7 @@ try {
             Add-Result -Category "CISA - Configuration" -Status "Fail" `
                 -Message "Windows Updates are not configured for automatic download/install" `
                 -Details "CISA CPG: Enable automatic updates" `
-                -Remediation "Enable automatic updates in Windows Update settings" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoUpdate -Value 0" `
                 -Severity "Medium" `
                 -CrossReferences @{ CISA='CPG 7.1'; NIST='CM-6'; CIS='18.1' }
         }
@@ -1658,7 +1658,7 @@ try {
     }
 } catch {
     # Remote Desktop Users group may not exist
-    Add-Result -Category "CISA - Access Control" -Status "Info" `
+    Add-Result -Category "CISA - Access Control" -Status "Info" -Severity "Informational" `
         -Message "Remote Desktop Users group not present or not readable" `
         -Details "Group may not exist on this system; absence is not a finding"
 }
@@ -2029,7 +2029,7 @@ try {
         Add-Result -Category "CISA - Zero Trust" -Status "Fail" `
             -Message "SMB signing is NOT required on server" `
             -Details "CISA ZT Network: Unsigned SMB allows man-in-the-middle and relay attacks" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name RequireSecuritySignature -Value 1 -Type DWord" `
+            -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
             -Severity "High" `
             -CrossReferences @{ CISA='Zero Trust'; NIST='SC-8'; NSA='SMB Security' }
     }
@@ -2047,7 +2047,7 @@ try {
             Add-Result -Category "CISA - Zero Trust" -Status "Warning" `
                 -Message "BitLocker is not active on system drive" `
                 -Details "CISA ZT Data: Encrypt all data at rest to protect against unauthorized access" `
-                -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly" `
+                -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                 -Severity "High" `
                 -CrossReferences @{ CISA='Zero Trust'; NIST='SC-28'; CIS='3.11' }
         }
@@ -2065,7 +2065,7 @@ try {
         Add-Result -Category "CISA - Zero Trust" -Status "Fail" `
             -Message "Process command-line auditing is NOT enabled" `
             -Details "CISA ZT Analytics: Without command-line capture, malicious activity is invisible" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1; auditpol /set /subcategory:`"Process Creation`" /success:enable" `
             -Severity "High" `
             -CrossReferences @{ CISA='Zero Trust'; NIST='AU-3'; STIG='V-220864' }
     }
@@ -2082,7 +2082,7 @@ try {
         Add-Result -Category "CISA - Zero Trust" -Status "Warning" `
             -Message "PowerShell Script Block Logging not enabled -- limits SOAR capabilities" `
             -Details "CISA ZT Automation: Enable to feed script execution data to security orchestration" `
-            -Remediation "New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Force; Set-ItemProperty ... -Name EnableScriptBlockLogging -Value 1" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
             -Severity "Medium" `
             -CrossReferences @{ CISA='Zero Trust'; NIST='AU-3'; NSA='PowerShell Security' }
     }
@@ -2239,7 +2239,7 @@ try {
         Add-Result -Category "CISA - KEV Catalog" -Status "Fail" `
             -Severity "Critical" `
             -Message "KEV CVE-2017-0144 unmitigated (SMBv1 enabled)" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'SMB1' -Value 0 -Type DWord; Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" `
+            -Remediation "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" `
             -CrossReferences @{ CISA='KEV'; CVE='CVE-2017-0144' }
     }
 
@@ -2389,7 +2389,7 @@ try {
         Add-Result -Category "CISA - Secure by Design" -Status "Fail" `
             -Severity "High" `
             -Message "SbD Principle 1: UAC disabled (insecure default exposure)" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name 'EnableLUA' -Value 1 -Type DWord; Restart-Computer" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1" `
             -CrossReferences @{ CISA='SecureByDesign'; Principle='1' }
     }
 
@@ -2404,7 +2404,7 @@ try {
         Add-Result -Category "CISA - Secure by Design" -Status "Fail" `
             -Severity "High" `
             -Message "SbD Principle 2: Automatic updates disabled" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name 'NoAutoUpdate' -Value 0 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoUpdate -Value 0" `
             -CrossReferences @{ CISA='SecureByDesign'; Principle='2' }
     }
 
@@ -2504,7 +2504,7 @@ try {
         Add-Result -Category "CISA - Zero Trust Maturity" -Status "Warning" `
             -Severity "Medium" `
             -Message "ZTMM Visibility: script block logging disabled" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name 'EnableScriptBlockLogging' -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
             -CrossReferences @{ CISA='ZTMM'; Pillar='Visibility' }
     }
 }
@@ -2561,7 +2561,7 @@ try {
         Add-Result -Category "CISA - CPGs v1.0.1" -Status "Warning" `
             -Severity "Medium" `
             -Message "CPG 2.T Security log undersized for adequate retention" `
-            -Remediation "wevtutil sl Security /ms:268435456" `
+            -Remediation "wevtutil sl Security /ms:1073741824" `
             -CrossReferences @{ CISA='CPGs'; CPG='2.T' }
     }
 
@@ -2635,7 +2635,7 @@ try {
         Add-Result -Category "CISA - Bad Practices" -Status "Fail" `
             -Severity "High" `
             -Message "Bad Practice: Guest account is enabled" `
-            -Remediation "Disable-LocalUser -Name 'Guest'" `
+            -Remediation "Disable-LocalUser -Name Guest" `
             -CrossReferences @{ CISA='Bad Practices' }
     }
     else {

@@ -1,6 +1,6 @@
 # Module-NSA.ps1
 # NSA Cybersecurity Guidance Compliance Module for Windows Security Audit
-# Version: 6.6.0
+# Version: 6.7.0
 #
 # Evaluates Windows configuration against NSA Cybersecurity Information
 # Sheets, technical reports, and hardening guidance across 14 categories.
@@ -37,7 +37,7 @@
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
     References: NSA Cybersecurity Information Sheets (CIS), NSA IAM/IAD guidance
-    Version: 6.6.0
+    Version: 6.7.0
 
 .EXAMPLE
     $results = & .\modules\module-nsa.ps1 -SharedData $sharedData
@@ -102,7 +102,7 @@ function Get-ModFirewallProfiles {
     return $script:HFMemo['FW']
 }
 
-$moduleVersion = "6.6.0"
+$moduleVersion = "6.7.0"
 $results = [System.Collections.Generic.List[object]]::new()
 # --------------------------------------------------------------------------
 # Result helper with Severity and CrossReferences support
@@ -133,6 +133,25 @@ function Add-Result {
         CrossReferences = $CrossReferences
         Timestamp       = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     })
+}
+
+# Defensive accessor: use the shared assessment when the component is loaded,
+# otherwise fall back to a live query with the same record shape. Keeps the
+# module executable standalone and inside a runspace that lacks the component.
+function Get-ModuleSharedAssessment {
+    param([Parameter(Mandatory)][string]$Name, $SharedData)
+    if (Get-Command Get-SharedAssessment -ErrorAction SilentlyContinue) {
+        return (Get-SharedAssessment -Name $Name -SharedData $SharedData)
+    }
+    $items = switch ($Name) {
+        'LocalUsers' { @(Get-LocalUser -ErrorAction SilentlyContinue | ForEach-Object {
+            [PSCustomObject]@{ Name=$_.Name; Enabled=$_.Enabled; PasswordRequired=$_.PasswordRequired
+                               PasswordNeverExpires=($null -eq $_.PasswordExpires -and $_.Enabled); LastLogon=$_.LastLogon; SID="$($_.SID)" } }) }
+        'InstalledHotfixes' { @(Get-HotFix -ErrorAction SilentlyContinue | Sort-Object InstalledOn -Descending | ForEach-Object {
+            [PSCustomObject]@{ HotFixID=$_.HotFixID; Description=$_.Description; InstalledOn=$_.InstalledOn } }) }
+        default { @() }
+    }
+    return [PSCustomObject]@{ Name=$Name; Items=[object[]]$items; Count=@($items).Count; Truncated=$false; Error=$null }
 }
 
 # --------------------------------------------------------------------------
@@ -210,7 +229,7 @@ try {
                 -Message "System drive is not fully encrypted (status: $($blStatus.VolumeStatus))" `
                 -Details "Data at rest on the system volume is not protected" `
                 -Severity "High" `
-                -Remediation "Enable-BitLocker -MountPoint $systemDrive -EncryptionMethod XtsAes256 -UsedSpaceOnly" `
+                -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                 -CrossReferences @{ CIS="18.10.9.1.1"; NIST="SC-28"; NSA="FDE CSI" }
         }
     }
@@ -374,7 +393,7 @@ try {
             -Message "LSA protection (RunAsPPL) is not enabled" `
             -Details "LSASS memory can be dumped by attack tools to extract plaintext credentials and hashes" `
             -Severity "Critical" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RunAsPPL -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name RunAsPPL -Value 1" `
             -CrossReferences @{ CIS="18.4.7"; NIST="AC-3"; STIG="V-254373"; NSA="Credential Theft Mitigation CSI" }
     }
 
@@ -391,7 +410,7 @@ try {
             -Message "WDigest authentication credential caching is enabled" `
             -Details "Plaintext passwords are stored in LSASS memory, trivially extractable by Mimikatz" `
             -Severity "Critical" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' -Name UseLogonCredential -Value 0 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\SecurityProviders\WDigest' -Name UseLogonCredential -Value 0" `
             -CrossReferences @{ CIS="18.4.9"; NIST="IA-5(2)"; NSA="Credential Theft Mitigation CSI" }
     } else {
         Add-Result -Category "NSA - Credential Protection" -Status "Pass" `
@@ -414,14 +433,14 @@ try {
             -Message "LAN Manager authentication level: $lmLevel (recommend 5 for NTLMv2-only)" `
             -Details "Level 5 refuses all LM and NTLM responses, sending only NTLMv2" `
             -Severity "Medium" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name LmCompatibilityLevel -Value 5 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name LmCompatibilityLevel -Value 5" `
             -CrossReferences @{ CIS="2.3.11.7"; NIST="IA-2"; STIG="V-254438" }
     } else {
         Add-Result -Category "NSA - Credential Protection" -Status "Fail" `
             -Message "LAN Manager authentication allows legacy LM/NTLM responses (level=$lmLevel)" `
             -Details "LM and NTLM hashes are cryptographically weak and vulnerable to offline cracking" `
             -Severity "Critical" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name LmCompatibilityLevel -Value 5 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name LmCompatibilityLevel -Value 5" `
             -CrossReferences @{ CIS="2.3.11.7"; NIST="IA-2"; STIG="V-254438"; NSA="Network Security CSI" }
     }
 
@@ -481,7 +500,7 @@ try {
                 -Message "RDP Network Level Authentication (NLA) is not required" `
                 -Details "Without NLA, attackers can establish sessions before authentication (BlueKeep risk)" `
                 -Severity "Critical" `
-                -Remediation "Set-ItemProperty -Path '$rdpPath\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1" `
                 -CrossReferences @{ CIS="18.10.57.2"; NIST="IA-2"; STIG="V-254475"; NSA="Remote Access CSI" }
         }
 
@@ -549,7 +568,7 @@ try {
             -Message "PowerShell Script Block Logging is not enabled" `
             -Details "Without script block logging, obfuscated PowerShell attacks leave no readable audit trail" `
             -Severity "High" `
-            -Remediation "New-Item -Path '$psPath\ScriptBlockLogging' -Force; Set-ItemProperty -Path '$psPath\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
             -CrossReferences @{ CIS="18.10.65.1"; NIST="AU-3"; STIG="V-254393"; NSA="PowerShell Security CSI" }
     }
 
@@ -830,7 +849,7 @@ try {
             -Message "Command line process creation auditing is not enabled" `
             -Details "Without command line capture, process creation events lack critical forensic detail" `
             -Severity "High" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1; auditpol /set /subcategory:`"Process Creation`" /success:enable" `
             -CrossReferences @{ CIS="18.9.3.1"; NIST="AU-3"; STIG="V-254396"; NSA="Event Forwarding CSI" }
     }
 
@@ -848,7 +867,7 @@ try {
                 -Message "Audit policy: Process Creation success auditing is not enabled" `
                 -Details "Enable to track process execution events" `
                 -Severity "Medium" `
-                -Remediation "auditpol /set /subcategory:'Process Creation' /success:enable"
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1; auditpol /set /subcategory:`"Process Creation`" /success:enable"
         }
     } catch { <# auditpol may require elevation #> }
 
@@ -893,7 +912,7 @@ try {
                     -Message "Security event log size: $sizeKB KB (recommend 196,608+ KB)" `
                     -Details "Small log size may result in event loss during security incidents" `
                     -Severity "Medium" `
-                    -Remediation "wevtutil sl Security /ms:201326592"
+                    -Remediation "wevtutil sl Security /ms:1073741824"
             }
         }
     } catch { <# Log enumeration may fail #> }
@@ -1092,7 +1111,7 @@ try {
             -Message "User Account Control (UAC) is DISABLED" `
             -Details "Without UAC all applications run with full administrative privileges" `
             -Severity "Critical" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1 -Type DWord; Restart-Computer" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1" `
             -CrossReferences @{ CIS="2.3.17.1"; NIST="AC-6"; STIG="V-220930"; NSA="IAM Guidance" }
     }
 
@@ -1109,7 +1128,7 @@ try {
             -Message "UAC admin consent prompt behavior is at default level ($consentPrompt)" `
             -Details "Values 1 or 2 on secure desktop provide stronger protection. Current: 5=prompt consent for non-Windows binaries" `
             -Severity "Medium" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name ConsentPromptBehaviorAdmin -Value 2 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name ConsentPromptBehaviorAdmin -Value 2" `
             -CrossReferences @{ CIS="2.3.17.2"; NIST="AC-6(1)"; STIG="V-220931" }
     }
 
@@ -1126,7 +1145,7 @@ try {
             -Message "UAC standard users can request elevation (ConsentPromptBehaviorUser=$consentStd)" `
             -Details "NSA recommends auto-deny (0) for standard users to prevent social engineering" `
             -Severity "Medium" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name ConsentPromptBehaviorUser -Value 0 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name ConsentPromptBehaviorAdmin -Value 2" `
             -CrossReferences @{ CIS="2.3.17.3"; NIST="AC-6(2)"; STIG="V-220932" }
     }
 
@@ -1143,7 +1162,7 @@ try {
             -Message "Built-in Administrator bypasses UAC (FilterAdministratorToken disabled)" `
             -Details "The RID-500 Administrator account runs all processes with full privileges" `
             -Severity "High" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name FilterAdministratorToken -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1" `
             -CrossReferences @{ CIS="2.3.17.4"; NIST="AC-6(1)"; STIG="V-220929" }
     }
 
@@ -1177,7 +1196,7 @@ try {
             -Message "Remote UAC token filtering is DISABLED (pass-the-hash risk)" `
             -Details "Local admin accounts can authenticate remotely with full admin tokens enabling lateral movement" `
             -Severity "Critical" `
-            -Remediation "Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name LocalAccountTokenFilterPolicy -ErrorAction SilentlyContinue" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name EnableLUA -Value 1" `
             -CrossReferences @{ NIST="AC-17"; NSA="Lateral Movement CSI"; CISA="Lateral Movement" }
     }
 
@@ -1194,7 +1213,7 @@ try {
             -Message "UAC Secure Desktop is disabled" `
             -Details "Elevation prompts display on the user desktop where they can be spoofed by malware" `
             -Severity "High" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name PromptOnSecureDesktop -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name PromptOnSecureDesktop -Value 1" `
             -CrossReferences @{ CIS="2.3.17.7"; NIST="AC-6"; STIG="V-220934" }
     }
 
@@ -1295,7 +1314,7 @@ try {
             -Message "Automatic Windows Updates are DISABLED via policy" `
             -Details "NoAutoUpdate=1. System will not receive security patches automatically" `
             -Severity "Critical" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoUpdate -Value 0 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoUpdate -Value 0" `
             -CrossReferences @{ CIS="18.9.101.2"; NIST="SI-2"; STIG="V-220924" }
     } else {
         Add-Result -Category "NSA - Patch Management" -Status "Info" `
@@ -1306,7 +1325,9 @@ try {
     }
 
     # Hotfix currency check (days since last update)
-    $lastHotfix = Get-HotFix -ErrorAction SilentlyContinue | Sort-Object InstalledOn -Descending -ErrorAction SilentlyContinue | Select-Object -First 1
+    # Shared assessment: collected once per run, items carry HotFixID/Description/InstalledOn.
+    $hfRec = Get-ModuleSharedAssessment -Name 'InstalledHotfixes' -SharedData $SharedData
+    $lastHotfix = @($hfRec.Items) | Sort-Object InstalledOn -Descending -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($lastHotfix -and $lastHotfix.InstalledOn) {
         $daysSinceUpdate = ((Get-Date) - $lastHotfix.InstalledOn).Days
         $hotfixId = $lastHotfix.HotFixID
@@ -1339,7 +1360,7 @@ try {
     }
 
     # Total installed hotfix count
-    $hotfixCount = (Get-HotFix -ErrorAction SilentlyContinue).Count
+    $hotfixCount = @((Get-ModuleSharedAssessment -Name 'InstalledHotfixes' -SharedData $SharedData).Items).Count
     Add-Result -Category "NSA - Patch Management" -Status "Info" `
         -Message "Total installed hotfixes: $hotfixCount" `
         -Details "Use Get-HotFix to review full list of applied patches" `
@@ -1781,7 +1802,7 @@ try {
             Add-Result -Category "NSA - AD Hardening" -Status "Fail" `
                 -Severity "Critical" `
                 -Message "AD-DC: SMB signing not required on domain controller" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'RequireSecuritySignature' -Value 1 -Type DWord" `
+                -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
                 -CrossReferences @{ NSA='AD Hardening' }
         }
 
@@ -1838,7 +1859,7 @@ try {
         Add-Result -Category "NSA - AD Hardening" -Status "Fail" `
             -Severity "High" `
             -Message "LM compatibility permits NTLMv1 or LM (level $lmCompat)" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name 'LmCompatibilityLevel' -Value 5 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa' -Name LmCompatibilityLevel -Value 5" `
             -CrossReferences @{ NSA='AD Hardening' }
     }
 }
@@ -1865,7 +1886,7 @@ try {
         Add-Result -Category "NSA - Top 10 Mitigations" -Status "Fail" `
             -Severity "High" `
             -Message "Top 10 #1: Automatic updates disabled" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name 'NoAutoUpdate' -Value 0 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoUpdate -Value 0" `
             -CrossReferences @{ NSA='Top10-1' }
     }
 
@@ -1918,7 +1939,7 @@ try {
             Add-Result -Category "NSA - Top 10 Mitigations" -Status "Fail" `
                 -Severity "High" `
                 -Message "Top 10 #4: RDP enabled without NLA" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name 'UserAuthentication' -Value 1 -Type DWord" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name UserAuthentication -Value 1" `
                 -CrossReferences @{ NSA='Top10-4' }
         }
     }

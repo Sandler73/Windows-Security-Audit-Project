@@ -1,6 +1,6 @@
 # remediation-bundles.ps1
 # Named remediation bundles with impact-tiered confirmation for the Windows Security Audit framework
-# Version: 6.6.0
+# Version: 6.7.0
 
 <#
 .SYNOPSIS
@@ -39,13 +39,13 @@
     Dependencies: remediation-library.ps1 (impact resolution); bundles degrade
     to topic lists with conservative Tier 3 if the library is absent
     Security: read-only; no state modification
-    Version: 6.6.0
+    Version: 6.7.0
 #>
 
 $script:RemediationBundles = [ordered]@{
     'CredentialHardening' = @{
         Description = 'Credential theft resistance: LSASS protection, WDigest plaintext caching off, NTLMv1 refusal and SSO blocking, anonymous enumeration off'
-        Topics      = @('LsaProtection','WDigestCredentialCaching','NtlmCompatibility','NtlmV1SsoBlock','RestrictAnonymous')
+        Topics      = @('LsaProtection','WDigestCredentialCaching','NtlmCompatibility','NtlmV1SsoBlock','RestrictAnonymous','NoLmHash','RestrictAnonymousSam','VirtualizationBasedSecurity','FipsAlgorithmPolicy')
     }
     'SmbHardening' = @{
         Description = 'SMB attack-surface reduction: SMBv1 removal and mandatory server signing'
@@ -53,11 +53,11 @@ $script:RemediationBundles = [ordered]@{
     }
     'DefenderBaseline' = @{
         Description = 'Microsoft Defender operating baseline: real-time protection, current signatures, network protection, controlled folder access'
-        Topics      = @('DefenderRealTimeProtection','DefenderSignatures','DefenderNetworkProtection','DefenderControlledFolderAccess')
+        Topics      = @('DefenderRealTimeProtection','DefenderSignatures','DefenderNetworkProtection','DefenderControlledFolderAccess','DefenderMapsReporting','DefenderBehaviorMonitoring','SmartScreen')
     }
     'AuditVisibility' = @{
         Description = 'Detection and evidence: script block logging, logon and policy-change auditing, adequate security log sizing, event log service health'
-        Topics      = @('PowerShellScriptBlockLogging','AuditPolicyLogon','AuditPolicyChange','SecurityEventLogSize','EventLogService')
+        Topics      = @('PowerShellScriptBlockLogging','AuditPolicyLogon','AuditPolicyChange','SecurityEventLogSize','EventLogService','ProcessCreationAudit')
     }
     'AccountPolicy' = @{
         Description = 'Account and session policy: password length and history, lockout threshold, Guest disablement, inactivity lock'
@@ -65,7 +65,7 @@ $script:RemediationBundles = [ordered]@{
     }
     'UacBaseline' = @{
         Description = 'Elevation boundary: UAC enabled with secure-desktop admin consent prompting'
-        Topics      = @('UacEnableLua','UacAdminConsentPrompt')
+        Topics      = @('UacEnableLua','UacAdminConsentPrompt','UacSecureDesktop')
     }
     'RemoteAccessHardening' = @{
         Description = 'Remote access: RDP Network Level Authentication'

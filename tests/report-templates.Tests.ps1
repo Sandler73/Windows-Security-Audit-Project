@@ -9,7 +9,7 @@
     export driver.
 .NOTES
     Author: Windows Security Audit Project
-    Version: 6.6.0
+    Version: 6.7.0
     Pester Version: 5.x
 
     Run via:
@@ -29,7 +29,7 @@ BeforeAll {
             CrossReferences=$CrossReferences; Timestamp='2026-01-01 00:00:00'
         }
     }
-    $script:ExecInfo = @{ ComputerName='PESTERHOST'; OSVersion='Windows'; StartTime='2026-01-01'; ScriptVersion='6.6.0' }
+    $script:ExecInfo = @{ ComputerName='PESTERHOST'; OSVersion='Windows'; StartTime='2026-01-01'; ScriptVersion='6.7.0' }
 }
 
 Describe 'Framework report specifications' {
@@ -169,7 +169,7 @@ Describe 'Round 2 spine additions (operator parity feedback 2026-07-21)' {
             New-TestResult 'NIST' 'NIST - AC Access Control' 'Fail' 'lockout gap' 'Critical' @{} 'Fix-AC7'
             New-TestResult 'NIST' 'NIST - SI System Integrity' 'Pass' 'ok'
         )
-        $ei = @{ ComputerName='PESTERHOST'; OSVersion='Windows'; StartTime='2026-01-01'; ScriptVersion='6.6.0'; IPAddresses=@('10.0.0.5'); ScanDate='2026-01-01' }
+        $ei = @{ ComputerName='PESTERHOST'; OSVersion='Windows'; StartTime='2026-01-01'; ScriptVersion='6.7.0'; IPAddresses=@('10.0.0.5'); ScanDate='2026-01-01' }
         $script:R2Html = New-FrameworkReportHtml -ModuleName 'NIST' -Results $r -ExecutionInfo $ei
     }
     It 'renders host identification as composite-style info cards, not a collapsible section' {

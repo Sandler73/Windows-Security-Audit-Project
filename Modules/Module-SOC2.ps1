@@ -1,6 +1,6 @@
 # module-soc2.ps1
 # SOC 2 Trust Service Criteria Compliance Module for Windows Security Audit
-# Version: 6.6.0
+# Version: 6.7.0
 #
 # Evaluates Windows configuration against AICPA SOC 2 Type II Trust Service Criteria (2017, With Revised Points of Focus - 2022)
 # with Severity ratings and cross-framework references.
@@ -30,7 +30,7 @@
     Requires: PowerShell 5.1+, Administrator privileges for complete results
     Dependencies: audit-common.ps1 (optional, for caching)
     References: AICPA TSP Section 100 -- 2017 Trust Services Criteria (With Revised Points of Focus - 2022), SOC 2 Type II Reporting Framework
-    Version: 6.6.0
+    Version: 6.7.0
 
 .EXAMPLE
     $results = & .\modules\module-soc2.ps1 -SharedData $sharedData
@@ -95,7 +95,7 @@ function Get-ModFirewallProfiles {
     return $script:HFMemo['FW']
 }
 
-$moduleVersion = "6.6.0"
+$moduleVersion = "6.7.0"
 $results = [System.Collections.Generic.List[object]]::new()
 # --------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
@@ -230,7 +230,7 @@ Write-Host "[SOC2] Checking CC5 -- Control Activities..." -ForegroundColor Yello
             Add-Result -Category "SOC2 - CC5 Control Activities" -Status "Fail" `
                 -Message "CC5.3: Change control -- Script Block Logging -- not configured (Value=$val)" `
                 -Details "CC5.3: Change activities must be logged for control verification" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
                 -Severity "High" `
                 -CrossReferences @{ SOC2='CC5.3'; NIST='CM-6'; CIS='18.9.100.1' }
         }
@@ -416,7 +416,7 @@ Write-Host "[SOC2] Checking CC6 -- Logical and Physical Access Controls..." -For
             Add-Result -Category "SOC2 - CC6 Logical Access" -Status "Fail" `
                 -Message "CC6.2a: Encryption -- BitLocker policy -- not configured (Value=$val)" `
                 -Details "CC6.2: Data at rest encryption protects logical access to stored information" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\FVE' -Name EncryptionMethodWithXtsOs -Value 7" `
+                -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                 -Severity "High" `
                 -CrossReferences @{ SOC2='CC6.2'; NIST='SC-28'; ISO27001='A.8.24' }
         }
@@ -621,7 +621,7 @@ Write-Host "[SOC2] Checking CC6 -- Logical and Physical Access Controls..." -For
             Add-Result -Category "SOC2 - CC6 Logical Access" -Status "Fail" `
                 -Message "CC6.8: SMB signing required -- not configured (Value=$val)" `
                 -Details "CC6.8: Network communication integrity for logical access paths" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name RequireSecuritySignature -Value 1" `
+                -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
                 -Severity "High" `
                 -CrossReferences @{ SOC2='CC6.8'; NIST='SC-8'; CIS='2.3.9.2' }
         }
@@ -763,7 +763,7 @@ Write-Host "[SOC2] Checking CC7 -- System Operations..." -ForegroundColor Yellow
             Add-Result -Category "SOC2 - CC7 Operations" -Status "Fail" `
                 -Message "CC7.5: Real-time protection -- not configured (Value=$val)" `
                 -Details "CC7.5: Continuous monitoring for malicious activity" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' -Name DisableRealtimeMonitoring -Value 0" `
+                -Remediation "Set-MpPreference -DisableRealtimeMonitoring $false" `
                 -Severity "Critical" `
                 -CrossReferences @{ SOC2='CC7.5'; NIST='SI-3'; CIS='18.9.47.9.1' }
         }
@@ -832,7 +832,7 @@ Write-Host "[SOC2] Checking CC7 -- System Operations..." -ForegroundColor Yellow
             Add-Result -Category "SOC2 - CC7 Operations" -Status "Fail" `
                 -Message "CC7.8: SMBv1 disabled -- not configured (Value=$val)" `
                 -Details "CC7.8: SMBv1 attack vector must be eliminated" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name SMB1 -Value 0" `
+                -Remediation "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" `
                 -Severity "Critical" `
                 -CrossReferences @{ SOC2='CC7.8'; NIST='CM-7'; ISO27001='A.8.9' }
         }
@@ -962,7 +962,7 @@ Write-Host "[SOC2] Checking A1 -- Availability..." -ForegroundColor Yellow
             Add-Result -Category "SOC2 - A1 Availability" -Status "Fail" `
                 -Message "A1.2: Time sync -- W32Time service -- service not running (Status=$svcSt)" `
                 -Details "A1.2: System clock accuracy for availability monitoring" `
-                -Remediation "Start-Service -Name W32Time" `
+                -Remediation "Start-Service -Name W32Time; Set-Service -Name W32Time -StartupType Automatic" `
                 -Severity "Medium" `
                 -CrossReferences @{ SOC2='A1.2'; NIST='AU-8' }
         }
@@ -1011,7 +1011,7 @@ Write-Host "[SOC2] Checking C1 -- Confidentiality..." -ForegroundColor Yellow
         } else {
             Add-Result -Category "SOC2 - C1 Confidentiality" -Status "Fail" `
                 -Message "C1.1: BitLocker NOT active" `
-                -Remediation "Enable-BitLocker -MountPoint C: -EncryptionMethod XtsAes256" `
+                -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                 -Severity "High" -CrossReferences @{ SOC2='C1.1'; NIST='SC-28'; ISO27001='A.8.24' }
         }
     } catch {
@@ -1147,7 +1147,7 @@ try {
         Add-Result -Category "SOC2 - PI Processing Integrity" -Status "Warning" `
             -Severity "Medium" `
             -Message "PI1.5 Process command line not captured in audit events" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name 'ProcessCreationIncludeCmdLine_Enabled' -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Audit' -Name ProcessCreationIncludeCmdLine_Enabled -Value 1; auditpol /set /subcategory:`"Process Creation`" /success:enable" `
             -CrossReferences @{ SOC2='PI1.5'; AICPA='TSP-100' }
     }
 
@@ -1238,7 +1238,7 @@ try {
         Add-Result -Category "SOC2 - P Privacy" -Status "Warning" `
             -Severity "Medium" `
             -Message "P7.0 AutoPlay not fully disabled (current value: $autoPlay)" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name 'NoDriveTypeAutoRun' -Value 255 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoDriveTypeAutoRun -Value 255" `
             -CrossReferences @{ SOC2='P7.0' }
     }
 

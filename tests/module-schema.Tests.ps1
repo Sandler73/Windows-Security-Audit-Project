@@ -7,8 +7,8 @@
     return statement, version sync, $moduleName declaration.
 .NOTES
     Author: Windows Security Audit Project
-    Version: 6.6.0
-    Last Updated: 2026-04-25
+    Version: 6.7.0
+    Last Updated: 2026-09-14
     Pester Version: 5.x
 
     Run via:
@@ -173,6 +173,10 @@ Describe 'Module Code Quality' {
 
 Describe 'Module Check Counts (baseline)' {
     BeforeDiscovery {
+        # Baseline of Add-Result token counts per module, regenerated from the
+        # source tree. This must be regenerated whenever a module's check set
+        # changes; a stale baseline fails every matrix job. The +/-5 tolerance
+        # below absorbs helper references, not check additions.
         $script:ExpectedCounts = @{
             'module-acsc.ps1'            = 170
             'module-cis.ps1'             = 272
@@ -184,7 +188,7 @@ Describe 'Module Check Counts (baseline)' {
             'module-hipaa.ps1'           = 242
             'module-iso27001.ps1'        = 286
             'module-ms-defenderatp.ps1'  = 155
-            'module-ms.ps1'              = 386
+            'module-ms.ps1'              = 398
             'module-nist.ps1'            = 527
             'module-nsa.ps1'             = 225
             'module-pcidss.ps1'          = 288

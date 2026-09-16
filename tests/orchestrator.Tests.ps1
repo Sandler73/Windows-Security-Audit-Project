@@ -6,7 +6,7 @@
     output generation, and integration with the shared library.
 .NOTES
     Author: Windows Security Audit Project
-    Version: 6.6.0
+    Version: 6.7.0
     Last Updated: 2026-04-25
     Pester Version: 5.x
 
