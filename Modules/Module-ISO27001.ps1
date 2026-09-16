@@ -1,6 +1,6 @@
 # module-iso27001.ps1
 # ISO/IEC 27001:2022 Compliance Module for Windows Security Audit
-# Version: 6.6.0
+# Version: 6.7.0
 #
 # Evaluates Windows configuration against ISO/IEC 27001:2022 Annex A controls
 # with Severity ratings and cross-framework references.
@@ -30,7 +30,7 @@
     Dependencies: audit-common.ps1 (optional, for caching)
     References: ISO/IEC 27001:2022 (incl. Amd 1:2024), ISO/IEC 27002:2022;
                 NIST SP 800-53 Release 5.2.0 crosswalk current as of Aug 2025
-    Version: 6.6.0
+    Version: 6.7.0
 
 .EXAMPLE
     $results = & .\modules\module-iso27001.ps1 -SharedData $sharedData
@@ -95,7 +95,7 @@ function Get-ModFirewallProfiles {
     return $script:HFMemo['FW']
 }
 
-$moduleVersion = "6.6.0"
+$moduleVersion = "6.7.0"
 $results = [System.Collections.Generic.List[object]]::new()
 # --------------------------------------------------------------------------
 # Helper function to add results with severity and cross-references
@@ -636,7 +636,7 @@ Write-Host "[ISO27001] Checking A.7 Physical Controls (Technical Aspects)..." -F
             Add-Result -Category "ISO27001 - A.7 Physical" -Status "Fail" `
                 -Message "A.7.9: Security of assets off-premises -- BitLocker OS drive -- not configured (Value=$val)" `
                 -Details "A.7.9 Security of assets off-premises: BitLocker encryption policy is configured for OS drive" `
-                -Remediation "Enable-BitLocker -MountPoint C: -EncryptionMethod XtsAes256 -UsedSpaceOnly" `
+                -Remediation "Enable-BitLocker -MountPoint 'C:' -EncryptionMethod XtsAes256 -UsedSpaceOnly -SkipHardwareTest" `
                 -Severity "High" `
                 -CrossReferences @{ ISO27001='A.7.9'; NIST='SC-28'; CIS='18.10.9.1'; STIG='V-220901' }
         }
@@ -682,7 +682,7 @@ Write-Host "[ISO27001] Checking A.7 Physical Controls (Technical Aspects)..." -F
             Add-Result -Category "ISO27001 - A.7 Physical" -Status "Fail" `
                 -Message "A.7.10b: Storage media -- autorun disabled -- not configured (Value=$val)" `
                 -Details "A.7.10 Storage media: AutoRun disabled prevents malware propagation from removable devices" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoAutorun -Value 1" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoDriveTypeAutoRun -Value 255" `
                 -Severity "High" `
                 -CrossReferences @{ ISO27001='A.7.10'; NIST='MP-7'; CIS='18.9.8.2' }
         }
@@ -711,7 +711,7 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- Endpoint & Access.
             Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Fail" `
                 -Message "A.8.1a: User endpoint devices -- Windows Defender real-time protection -- not configured (Value=$val)" `
                 -Details "A.8.1 User endpoint devices: Real-time antimalware protection must be enabled on all endpoints" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' -Name DisableRealtimeMonitoring -Value 0" `
+                -Remediation "Set-MpPreference -DisableRealtimeMonitoring $false" `
                 -Severity "Critical" `
                 -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.9.1'; CISA='EDR' }
         }
@@ -781,7 +781,7 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- Endpoint & Access.
             Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Fail" `
                 -Message "A.8.1d: User endpoint devices -- cloud-delivered protection -- not configured (Value=$val)" `
                 -Details "A.8.1 User endpoint devices: Cloud-delivered protection enhances threat detection" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet' -Name SpyNetReporting -Value 2" `
+                -Remediation "Set-MpPreference -MAPSReporting Advanced" `
                 -Severity "High" `
                 -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3(10)'; CIS='18.9.47.11.1' }
         }
@@ -804,7 +804,7 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- Endpoint & Access.
             Add-Result -Category "ISO27001 - A.8 Endpoint Devices" -Status "Fail" `
                 -Message "A.8.1e: User endpoint devices -- behavior monitoring -- not configured (Value=$val)" `
                 -Details "A.8.1 User endpoint devices: Behavioral analysis detects zero-day threats" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' -Name DisableBehaviorMonitoring -Value 0" `
+                -Remediation "Set-MpPreference -DisableBehaviorMonitoring $false" `
                 -Severity "High" `
                 -CrossReferences @{ ISO27001='A.8.1'; NIST='SI-3'; CIS='18.9.47.9.2' }
         }
@@ -1069,7 +1069,7 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- Authentication & C
             Add-Result -Category "ISO27001 - A.8 Authentication" -Status "Fail" `
                 -Message "A.8.5c: Secure authentication -- SMB signing required -- not configured (Value=$val)" `
                 -Details "A.8.5 Secure authentication: SMB signing prevents man-in-the-middle attacks" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name RequireSecuritySignature -Value 1" `
+                -Remediation "Set-SmbServerConfiguration -RequireSecuritySignature $true -Force" `
                 -Severity "High" `
                 -CrossReferences @{ ISO27001='A.8.5'; NIST='SC-8'; CIS='2.3.9.2'; NSA='Network Hardening' }
         }
@@ -1213,7 +1213,7 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- Vulnerabilities & 
             Add-Result -Category "ISO27001 - A.8 Vulnerabilities" -Status "Fail" `
                 -Message "A.8.8a: Management of technical vulnerabilities -- Windows Update auto -- not configured (Value=$val)" `
                 -Details "A.8.8 Technical vulnerabilities: Automatic updates should be enabled for timely patching" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update' -Name AUOptions -Value 4" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoUpdate -Value 0" `
                 -Severity "High" `
                 -CrossReferences @{ ISO27001='A.8.8'; NIST='SI-2'; CIS='18.9.101.2'; CISA='Patch Management' }
         }
@@ -1260,7 +1260,7 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- Vulnerabilities & 
             Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Fail" `
                 -Message "A.8.9a: Configuration management -- PowerShell Script Block Logging -- not configured (Value=$val)" `
                 -Details "A.8.9 Configuration management: Script Block Logging records all PowerShell execution for audit" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1" `
+                -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
                 -Severity "High" `
                 -CrossReferences @{ ISO27001='A.8.9'; NIST='CM-6'; CIS='18.9.100.1'; NSA='PowerShell Security' }
         }
@@ -1329,7 +1329,7 @@ Write-Host "[ISO27001] Checking A.8 Technological Controls -- Vulnerabilities & 
             Add-Result -Category "ISO27001 - A.8 Configuration" -Status "Fail" `
                 -Message "A.8.9d: Configuration management -- SMBv1 disabled -- not configured (Value=$val)" `
                 -Details "A.8.9 Configuration management: SMBv1 is a critical attack vector (WannaCry/NotPetya)" `
-                -Remediation "Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name SMB1 -Value 0" `
+                -Remediation "Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart" `
                 -Severity "Critical" `
                 -CrossReferences @{ ISO27001='A.8.9'; NIST='CM-7'; CIS='18.3.3'; STIG='V-220968'; NSA='Network Hardening' }
         }
@@ -2168,7 +2168,7 @@ try {
         Add-Result -Category "ISO27001 - 27002:2022 Guidance" -Status "Warning" `
             -Severity "Medium" `
             -Message "27002 Sec.8.15 Logging gap: PowerShell script block logging disabled" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name 'EnableScriptBlockLogging' -Value 1 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging' -Name EnableScriptBlockLogging -Value 1 -Type DWord" `
             -CrossReferences @{ ISO27001='A.8.15'; ISO27002='8.15' }
     }
 }
@@ -2429,7 +2429,7 @@ try {
         Add-Result -Category "ISO27001 - Annex A.5/A.7" -Status "Warning" `
             -Severity "Medium" `
             -Message "A.7.10 Storage media: AutoPlay not fully disabled" `
-            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name 'NoDriveTypeAutoRun' -Value 255 -Type DWord" `
+            -Remediation "Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer' -Name NoDriveTypeAutoRun -Value 255" `
             -CrossReferences @{ ISO27001='A.7.10' }
     }
 
