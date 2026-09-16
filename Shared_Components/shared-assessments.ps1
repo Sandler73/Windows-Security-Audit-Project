@@ -1,6 +1,6 @@
 # shared-assessments.ps1
 # Shared host-wide assessments for the Windows Security Audit framework
-# Version: 6.6.0
+# Version: 6.7.0
 
 <#
 .SYNOPSIS
@@ -44,7 +44,7 @@
     Requires: PowerShell 5.1+
     Dependencies: none (standalone-safe; all collectors availability-guarded)
     Security: read-only collection; no state modification
-    Version: 6.6.0
+    Version: 6.7.0
 #>
 
 $script:AssessmentItemCap = 25
